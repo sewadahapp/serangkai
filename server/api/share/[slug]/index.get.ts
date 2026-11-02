@@ -1,4 +1,5 @@
-import { db, artifacts } from '../../../db'
+import { artifacts } from '../../../db'
+import { getRequestDatabase } from '../../../db/adapter'
 import { storage } from '../../../storage'
 import { eq } from 'drizzle-orm'
 import { renderMarkdown } from '../../../utils/markdown'
@@ -9,6 +10,7 @@ function escapeHtml(value: string) {
 }
 
 export default defineEventHandler(async (event) => {
+  const db = await getRequestDatabase(event)
   const slug = getRouterParam(event, 'slug')
   if (!slug) {
     throw createError({ statusCode: 400, message: 'Slug required' })

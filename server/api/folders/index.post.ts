@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
-import { db, folders } from '../../db'
+import { folders } from '../../db'
+import { getRequestDatabase } from '../../db/adapter'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 
@@ -9,6 +10,7 @@ const schema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  const db = await getRequestDatabase(event)
   const user = event.context.user
   if (!user) {
     throw createError({ statusCode: 401, message: 'Unauthorized' })

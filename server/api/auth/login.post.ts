@@ -1,4 +1,5 @@
-import { db, users } from '../../db'
+import { users } from '../../db'
+import { getRequestDatabase } from '../../db/adapter'
 import { verifyPassword, createSessionToken } from '../../utils/auth'
 import { setCookie } from 'h3'
 import { z } from 'zod'
@@ -10,6 +11,7 @@ const schema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  const db = await getRequestDatabase(event)
   const body = await readBody(event)
   const result = schema.safeParse(body)
   

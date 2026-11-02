@@ -1,9 +1,11 @@
 import { and, eq } from 'drizzle-orm'
-import { db, artifacts } from '../../../db'
+import { artifacts } from '../../../db'
+import { getRequestDatabase } from '../../../db/adapter'
 import { requireUser } from '../../../utils/require-auth'
 import { signShareKey } from '../../../utils/share'
 
 export default defineEventHandler(async (event) => {
+  const db = await getRequestDatabase(event)
   const user = requireUser(event)
   const id = getRouterParam(event, 'id')
   const artifact = await db.select().from(artifacts).where(and(eq(artifacts.id, id || ''), eq(artifacts.userId, user.id))).get()

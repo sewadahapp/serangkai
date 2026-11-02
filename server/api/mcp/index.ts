@@ -4,7 +4,8 @@ import { z } from 'zod'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { toWebRequest } from 'h3'
-import { db, artifactVersions, artifacts } from '../../db'
+import { artifactVersions, artifacts } from '../../db'
+import { getRequestDatabase } from '../../db/adapter'
 import { storage } from '../../storage'
 import { requireScope } from '../../utils/require-auth'
 
@@ -15,7 +16,7 @@ function textResult(value: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] }
 }
 
-function createMcpServer(userId: string, canWrite: boolean) {
+function createMcpServer(userId: string, canWrite: boolean, db: any) {
   const server = new McpServer({ name: 'serangkai', version: '0.1.0' }, { maxToolInputElements: 100 })
 
   server.registerTool('list_artifacts', {
@@ -92,6 +93,7 @@ function createMcpServer(userId: string, canWrite: boolean) {
 
 export default defineEventHandler(async (event) => {
   const user = requireScope(event, 'read')
+  const db = await getRequestDatabase(event)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
@@ -99,7 +101,7 @@ export default defineEventHandler(async (event) => {
   })
   const token = event.context.apiToken
   const canWrite = !token || token.scopes.includes('write') || token.scopes.includes('full')
-  const server = createMcpServer(user.id, canWrite)
+  const server = createMcpServer(user.id, canWrite, db)
   await server.connect(transport)
   return transport.handleRequest(toWebRequest(event))
 })

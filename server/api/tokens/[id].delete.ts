@@ -1,7 +1,9 @@
-import { db, apiTokens } from '../../db'
+import { apiTokens } from '../../db'
+import { getRequestDatabase } from '../../db/adapter'
 import { eq, and } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
+  const db = await getRequestDatabase(event)
   const user = event.context.user
   if (!user) {
     throw createError({ statusCode: 401, message: 'Unauthorized' })

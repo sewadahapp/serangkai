@@ -1,9 +1,11 @@
-import { db, artifacts } from '../../db'
+import { artifacts } from '../../db'
+import { getRequestDatabase } from '../../db/adapter'
 import { storage } from '../../storage'
 import { eq } from 'drizzle-orm'
 import { renderMarkdown } from '../../utils/markdown'
 
 export default defineEventHandler(async (event) => {
+  const db = await getRequestDatabase(event)
   const user = event.context.user
   if (!user) {
     throw createError({ statusCode: 401, message: 'Unauthorized' })

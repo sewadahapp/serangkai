@@ -17,6 +17,22 @@ export function createD1Database(client: D1Like) {
   return drizzleD1(client as any, { schema })
 }
 
+/** Resolve the database for the current request. Node uses the local SQLite
+ * singleton; Cloudflare Workers uses the request-scoped D1 binding. */
+export async function getRequestDatabase(event: any) {
+  const cloudflare = event?.req?.runtime?.cloudflare
+  const binding = cloudflare?.env?.DB
+  if (binding) {
+    if (!event.context.d1Database) {
+      event.context.d1Database = createD1Database(binding)
+      await initializeD1Schema(binding)
+    }
+    return event.context.d1Database
+  }
+  const { db } = await import('./index')
+  return db
+}
+
 /** Apply the small bootstrap schema for development/preview D1 databases.
  * Production deployments should use generated Drizzle migrations instead. */
 export async function initializeD1Schema(client: D1Like) {

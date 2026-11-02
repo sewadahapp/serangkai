@@ -60,3 +60,5 @@ MVP end-to-end workflow implemented and verified
 - [ ] Add portable D1/serverless database adapter and full provider runtime tests
 - [x] Add request-scoped Drizzle D1 adapter and D1 schema bootstrap helper
 - [x] Add SQLite/D1 provider-selection and D1-compatible mock integration tests
+- [x] Refactor API and auth route database access through request-aware provider resolution
+- [x] Add local SQLite end-to-end runtime test after provider refactor

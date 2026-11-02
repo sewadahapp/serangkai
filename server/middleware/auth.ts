@@ -1,9 +1,11 @@
 import { getCookie } from 'h3'
 import { verifySessionToken, hashToken } from '../utils/auth'
-import { db, users, apiTokens } from '../db'
+import { users, apiTokens } from '../db'
+import { getRequestDatabase } from '../db/adapter'
 import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
+  const db = await getRequestDatabase(event)
   // Skip for auth routes that don't need auth
   const path = event.path
   if (path.startsWith('/api/auth/register') || path.startsWith('/api/auth/login')) {

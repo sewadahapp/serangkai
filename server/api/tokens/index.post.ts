@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
-import { db, apiTokens } from '../../db'
+import { apiTokens } from '../../db'
+import { getRequestDatabase } from '../../db/adapter'
 import { generateToken, hashToken } from '../../utils/auth'
 import { z } from 'zod'
 
@@ -10,6 +11,7 @@ const schema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  const db = await getRequestDatabase(event)
   const user = event.context.user
   if (!user) {
     throw createError({ statusCode: 401, message: 'Unauthorized' })

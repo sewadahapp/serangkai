@@ -1,8 +1,10 @@
-import { db, artifactVersions, artifacts } from '../../../db'
+import { artifactVersions, artifacts } from '../../../db'
+import { getRequestDatabase } from '../../../db/adapter'
 import { requireUser } from '../../../utils/require-auth'
 import { and, desc, eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
+  const db = await getRequestDatabase(event)
   const user = requireUser(event)
   const id = getRouterParam(event, 'id')
   const artifact = await db.select().from(artifacts)

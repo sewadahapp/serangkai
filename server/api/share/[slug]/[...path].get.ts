@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm'
-import { db, artifacts } from '../../../db'
+import { artifacts } from '../../../db'
+import { getRequestDatabase } from '../../../db/adapter'
 import { requireUser } from '../../../utils/require-auth'
 import { isValidShareKey } from '../../../utils/share'
 import { bundleMimeType } from '../../../utils/bundles'
@@ -7,6 +8,7 @@ import { promises as fs } from 'node:fs'
 import { join, normalize, relative } from 'node:path'
 
 export default defineEventHandler(async (event) => {
+  const db = await getRequestDatabase(event)
   const slug = getRouterParam(event, 'slug')
   const path = getRouterParam(event, 'path') || 'index.html'
   const artifact = await db.select().from(artifacts).where(and(eq(artifacts.slug, slug || ''), eq(artifacts.type, 'bundle'))).get()

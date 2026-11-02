@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
-import { db, artifacts, artifactVersions } from '../../db'
+import { artifacts, artifactVersions } from '../../db'
+import { getRequestDatabase } from '../../db/adapter'
 import { storage } from '../../storage'
 import { requireScope } from '../../utils/require-auth'
 import { z } from 'zod'
@@ -14,6 +15,7 @@ const schema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  const db = await getRequestDatabase(event)
   const user = requireScope(event, 'write')
   const id = getRouterParam(event, 'id')
   if (!id) throw createError({ statusCode: 400, message: 'ID required' })

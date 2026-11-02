@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
-import { db, artifactVersions, artifacts } from '../../db'
+import { artifactVersions, artifacts } from '../../db'
+import { getRequestDatabase } from '../../db/adapter'
 import { storage } from '../../storage'
 import { requireScope } from '../../utils/require-auth'
 import { artifactTypes, inferArtifactType, makeSlug, MAX_UPLOAD_BYTES } from '../../utils/artifacts'
@@ -12,6 +13,7 @@ const allowedMimeTypes = new Set([
 ])
 
 export default defineEventHandler(async (event) => {
+  const db = await getRequestDatabase(event)
   const user = requireScope(event, 'write')
   const parts = await readMultipartFormData(event)
   const file = parts?.find(part => part.name === 'file' && part.data)
