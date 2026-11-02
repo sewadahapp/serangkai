@@ -19,4 +19,6 @@ test('release readiness keeps provider claims and credentials boundaries explici
   assert.match(index, /Real R2 not deployed/)
   assert.match(runbook, /The InstaCloud deployment contract is not verified/)
   assert.match(runbook, /common acceptance checks/)
+  assert.match(runbook, /npm run test:provider-local/)
+  assert.match(index, /npm run test:provider-local/)
 })

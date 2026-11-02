@@ -3,6 +3,10 @@
 This runbook is intentionally procedural. Completing a local build or dry-run
 does not make a provider deployment verified.
 
+If credentials or a provider environment are unavailable, use
+`npm run test:provider-local` and record the target as **not deployed** rather
+than attempting to infer remote support from local output.
+
 ## Common acceptance checks
 
 For every provider, record the date, deployment URL, image/build identifier,

@@ -26,3 +26,15 @@ See the provider-specific documents:
 - [InstaCloud](./instacloud.md)
 - [Verification matrix](./verification-matrix.md)
 - [Remote verification runbook](./remote-verification-runbook.md)
+
+## Credential-free local verification
+
+Run the complete local/emulated provider suite with:
+
+```bash
+npm run test:provider-local
+```
+
+This covers SQLite, D1/Miniflare, mocked/request-scoped R2, and the local
+Vercel-compatible Node runtime. It does not deploy to or authenticate with a
+remote provider.
