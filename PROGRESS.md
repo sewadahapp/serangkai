@@ -68,3 +68,5 @@ MVP end-to-end workflow implemented and verified
 - [x] Diagnose Node built-in leakage and reject the broken dynamic-import workaround
 - [x] Pass Wrangler/Miniflare D1 runtime test for registration, artifact creation, and listing
 - [x] Replace Node JWT dependency with Web Crypto-compatible `jose` for edge runtime
+- [x] Add durable R2 adapter contract and binary storage test
+- [x] Add passing Vercel Node runtime integration test for registration and artifact listing

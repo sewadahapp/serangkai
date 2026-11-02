@@ -18,3 +18,8 @@ the `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_ENDPOINT`, `S3_REGION`, and
 
 This project verifies the Nitro Vercel output build locally. It does not claim a
 production-ready Vercel data path until that adapter is implemented and tested.
+
+`npm run test:vercel-runtime` verifies the same Node 24-compatible application
+runtime locally using the Node server preset; `npm run build:vercel` separately
+verifies Vercel Build Output generation. A live Vercel deployment still requires
+provider credentials and durable object/database storage configuration.

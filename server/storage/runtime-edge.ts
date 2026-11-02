@@ -7,3 +7,13 @@ export const storage = {
   async delete(key: string) { memory.delete(key) },
   async exists(key: string) { return memory.has(key) },
 }
+
+export function getRequestStorage(event: any) {
+  const cloudflare = event?.req?.runtime?.cloudflare || event?.context?.cloudflare || event?.context?._platform?.cloudflare
+  const binding = cloudflare?.env?.ARTIFACTS || cloudflare?.env?.R2 || cloudflare?.env?.R2_BINDING
+  if (binding) {
+    if (!event.context.r2Storage) event.context.r2Storage = require('./r2').createR2Storage(binding)
+    return event.context.r2Storage
+  }
+  return storage
+}
