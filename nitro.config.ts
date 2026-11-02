@@ -8,4 +8,7 @@ export default defineNitroConfig({
       runtime: 'nodejs24.x',
     },
   },
+  externals: process.env.NITRO_PRESET === 'cloudflare_module'
+    ? { external: ['better-sqlite3'] }
+    : undefined,
 })

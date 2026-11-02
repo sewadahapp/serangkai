@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import { apiTokens } from '../../db'
+import { apiTokens } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { generateToken, hashToken } from '../../utils/auth'
 import { z } from 'zod'

@@ -29,3 +29,27 @@ schema helper. Set `DATABASE_DRIVER=d1` in provider configuration and pass the
 Cloudflare `env.DB` binding to `createD1Database()`. Route migration to this
 request-scoped database is still required before enabling the complete app on
 Workers; local SQLite remains the default Node/container path.
+
+The local runtime integration test uses Wrangler/Miniflare with the checked-in
+`DB` binding configuration:
+
+```bash
+npm run test:cloudflare-runtime
+```
+
+It verifies registration, artifact creation, and artifact listing through the
+actual local Worker request path. A remote Cloudflare deployment still requires
+creating a real D1 database, applying migrations, and setting production
+secrets; no remote account is required or used by the test.
+
+The local runtime test currently exposes a remaining portability blocker when
+the bundled Node-only SQLite dependency is present in the Worker graph. Nitro's
+Cloudflare build succeeds, but the Worker runtime test must remain green before
+Cloudflare D1 can be called production-ready; use the test failure output to
+guide any future bundler/externalization changes.
+
+Current observed Wrangler/Miniflare failure (2026-11-02): Worker startup aborts
+before the first request with `The "superCtor.prototype" property must be of
+type object. Received undefined` from a bundled Node compatibility dependency.
+The test remains intentionally failing until the Worker bundle no longer pulls
+the Node-only dependency graph into the edge runtime.

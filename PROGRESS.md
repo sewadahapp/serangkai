@@ -62,3 +62,6 @@ MVP end-to-end workflow implemented and verified
 - [x] Add SQLite/D1 provider-selection and D1-compatible mock integration tests
 - [x] Refactor API and auth route database access through request-aware provider resolution
 - [x] Add local SQLite end-to-end runtime test after provider refactor
+- [x] Add Wrangler/Miniflare local D1 runtime test for registration, creation, and listing
+- [ ] Make Wrangler/Miniflare D1 runtime test green; current blocker is Node-only SQLite dependency leakage into Worker graph
+- [x] Capture the real Wrangler/Miniflare startup blocker without masking it in tests

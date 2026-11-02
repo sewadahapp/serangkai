@@ -1,4 +1,4 @@
-import { apiTokens } from '../../db'
+import { apiTokens } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { eq, and } from 'drizzle-orm'
 

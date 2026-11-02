@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm'
-import { artifacts } from '../../../db'
+import { artifacts } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
 import { storage } from '../../../storage'
 import { requireUser } from '../../../utils/require-auth'

@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import { artifacts, artifactVersions } from '../../db'
+import { artifacts, artifactVersions } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { storage } from '../../storage'
 import { z } from 'zod'

@@ -1,4 +1,4 @@
-import { artifacts, folders } from '../db'
+import { artifacts, folders } from '../db/schema'
 import { getRequestDatabase } from '../db/adapter'
 import { requireUser } from '../utils/require-auth'
 import { and, eq, like, or } from 'drizzle-orm'

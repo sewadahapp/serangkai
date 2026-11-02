@@ -1,4 +1,4 @@
-import { folders } from '../../db'
+import { folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { eq } from 'drizzle-orm'
 

@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import { users } from '../../db'
+import { users } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { hashPassword, createSessionToken } from '../../utils/auth'
 import { setCookie } from 'h3'

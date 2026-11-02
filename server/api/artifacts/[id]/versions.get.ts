@@ -1,4 +1,4 @@
-import { artifactVersions, artifacts } from '../../../db'
+import { artifactVersions, artifacts } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
 import { requireUser } from '../../../utils/require-auth'
 import { and, desc, eq } from 'drizzle-orm'

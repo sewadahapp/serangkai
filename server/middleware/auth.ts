@@ -1,6 +1,6 @@
 import { getCookie } from 'h3'
 import { verifySessionToken, hashToken } from '../utils/auth'
-import { users, apiTokens } from '../db'
+import { users, apiTokens } from '../db/schema'
 import { getRequestDatabase } from '../db/adapter'
 import { eq } from 'drizzle-orm'
 

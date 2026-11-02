@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import { folders } from '../../db'
+import { folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'

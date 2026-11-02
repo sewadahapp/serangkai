@@ -1,4 +1,4 @@
-import { artifacts } from '../../db'
+import { artifacts } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { storage } from '../../storage'
 import { eq } from 'drizzle-orm'

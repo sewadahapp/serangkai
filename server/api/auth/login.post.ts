@@ -1,4 +1,4 @@
-import { users } from '../../db'
+import { users } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { verifyPassword, createSessionToken } from '../../utils/auth'
 import { setCookie } from 'h3'
