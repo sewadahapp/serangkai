@@ -26,6 +26,7 @@
     "test:r2-request": "node --import tsx --test tests/r2-request-runtime.test.mjs",
     "test:vercel-runtime": "NITRO_PRESET=node-server npm run build:node && node --test tests/vercel-runtime.test.mjs",
     "test:provider-local": "npm run test:database && npm run test:storage && npm run test:r2 && npm run test:r2-request && npm run test:local-runtime && npm run test:cloudflare-runtime && npm run test:vercel-runtime",
+    "test:ci": "npm run build:node && npm run test:markdown && npm run test:deployment-config && npm run test:database && npm run test:storage && npm run test:r2 && npm run test:r2-request",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {

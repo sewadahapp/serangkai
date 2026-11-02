@@ -1,0 +1,25 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - run: npm run build:node
+      - run: npm run test:markdown
+      - run: npm run test:deployment-config
+      - run: npm run test:database
+      - run: npm run test:storage
+      - run: npm run test:r2
+      - run: npm run test:r2-request
+      - run: node --test tests/mcp-protocol.test.mjs tests/upload-api.test.mjs tests/share-api.test.mjs tests/security-api.test.mjs tests/bundle-api.test.mjs tests/browser-workspace.test.mjs tests/local-runtime.test.mjs tests/vercel-runtime.test.mjs

@@ -75,3 +75,5 @@ MVP end-to-end workflow implemented and verified
 - [x] Verify local provider runtime suite: SQLite, D1/Miniflare, Vercel Node, R2 contracts
 - [x] Verify request-scoped R2 is used by artifact route storage resolution
 - [x] Add deployment verification matrix separating local evidence from real-provider claims
+- [x] Add reproducible GitHub Actions verification workflow for local and provider-contract coverage
+- [x] Run consolidated local provider/API/security/browser/bundle verification suite successfully
