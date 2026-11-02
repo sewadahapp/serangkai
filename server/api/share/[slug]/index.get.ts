@@ -1,5 +1,5 @@
-import { db, artifacts } from '../../db'
-import { storage } from '../../storage'
+import { db, artifacts } from '../../../db'
+import { storage } from '../../../storage'
 import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
