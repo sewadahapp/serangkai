@@ -4,6 +4,7 @@ import { test } from 'node:test'
 
 test('release readiness keeps provider claims and credentials boundaries explicit', async () => {
   const matrix = await readFile(new URL('../docs/deployment/verification-matrix.md', import.meta.url), 'utf8')
+  const index = await readFile(new URL('../docs/deployment/README.md', import.meta.url), 'utf8')
   const insta = await readFile(new URL('../docs/deployment/instacloud.md', import.meta.url), 'utf8')
   const cloudflare = await readFile(new URL('../docs/deployment/cloudflare.md', import.meta.url), 'utf8')
   const vercel = await readFile(new URL('../docs/deployment/vercel.md', import.meta.url), 'utf8')
@@ -13,4 +14,6 @@ test('release readiness keeps provider claims and credentials boundaries explici
   assert.match(insta, /Verification status: not verified/)
   assert.match(cloudflare, /remote Cloudflare deployment still requires/)
   assert.match(vercel, /does not claim a\s+production-ready Vercel data path/)
+  assert.match(index, /InstaCloud \| Generic container checklist \| \*\*Not verified\*\*/)
+  assert.match(index, /Real R2 not deployed/)
 })

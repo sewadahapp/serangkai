@@ -68,6 +68,9 @@ portable to edge/serverless storage; do not treat these builds as production
 data-storage verification until the corresponding D1/R2 or managed database/
 object-storage adapters are added.
 
+See [`docs/deployment/README.md`](docs/deployment/README.md) for the complete
+provider verification matrix and explicit unverified deployment boundaries.
+
 Portable object storage adapters are now available through `STORAGE_DRIVER=s3`
 for S3-compatible stores including Cloudflare R2, and `STORAGE_DRIVER=r2-binding`
 for a native Cloudflare R2 binding. SQLite/database portability remains a
