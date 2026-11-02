@@ -1,53 +1,42 @@
 # Serangkai Progress
 
 ## Status
-MVP functional - build succeeds, core features implemented
+MVP end-to-end workflow implemented and verified
 
 ## Completed
-- [x] Repository inspection & research
-- [x] Architecture planning (ARCHITECTURE.md)
-- [x] Agent guidelines (AGENTS.md)
-- [x] Implementation plan in /home/wicak/.opencode/plan/plan.md
-- [x] Nuxt 4 project scaffolding with TypeScript + Bun
-- [x] Dependencies: Nuxt 4, Selaras UI, Nuxt Content, SQLite, Drizzle ORM, auth libs
-- [x] Nuxt config with Selaras and Content modules
-- [x] Database schema (users, apiTokens, folders, artifacts, artifactVersions)
-- [x] Storage adapter pattern (local filesystem, portable design)
-- [x] Auth utilities (bcrypt password hashing, JWT sessions, API token hashing)
-- [x] Auth middleware for session/API token validation
-- [x] Auth API routes (register, login, logout, me)
-- [x] API tokens CRUD endpoints
-- [x] Folders CRUD endpoints
-- [x] Artifacts CRUD API endpoints
-- [x] Public share endpoint for artifacts
-- [x] Basic MCP server endpoint
-- [x] UI layout with Selaras components
-- [x] Pages: home, auth (login/register), workspace, artifact view
-- [x] Health endpoint
-- [x] Dockerfile and docker-compose.yml for deployment
-- [x] README with documentation
-- [x] **Build succeeds successfully**
+- [x] Nuxt 4 + TypeScript + Selaras scaffolding
+- [x] Repository-local Git identity configured
+- [x] SQLite schema auto-initialization for fresh deployments
+- [x] Local filesystem storage adapter
+- [x] Registration, login, logout, session auth, scoped API token endpoints
+- [x] Nested folder creation and artifact organization
+- [x] Artifact creation for Markdown, HTML, JSON, and related types
+- [x] Artifact update and delete endpoints
+- [x] Immutable artifact version history and listing endpoint
+- [x] Workspace search across artifact titles/slugs and folder names
+- [x] Basic MCP JSON-RPC-style tools endpoint
+- [x] Safe Markdown rendering with `marked` + `sanitize-html`
+- [x] CSP headers for public Markdown and HTML artifact delivery
+- [x] Private-by-default authorization checks
+- [x] Human UI create-folder/create-artifact workflow
+- [x] Human UI search workflow
+- [x] Human UI artifact edit and version-history workflow
+- [x] Dockerfile, docker-compose, README, architecture and agent docs
 
-## Verified
-- ✅ Application compiles and builds without errors
-- ✅ All core API routes implemented
-- ✅ Basic UI structure in place
+## Verification
+- `npm run build` passes
+- Fresh SQLite database smoke test passes
+- Health, registration, session auth, folder creation, artifact creation and listing pass
+- Artifact update creates version 2 and version history lists versions 2 and 1
+- Public Markdown returns rendered `<h1>` and restrictive CSP
+- Search returns matching artifacts
+- Latest commits use `Wicaksana Pratama <wicaksanapratama@gmail.com>`
 
-## In Progress
-- [ ] Test runtime functionality
-- [ ] Enhance Markdown rendering with MDC components
-- [ ] Improve sandboxing for HTML/JS artifacts
-
-## Next Steps
-- Add more comprehensive tests
-- Enhance MCP protocol compliance
-- Improve error handling and validation
-- Add version history UI/API
-- Security review for sandboxing
-- More detailed deployment docs
-
-## Notes
-- End-to-end workflow: register → login → create folders/artifacts → share publicly via MCP or UI
-- Private by default, public sharing supported
-- SQLite + local filesystem storage (no external deps)
-- Uses Selaras for beautiful UI by default
+## Next Milestones
+- [ ] Add browser-level tests with Playwright
+- [ ] Replace basic MCP endpoint with full MCP transport/session compliance
+- [ ] Add multipart upload and static bundle handling
+- [ ] Add Mermaid/charts MDC components
+- [ ] Add isolated HTML artifact origin/sandbox review and negative security tests
+- [ ] Add share settings UI and signed unlisted links
+- [ ] Add Cloudflare/Vercel/InstaCloud deployment adapters only after verification
