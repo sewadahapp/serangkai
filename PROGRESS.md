@@ -69,4 +69,6 @@ MVP end-to-end workflow implemented and verified
 - [x] Pass Wrangler/Miniflare D1 runtime test for registration, artifact creation, and listing
 - [x] Replace Node JWT dependency with Web Crypto-compatible `jose` for edge runtime
 - [x] Add durable R2 adapter contract and binary storage test
+- [x] Add request-scoped R2 binding runtime test with a mocked Cloudflare binding
+- [x] Verify no disposable Serangkai background servers remain running
 - [x] Add passing Vercel Node runtime integration test for registration and artifact listing

@@ -5,6 +5,10 @@
 > persistent-volume contract has been tested against a real account or official
 > local emulator.
 
+No InstaCloud credentials, account, or official local emulator is available in
+this development environment. The generic-container settings below are a
+deployment checklist only, not evidence of platform support.
+
 ## Expected generic-container settings
 
 If InstaCloud supports generic Docker containers, the expected settings are:

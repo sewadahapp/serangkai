@@ -23,6 +23,7 @@
     "test:local-runtime": "npm run build && node --test tests/local-runtime.test.mjs",
     "test:cloudflare-runtime": "npm run build:cloudflare && node --test tests/cloudflare-runtime.test.mjs",
     "test:r2": "node --import tsx --test tests/r2-storage.test.mjs",
+    "test:r2-request": "node --import tsx --test tests/r2-request-runtime.test.mjs",
     "test:vercel-runtime": "NITRO_PRESET=node-server npm run build:node && node --test tests/vercel-runtime.test.mjs",
     "postinstall": "nuxt prepare"
   },
