@@ -1,5 +1,4 @@
 import yauzl from 'yauzl'
-import { Readable } from 'node:stream'
 import { promises as fs } from 'node:fs'
 import { join, normalize, relative, dirname, sep } from 'node:path'
 

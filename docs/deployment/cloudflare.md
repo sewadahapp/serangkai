@@ -51,5 +51,8 @@ guide any future bundler/externalization changes.
 Current observed Wrangler/Miniflare failure (2026-11-02): Worker startup aborts
 before the first request with `The "superCtor.prototype" property must be of
 type object. Received undefined` from a bundled Node compatibility dependency.
-The test remains intentionally failing until the Worker bundle no longer pulls
-the Node-only dependency graph into the edge runtime.
+The generated bundle still contains Node built-ins from the default SQLite and
+local-file adapters. A computed dynamic import removes that dependency from the
+Worker graph but breaks Nitro's prerender phase, so it is not being used as a
+false fix. The test remains intentionally failing until a proper Nitro
+provider-specific build split is implemented.

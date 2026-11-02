@@ -65,3 +65,4 @@ MVP end-to-end workflow implemented and verified
 - [x] Add Wrangler/Miniflare local D1 runtime test for registration, creation, and listing
 - [ ] Make Wrangler/Miniflare D1 runtime test green; current blocker is Node-only SQLite dependency leakage into Worker graph
 - [x] Capture the real Wrangler/Miniflare startup blocker without masking it in tests
+- [x] Diagnose Node built-in leakage and reject the broken dynamic-import workaround

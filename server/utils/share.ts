@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'crypto'
 
 function secret() {
   return process.env.SHARE_SECRET || process.env.JWT_SECRET || 'dev-share-secret-change-me'
