@@ -10,8 +10,7 @@
         <SCardTitle>Content</SCardTitle>
       </SCardHeader>
       <SCardContent>
-        <div v-if="artifact.type === 'markdown'" class="prose max-w-none">
-          <pre class="whitespace-pre-wrap">{{ content }}</pre>
+        <div v-if="artifact.type === 'markdown'" class="prose max-w-none" v-html="renderedContent">
         </div>
         <pre v-else class="whitespace-pre-wrap bg-muted p-4 rounded overflow-auto">{{ content }}</pre>
       </SCardContent>
@@ -23,15 +22,17 @@
 const route = useRoute()
 const artifact = ref(null)
 const content = ref('')
+const renderedContent = ref('')
 
 onMounted(async () => {
   try {
     const res = await $fetch(`/api/artifacts/${route.params.id}`)
     artifact.value = res.artifact
-    // We'd need to fetch content separately
-    content.value = 'Content loading...'
+    content.value = res.content
+    renderedContent.value = res.renderedContent || ''
   } catch (e) {
     console.error(e)
   }
 })
+
 </script>

@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid'
 import { db, artifacts, artifactVersions } from '../../db'
 import { storage } from '../../storage'
 import { z } from 'zod'
+import { requireScope } from '../../utils/require-auth'
 
 const schema = z.object({
   title: z.string().min(1),
@@ -14,10 +15,7 @@ const schema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const user = event.context.user
-  if (!user) {
-    throw createError({ statusCode: 401, message: 'Unauthorized' })
-  }
+  const user = requireScope(event, 'write')
   
   const body = await readBody(event)
   const result = schema.safeParse(body)

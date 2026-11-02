@@ -1,6 +1,7 @@
 import { db, artifacts } from '../../db'
 import { storage } from '../../storage'
 import { eq } from 'drizzle-orm'
+import { renderMarkdown } from '../../utils/markdown'
 
 export default defineEventHandler(async (event) => {
   const user = event.context.user
@@ -31,6 +32,7 @@ export default defineEventHandler(async (event) => {
       createdAt: artifact.createdAt,
       updatedAt: artifact.updatedAt
     },
-    content: content.toString()
+    content: content.toString(),
+    renderedContent: artifact.type === 'markdown' ? renderMarkdown(content.toString()) : null
   }
 })
