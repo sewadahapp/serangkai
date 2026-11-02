@@ -3,6 +3,7 @@ import { db, artifactVersions, artifacts } from '../../db'
 import { storage } from '../../storage'
 import { requireScope } from '../../utils/require-auth'
 import { artifactTypes, inferArtifactType, makeSlug, MAX_UPLOAD_BYTES } from '../../utils/artifacts'
+import { extractBundle } from '../../utils/bundles'
 
 const allowedMimeTypes = new Set([
   'text/markdown', 'text/plain', 'text/html', 'text/javascript', 'application/javascript',
@@ -33,7 +34,13 @@ export default defineEventHandler(async (event) => {
   const id = nanoid()
   const slug = makeSlug(title)
   const contentPath = `${user.id}/${id}/content`
-  await storage.save(contentPath, file.data)
+  if (type === 'bundle') {
+    try { await extractBundle(file.data, `${process.env.STORAGE_PATH || './data/files'}/${user.id}/${id}/bundle`) }
+    catch (error: any) { throw createError({ statusCode: 400, message: error.message || 'Invalid static bundle' }) }
+    await storage.save(contentPath, file.data)
+  } else {
+    await storage.save(contentPath, file.data)
+  }
   await db.insert(artifacts).values({
     id, userId: user.id, folderId: folderPart?.data?.toString() || null, slug, title, type,
     visibility: visibility as 'private' | 'public' | 'unlisted', contentPath,
