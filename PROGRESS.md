@@ -76,6 +76,7 @@ MVP end-to-end workflow implemented and verified
 - [x] Add release-readiness test for explicit remote deployment boundaries
 - [x] Add CI workflow structure test covering build and integration checks
 - [x] Add deployment documentation index with conservative provider status matrix
+- [x] Add remote deployment verification runbook without claiming provider support
 - [x] Add passing Vercel Node runtime integration test for registration and artifact listing
 - [x] Verify local provider runtime suite: SQLite, D1/Miniflare, Vercel Node, R2 contracts
 - [x] Verify request-scoped R2 is used by artifact route storage resolution

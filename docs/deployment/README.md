@@ -25,3 +25,4 @@ See the provider-specific documents:
 - [Vercel](./vercel.md)
 - [InstaCloud](./instacloud.md)
 - [Verification matrix](./verification-matrix.md)
+- [Remote verification runbook](./remote-verification-runbook.md)
