@@ -1,7 +1,7 @@
 # Serangkai Progress
 
 ## Status
-Project initialized with Nuxt 4 - M1 in progress
+M1: Project Scaffolding - Near complete
 
 ## Completed
 - [x] Repository inspection
@@ -9,10 +9,11 @@ Project initialized with Nuxt 4 - M1 in progress
 - [x] Agent guidelines (AGENTS.md)
 - [x] Implementation plan
 - [x] Nuxt 4 project scaffolding
+- [x] Dependencies installed (Nuxt 4, Selaras, Nuxt Content, SQLite, Drizzle, auth libs)
+- [x] Nuxt config with Selaras and Content modules
 
 ## In Progress
-- [ ] M1: Project Scaffolding - Install core dependencies
-- [ ] M2: Core Data Layer
+- [ ] M2: Core Data Layer - Schema design and implementation
 
 ## Upcoming
 - M3: Authentication
@@ -26,7 +27,7 @@ Project initialized with Nuxt 4 - M1 in progress
 - M11: Deployment
 
 ## Notes
-- Using Bun runtime
+- Using Bun/npm with Node 24
 - Following Nuxt 4 + TypeScript
 - Selaras UI library for styling
 - SQLite + filesystem storage
