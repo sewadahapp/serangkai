@@ -15,6 +15,8 @@ MVP end-to-end workflow implemented and verified
 - [x] Immutable artifact version history and listing endpoint
 - [x] Workspace search across artifact titles/slugs and folder names
 - [x] Basic MCP JSON-RPC-style tools endpoint
+- [x] Official MCP SDK Streamable HTTP transport with authenticated tools
+- [x] Automated MCP protocol tests (initialize, tools/list, tools/call, auth denial)
 - [x] Safe Markdown rendering with `marked` + `sanitize-html`
 - [x] CSP headers for public Markdown and HTML artifact delivery
 - [x] Private-by-default authorization checks
@@ -34,7 +36,6 @@ MVP end-to-end workflow implemented and verified
 
 ## Next Milestones
 - [ ] Add browser-level tests with Playwright
-- [ ] Replace basic MCP endpoint with full MCP transport/session compliance
 - [ ] Add multipart upload and static bundle handling
 - [ ] Add Mermaid/charts MDC components
 - [ ] Add isolated HTML artifact origin/sandbox review and negative security tests

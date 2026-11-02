@@ -34,6 +34,19 @@ npm run dev
 npm run build
 ```
 
+## Connect an AI agent
+
+Create a scoped token from the workspace API, then configure an MCP client with the
+Streamable HTTP endpoint:
+
+```bash
+claude mcp add --transport http serangkai http://localhost:3000/api/mcp \
+  --header "Authorization: Bearer $SERANGKAI_API_TOKEN" --scope user
+```
+
+Use a token with `read` scope for discovery and reading, or `read,write` for
+creating and updating artifacts. Tokens are hashed at rest and can be revoked.
+
 ## Tech Stack
 
 - [Nuxt 4](https://nuxt.com/) - Full-stack framework
