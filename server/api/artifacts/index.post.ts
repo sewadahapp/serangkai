@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid'
 import { artifacts, artifactVersions } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { storage } from '../../storage'
+import { storage } from '#serangkai-storage-runtime'
 import { z } from 'zod'
 import { requireScope } from '../../utils/require-auth'
 

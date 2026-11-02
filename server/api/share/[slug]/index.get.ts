@@ -1,6 +1,6 @@
 import { artifacts } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
-import { storage } from '../../../storage'
+import { storage } from '#serangkai-storage-runtime'
 import { eq } from 'drizzle-orm'
 import { renderMarkdown } from '../../../utils/markdown'
 import { isValidShareKey } from '../../../utils/share'

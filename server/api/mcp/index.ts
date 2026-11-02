@@ -6,7 +6,7 @@ import { nanoid } from 'nanoid'
 import { toWebRequest } from 'h3'
 import { artifactVersions, artifacts } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { storage } from '../../storage'
+import { storage } from '#serangkai-storage-runtime'
 import { requireScope } from '../../utils/require-auth'
 
 const artifactType = z.enum(['markdown', 'html', 'javascript', 'pdf', 'image', 'json', 'bundle'])

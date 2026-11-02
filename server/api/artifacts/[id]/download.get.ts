@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { artifacts } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
-import { storage } from '../../../storage'
+import { storage } from '#serangkai-storage-runtime'
 import { requireUser } from '../../../utils/require-auth'
 
 export default defineEventHandler(async (event) => {

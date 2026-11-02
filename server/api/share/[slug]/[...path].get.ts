@@ -3,7 +3,7 @@ import { artifacts } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
 import { requireUser } from '../../../utils/require-auth'
 import { isValidShareKey } from '../../../utils/share'
-import { bundleMimeType } from '../../../utils/bundles'
+import { bundleMimeType } from '#serangkai-bundles-runtime'
 import { promises as fs } from 'node:fs'
 import { join, normalize, relative } from 'node:path'
 

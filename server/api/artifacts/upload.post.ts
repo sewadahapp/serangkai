@@ -1,10 +1,10 @@
 import { nanoid } from 'nanoid'
 import { artifactVersions, artifacts } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { storage } from '../../storage'
+import { storage } from '#serangkai-storage-runtime'
 import { requireScope } from '../../utils/require-auth'
 import { artifactTypes, inferArtifactType, makeSlug, MAX_UPLOAD_BYTES } from '../../utils/artifacts'
-import { extractBundle } from '../../utils/bundles'
+import { extractBundle } from '#serangkai-bundles-runtime'
 
 const allowedMimeTypes = new Set([
   'text/markdown', 'text/plain', 'text/html', 'text/javascript', 'application/javascript',

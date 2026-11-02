@@ -29,7 +29,7 @@ export async function getRequestDatabase(event: any) {
     }
     return event.context.d1Database
   }
-  const { db } = await import('./index')
+  const { db } = await import('#serangkai-db-runtime')
   return db
 }
 
