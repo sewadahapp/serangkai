@@ -18,6 +18,7 @@
     "test:markdown": "node --import tsx --test tests/markdown-render.test.mjs",
     "test:bundle": "npm run build && node --test tests/bundle-api.test.mjs",
     "test:deployment-config": "node --test tests/deployment-config.test.mjs",
+    "test:deployment-files": "node --test tests/deployment-files.test.mjs",
     "test:storage": "node --import tsx --test tests/storage-adapter.test.mjs",
     "test:database": "node --import tsx --test tests/database-adapter.test.mjs",
     "test:local-runtime": "npm run build && node --test tests/local-runtime.test.mjs",
