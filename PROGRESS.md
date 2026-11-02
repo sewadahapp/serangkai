@@ -74,3 +74,4 @@ MVP end-to-end workflow implemented and verified
 - [x] Add passing Vercel Node runtime integration test for registration and artifact listing
 - [x] Verify local provider runtime suite: SQLite, D1/Miniflare, Vercel Node, R2 contracts
 - [x] Verify request-scoped R2 is used by artifact route storage resolution
+- [x] Add deployment verification matrix separating local evidence from real-provider claims
