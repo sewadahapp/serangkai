@@ -51,3 +51,7 @@ MVP end-to-end workflow implemented and verified
 - [x] Dockerfile healthcheck, non-root runtime, persistent-volume settings, and deployment checklist
 - [x] Verify Docker-compatible image/container with Podman: build, health, registration, restart persistence
 - [ ] Verify InstaCloud template and persistent volume behavior
+- [x] Add Nitro `cloudflare_module` and `vercel` preset configuration
+- [x] Add Wrangler/Vercel provider templates and deployment documentation
+- [x] Add provider configuration integration test
+- [ ] Verify Cloudflare/Vercel builds with provider CLIs and portable storage adapters

@@ -53,6 +53,21 @@ service with persistent storage mounted at `/app/data`; verify health and data
 persistence before calling the deployment supported. See
 `docs/deployment/instacloud.md` for the verification checklist.
 
+### Cloudflare Workers and Vercel
+
+Provider build commands are available:
+
+```bash
+npm run build:cloudflare
+npm run build:vercel
+```
+
+See `docs/deployment/cloudflare.md` and `docs/deployment/vercel.md`. The Nitro
+presets are configured, but the default SQLite/local-filesystem adapter is not
+portable to edge/serverless storage; do not treat these builds as production
+data-storage verification until the corresponding D1/R2 or managed database/
+object-storage adapters are added.
+
 ## Connect an AI agent
 
 Create a scoped token from the workspace API, then configure an MCP client with the

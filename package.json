@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "build": "nuxt build",
+    "build:node": "NITRO_PRESET=node-server nuxt build",
+    "build:cloudflare": "NITRO_PRESET=cloudflare_module nuxt build",
+    "build:vercel": "NITRO_PRESET=vercel nuxt build",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
@@ -14,6 +17,7 @@
     "test:browser": "npm run build && node --test tests/browser-workspace.test.mjs",
     "test:markdown": "node --import tsx --test tests/markdown-render.test.mjs",
     "test:bundle": "npm run build && node --test tests/bundle-api.test.mjs",
+    "test:deployment-config": "node --test tests/deployment-config.test.mjs",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
