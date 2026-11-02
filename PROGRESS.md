@@ -40,6 +40,8 @@ MVP end-to-end workflow implemented and verified
 - Artifact update creates version 2 and version history lists versions 2 and 1
 - Public Markdown returns rendered `<h1>` and restrictive CSP
 - Browser test covers registration, artifact creation, and switching to an unlisted signed link
+- Full API suite passes: MCP, upload, share, security, bundles, Markdown, local runtime
+- Cloudflare Worker deploy dry-run, Vercel build, and local provider runtime tests pass; remote provider deployments remain unverified
 - Search returns matching artifacts
 - Latest commits use `Wicaksana Pratama <wicaksanapratama@gmail.com>`
 
@@ -56,7 +58,7 @@ MVP end-to-end workflow implemented and verified
 - [x] Add Nitro `cloudflare_module` and `vercel` preset configuration
 - [x] Add Wrangler/Vercel provider templates and deployment documentation
 - [x] Add provider configuration integration test
-- [ ] Verify Cloudflare/Vercel builds with provider CLIs and portable storage adapters
+- [x] Verify Cloudflare/Vercel builds with provider CLIs and portable storage adapters locally (real remote deploys remain unverified)
 - [x] Add portable S3-compatible and Cloudflare R2 object storage adapter contracts
 - [x] Add storage provider configuration tests
 - [x] Add portable D1/serverless database adapter and local provider runtime tests (real remote D1 remains unverified)
