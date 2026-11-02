@@ -48,3 +48,6 @@ MVP end-to-end workflow implemented and verified
 - [ ] Add isolated HTML artifact origin/sandbox review and negative security tests
 - [ ] Add share settings UI and signed unlisted links
 - [ ] Add Cloudflare/Vercel/InstaCloud deployment adapters only after verification
+- [x] Dockerfile healthcheck, non-root runtime, persistent-volume settings, and deployment checklist
+- [x] Verify Docker-compatible image/container with Podman: build, health, registration, restart persistence
+- [ ] Verify InstaCloud template and persistent volume behavior

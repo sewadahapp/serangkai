@@ -17,6 +17,7 @@ A production-minded, open-source, self-hosted artifact and knowledge workspace f
 docker run -d -p 3000:3000 \
   -v serangkai-data:/app/data \
   -e JWT_SECRET=$(openssl rand -base64 32) \
+  -e SHARE_SECRET=$(openssl rand -base64 32) \
   -e NODE_ENV=production \
   ghcr.io/yourusername/serangkai:latest
 ```
@@ -33,6 +34,24 @@ npm run dev
 # Build for production
 npm run build
 ```
+
+### Docker verification status
+
+The image is designed for a single container with `/app/data` as the persistent
+volume. The repository includes a healthcheck at `/api/health`. The image was
+verified locally with Podman (Docker-compatible): image build, health endpoint,
+registration, restart, and session persistence all passed. Docker itself is not
+installed in the development environment, so a Docker Engine run remains to be
+confirmed separately.
+
+### InstaCloud status
+
+An InstaCloud-specific deployment contract has not yet been independently
+verified. Until the platform's current Docker/template documentation is
+available, deploy the generated container using the platform's generic Docker
+service with persistent storage mounted at `/app/data`; verify health and data
+persistence before calling the deployment supported. See
+`docs/deployment/instacloud.md` for the verification checklist.
 
 ## Connect an AI agent
 
