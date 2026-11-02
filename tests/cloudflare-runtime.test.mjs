@@ -52,4 +52,11 @@ test('Cloudflare local D1 runtime supports registration, artifact creation, and 
   const listed = await fetch(`${base}/api/artifacts`, { headers: { cookie } })
   assert.equal(listed.status, 200)
   assert.equal((await listed.json()).artifacts[0].title, 'D1 runtime artifact')
+
+  const tokenResponse = await fetch(`${base}/api/tokens`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Edge agent', scopes: ['read'] }) })
+  if (tokenResponse.status !== 200) assert.fail(await tokenResponse.text())
+  const { token } = await tokenResponse.json()
+  const bearerListed = await fetch(`${base}/api/artifacts`, { headers: { authorization: `Bearer ${token}` } })
+  assert.equal(bearerListed.status, 200)
+  assert.equal((await bearerListed.json()).artifacts[0].title, 'D1 runtime artifact')
 })

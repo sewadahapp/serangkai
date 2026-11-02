@@ -24,4 +24,4 @@ jobs:
       - run: npm run test:storage
       - run: npm run test:r2
       - run: npm run test:r2-request
-      - run: node --test tests/mcp-protocol.test.mjs tests/upload-api.test.mjs tests/share-api.test.mjs tests/security-api.test.mjs tests/bundle-api.test.mjs tests/browser-workspace.test.mjs tests/local-runtime.test.mjs tests/vercel-runtime.test.mjs
+      - run: node --test tests/mcp-protocol.test.mjs tests/upload-api.test.mjs tests/share-api.test.mjs tests/tokens-api.test.mjs tests/security-api.test.mjs tests/bundle-api.test.mjs tests/browser-workspace.test.mjs tests/local-runtime.test.mjs tests/vercel-runtime.test.mjs

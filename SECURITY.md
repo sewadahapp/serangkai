@@ -19,8 +19,9 @@ code on the server and does not run build jobs for uploaded bundles.
 - Artifacts are private by default.
 - Private reads require the owning session or an authenticated owner token.
 - Unlisted reads require an HMAC capability link.
-- API tokens are stored as SHA-256 hashes and have scopes (`read`, `write`, `full`).
+- API tokens are stored as SHA-256 hashes (Web Crypto, identical on Node and edge runtimes) and have scopes (`read`, `write`, `full`).
 - MCP write tools require `write` or `full` scope.
+- Minting or revoking API tokens requires a session or a `full`-scope token, so a leaked read/write token cannot escalate itself.
 
 ## Verified negative cases
 

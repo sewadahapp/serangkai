@@ -31,6 +31,9 @@ MVP end-to-end workflow implemented and verified
 - [x] Human UI search workflow
 - [x] Human UI artifact edit and version-history workflow
 - [x] Dockerfile, docker-compose, README, architecture and agent docs
+- [x] Human settings UI for creating, listing, and revoking scoped API tokens
+- [x] Edge-safe API token hashing via Web Crypto, covered by the Cloudflare D1 runtime test
+- [x] Token scope enforcement tests: read cannot write, read/write cannot mint or revoke tokens
 
 ## Verification
 - `npm run build` passes
@@ -40,7 +43,7 @@ MVP end-to-end workflow implemented and verified
 - Artifact update creates version 2 and version history lists versions 2 and 1
 - Public Markdown returns rendered `<h1>` and restrictive CSP
 - Browser test covers registration, artifact creation, and switching to an unlisted signed link
-- Full API suite passes: MCP, upload, share, security, bundles, Markdown, local runtime
+- Full API suite passes: MCP, upload, share, tokens, security, bundles, Markdown, local runtime
 - Cloudflare Worker deploy dry-run, Vercel build, and local provider runtime tests pass; remote provider deployments remain unverified
 - Search returns matching artifacts
 - Latest commits use `Wicaksana Pratama <wicaksanapratama@gmail.com>`

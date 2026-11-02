@@ -1,10 +1,11 @@
 import { apiTokens } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
+import { requireScope } from '../../utils/require-auth'
 import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
-  const user = event.context.user
+  const user = requireScope(event, 'read')
   if (!user) {
     throw createError({ statusCode: 401, message: 'Unauthorized' })
   }

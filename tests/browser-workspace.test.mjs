@@ -43,4 +43,13 @@ test('human browser workflow registers and creates an artifact', async () => {
   await assert.doesNotReject(() => shareLink.waitFor())
   assert.match(await shareLink.inputValue(), /\/api\/share\/[^?]+\?k=[a-f0-9]{64}$/)
   assert.equal((await fetch(await shareLink.inputValue())).status, 200)
+
+  await page.getByRole('link', { name: 'Settings' }).click()
+  await page.waitForURL('**/settings')
+  await page.getByPlaceholder('Token name').fill('Browser token')
+  await page.getByRole('button', { name: 'Create token' }).click()
+  const tokenField = page.getByLabel('New API token')
+  await assert.doesNotReject(() => tokenField.waitFor())
+  assert.match(await tokenField.inputValue(), /^[A-Za-z0-9_-]{32}$/)
+  await assert.doesNotReject(() => page.getByText('Browser token').waitFor())
 })

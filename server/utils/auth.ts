@@ -1,6 +1,5 @@
 import bcrypt from 'bcryptjs'
 import { nanoid } from 'nanoid'
-import crypto from 'crypto'
 import { SignJWT, jwtVerify } from 'jose'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production'
@@ -18,8 +17,10 @@ export function generateToken(): string {
   return nanoid(32)
 }
 
-export function hashToken(token: string): string {
-  return crypto.createHash('sha256').update(token).digest('hex')
+export async function hashToken(token: string): Promise<string> {
+  // Web Crypto keeps token hashing identical on Node, Workers, and Vercel.
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
 export async function createSessionToken(userId: string): Promise<string> {

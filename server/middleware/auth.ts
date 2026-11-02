@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   const authHeader = getHeader(event, 'authorization')
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.slice(7)
-    const tokenHash = hashToken(token)
+    const tokenHash = await hashToken(token)
     const apiToken = await db.select().from(apiTokens).where(eq(apiTokens.tokenHash, tokenHash)).get()
     if (apiToken) {
       // Check expiration
