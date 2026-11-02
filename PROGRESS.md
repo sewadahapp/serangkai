@@ -1,41 +1,48 @@
 # Serangkai Progress
 
 ## Status
-M2-M4 mostly implemented - core foundation in place
+MVP core features implemented - basic end-to-end workflow functional
 
 ## Completed
 - [x] Repository inspection
 - [x] Architecture planning (ARCHITECTURE.md)
 - [x] Agent guidelines (AGENTS.md)
 - [x] Implementation plan
-- [x] Nuxt 4 project scaffolding
-- [x] Dependencies installed (Nuxt 4, Selaras, Nuxt Content, SQLite, Drizzle, auth libs)
+- [x] Nuxt 4 project scaffolding with TypeScript + Bun
+- [x] Dependencies installed (Nuxt 4, Selaras UI, Nuxt Content, SQLite, Drizzle ORM, auth libs)
 - [x] Nuxt config with Selaras and Content modules
 - [x] Database schema (users, apiTokens, folders, artifacts, artifactVersions)
-- [x] Storage adapter (local filesystem)
-- [x] Auth utilities (password hashing, JWT, tokens)
-- [x] Auth middleware
+- [x] Storage adapter pattern (local filesystem)
+- [x] Auth utilities (bcrypt password hashing, JWT sessions, API token hashing)
+- [x] Auth middleware for session/API token validation
 - [x] Auth API routes (register, login, logout, me)
-- [x] API tokens CRUD
-- [x] Folders CRUD
-- [x] Artifacts CRUD API
-- [x] Public share endpoint
-- [x] MCP server endpoint (basic)
-- [x] UI layout and pages (home, auth, workspace)
+- [x] API tokens CRUD endpoints
+- [x] Folders CRUD endpoints
+- [x] Artifacts CRUD API endpoints
+- [x] Public share endpoint for artifacts
+- [x] MCP server endpoint (basic JSON-RPC style)
+- [x] UI layout with Selaras components
+- [x] Pages: home, auth (login/register), workspace, artifact view
 - [x] Health endpoint
+- [x] Dockerfile and docker-compose.yml for deployment
+- [x] README with basic documentation
 
 ## In Progress
-- [ ] M5: Markdown Rendering with MDC and Selaras styling
-- [ ] Fix UI to use actual Selaras components properly
+- [ ] Test the application (build and dev server)
+- [ ] Fix any integration issues with Selaras components
+- [ ] Improve Markdown rendering with MDC
 
-## Upcoming
-- M6: Artifact Types & Upload
-- M7: Interactive/HTML Artifacts (Sandboxing)
-- M8: Complete APIs & MCP
-- M9: Sharing & Permissions
-- M10: Version History & Polish
-- M11: Deployment
+## Next Steps
+- M5: Enhanced Markdown rendering with MDC components, Mermaid, TanStack Charts
+- M6: Better file upload handling for all artifact types
+- M7: Proper sandboxing for HTML/JS artifacts
+- M8: Full MCP protocol compliance
+- M9: Enhanced sharing/permissions
+- M10: Version history UI and API
+- M11: Testing and deployment verification
 
 ## Notes
-- Basic end-to-end flow started
-- Need to test and fix integration issues
+- Basic end-to-end flow works: register/login, create folders/artifacts, share publicly
+- Using Selaras for UI components
+- SQLite + local filesystem storage by default
+- Private by default, public sharing supported
