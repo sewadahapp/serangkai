@@ -24,3 +24,11 @@ npm run test:vercel-runtime
 ```
 
 No command in this matrix deploys to a remote service or incurs provider cost.
+
+## Remote deployment boundary
+
+The project intentionally does not claim that Docker, Cloudflare, Vercel,
+Cloudflare R2, or InstaCloud have been deployed remotely from this repository.
+Those checks require provider credentials, a real account, and durable-resource
+configuration. The local matrix is the reproducible evidence available without
+secrets or paid services.

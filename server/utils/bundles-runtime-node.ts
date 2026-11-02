@@ -1,1 +1,1 @@
-export { extractBundle, bundleMimeType } from './bundles'
+export { extractBundle, bundleMimeType } from './bundles.ts'

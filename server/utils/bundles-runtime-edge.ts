@@ -1,4 +1,4 @@
-export function extractBundle() {
+export function extractBundle(_buffer?: unknown, _destination?: string) {
   throw new Error('ZIP bundle uploads require the Node/container runtime')
 }
 
