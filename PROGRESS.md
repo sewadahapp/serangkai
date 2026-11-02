@@ -55,3 +55,6 @@ MVP end-to-end workflow implemented and verified
 - [x] Add Wrangler/Vercel provider templates and deployment documentation
 - [x] Add provider configuration integration test
 - [ ] Verify Cloudflare/Vercel builds with provider CLIs and portable storage adapters
+- [x] Add portable S3-compatible and Cloudflare R2 object storage adapter contracts
+- [x] Add storage provider configuration tests
+- [ ] Add portable D1/serverless database adapter and full provider runtime tests

@@ -1,5 +1,8 @@
 import { promises as fs } from 'fs'
 import { join, dirname } from 'path'
+import { createStorage } from 'unstorage'
+import s3Driver from 'unstorage/drivers/s3'
+import r2Driver from 'unstorage/drivers/cloudflare-r2-binding'
 
 export interface StorageAdapter {
   save(key: string, data: Buffer | string): Promise<string>
@@ -52,3 +55,21 @@ export class LocalStorageAdapter implements StorageAdapter {
 }
 
 export const storage = new LocalStorageAdapter(process.env.STORAGE_PATH || './data/files')
+
+export function createPortableStorage() {
+  if (process.env.STORAGE_DRIVER === 's3') {
+    return createStorage({
+      driver: s3Driver({
+        accessKeyId: process.env.S3_ACCESS_KEY_ID || '',
+        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+        endpoint: process.env.S3_ENDPOINT || '',
+        region: process.env.S3_REGION || 'auto',
+        bucket: process.env.S3_BUCKET || '',
+      }),
+    })
+  }
+  if (process.env.STORAGE_DRIVER === 'r2-binding') {
+    return createStorage({ driver: r2Driver({ binding: process.env.R2_BINDING || 'ARTIFACTS' }) })
+  }
+  return createStorage({ driver: { name: 'local-serangkai', ...storage } as any })
+}

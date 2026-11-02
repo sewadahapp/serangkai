@@ -16,7 +16,10 @@ them to the configuration file.
 ## Storage limitation
 
 The default Serangkai adapter uses `better-sqlite3` and local filesystem storage,
-which are Node/container adapters and are not portable to Workers. A Cloudflare
-deployment requires a D1/R2 storage adapter before it can be considered
-production-supported. This repository verifies the Nitro preset configuration,
-not a claim that the default SQLite/filesystem data layer works in Workers.
+which are Node/container adapters and are not portable to Workers. Object storage
+can use `STORAGE_DRIVER=r2-binding` with an R2 binding named by `R2_BINDING`, or
+the S3-compatible adapter with R2 credentials. A Cloudflare deployment still
+requires a D1-compatible database adapter before it can be considered fully
+production-supported. This repository verifies the Nitro preset and object
+storage adapter contracts, not the default SQLite/filesystem data layer in
+Workers.
