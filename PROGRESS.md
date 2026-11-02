@@ -77,3 +77,4 @@ MVP end-to-end workflow implemented and verified
 - [x] Add deployment verification matrix separating local evidence from real-provider claims
 - [x] Add reproducible GitHub Actions verification workflow for local and provider-contract coverage
 - [x] Run consolidated local provider/API/security/browser/bundle verification suite successfully
+- [x] Stop and verify disposable tmux/server processes and confirm ports 3199, 3210, and 3788 are closed

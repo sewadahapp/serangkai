@@ -25,6 +25,10 @@ npm run test:vercel-runtime
 
 No command in this matrix deploys to a remote service or incurs provider cost.
 
+The development cleanup verification confirmed the disposable local ports used
+by prior smoke tests (`3199`, `3210`, and `3788`) are closed and the `serangkai`
+tmux session was removed.
+
 ## Remote deployment boundary
 
 The project intentionally does not claim that Docker, Cloudflare, Vercel,
