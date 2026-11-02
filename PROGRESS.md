@@ -51,10 +51,10 @@ MVP end-to-end workflow implemented and verified
 - [x] Add Mermaid/charts MDC components
 - [x] Add isolated HTML artifact origin/sandbox review and negative security tests
 - [x] Add share settings UI and signed unlisted links
-- [ ] Add Cloudflare/Vercel/InstaCloud deployment adapters only after verification
+- [x] Add Cloudflare/Vercel deployment adapters after local verification (real remote deployments remain unverified)
 - [x] Dockerfile healthcheck, non-root runtime, persistent-volume settings, and deployment checklist
 - [x] Verify Docker-compatible image/container with Podman: build, health, registration, restart persistence
-- [ ] Verify InstaCloud template and persistent volume behavior
+- [ ] Verify InstaCloud template and persistent volume behavior (blocked: no InstaCloud account or official emulator available)
 - [x] Add Nitro `cloudflare_module` and `vercel` preset configuration
 - [x] Add Wrangler/Vercel provider templates and deployment documentation
 - [x] Add provider configuration integration test
