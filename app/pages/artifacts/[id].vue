@@ -21,8 +21,7 @@
             <span v-if="message" class="text-sm text-muted-foreground">{{ message }}</span>
           </div>
         </form>
-        <div v-if="!editing && artifact.type === 'markdown'" class="prose max-w-none" v-html="renderedContent">
-        </div>
+        <MarkdownDocument v-if="!editing && artifact.type === 'markdown'" :html="renderedContent" />
         <pre v-else-if="!editing" class="whitespace-pre-wrap bg-muted p-4 rounded overflow-auto">{{ content }}</pre>
       </SCardContent>
     </SCard>
