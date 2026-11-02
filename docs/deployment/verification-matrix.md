@@ -12,6 +12,10 @@ deployment is supported.
 | Vercel | Nitro preset build and local Node runtime registration/listing pass | Not deployed | Requires Vercel project, secrets, and durable external storage |
 | InstaCloud | Generic Docker checklist only | Not verified | Requires platform documentation/account or official emulator |
 
+The Wrangler `deploy --dry-run` check also passes locally and validates the
+generated Worker bundle and checked-in D1 binding without uploading or requiring
+Cloudflare credentials. This is build validation, not a remote deployment.
+
 ## Current commands
 
 ```bash

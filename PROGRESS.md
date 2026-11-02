@@ -71,6 +71,7 @@ MVP end-to-end workflow implemented and verified
 - [x] Add durable R2 adapter contract and binary storage test
 - [x] Add request-scoped R2 binding runtime test with a mocked Cloudflare binding
 - [x] Verify no disposable Serangkai background servers remain running
+- [x] Verify Wrangler Cloudflare deploy dry-run and D1 binding configuration without upload
 - [x] Add passing Vercel Node runtime integration test for registration and artifact listing
 - [x] Verify local provider runtime suite: SQLite, D1/Miniflare, Vercel Node, R2 contracts
 - [x] Verify request-scoped R2 is used by artifact route storage resolution
