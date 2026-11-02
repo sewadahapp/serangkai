@@ -22,6 +22,7 @@ MVP end-to-end workflow implemented and verified
 - [x] Automated upload and sharing negative/API tests
 - [x] HTML/Markdown isolation headers and security negative tests
 - [x] Security model documented in SECURITY.md
+- [x] Browser-level smoke test using installed Google Chrome
 - [x] Safe Markdown rendering with `marked` + `sanitize-html`
 - [x] CSP headers for public Markdown and HTML artifact delivery
 - [x] Private-by-default authorization checks
