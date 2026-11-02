@@ -10,15 +10,37 @@ const base = `http://127.0.0.1:${port}`
 let child
 let stderr = ''
 
+function signalGroup(signal) {
+  if (!child?.pid) return
+  try {
+    // Wrangler spawns workerd as a grandchild; signalling the process group
+    // stops the whole tree instead of leaving an orphan holding the port.
+    process.kill(-child.pid, signal)
+  } catch {
+    try { child.kill(signal) } catch {}
+  }
+}
+
+async function stopChild() {
+  if (!child || child.exitCode !== null) return
+  const exited = new Promise(resolve => child.once('exit', resolve))
+  signalGroup('SIGTERM')
+  const timer = setTimeout(() => signalGroup('SIGKILL'), 5000)
+  await exited
+  clearTimeout(timer)
+  child.stdout?.destroy()
+  child.stderr?.destroy()
+}
+
 before(async () => {
-  child = spawn('npx', ['wrangler', 'dev', '.output/server/index.mjs', '--assets', '.output/public', '--local', '--port', String(port), '--show-interactive-dev-session=false'], { cwd: process.cwd(), env: { ...process.env, JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex') }, stdio: ['ignore', 'pipe', 'pipe'] })
+  child = spawn('npx', ['wrangler', 'dev', '.output/server/index.mjs', '--assets', '.output/public', '--local', '--port', String(port), '--show-interactive-dev-session=false'], { cwd: process.cwd(), env: { ...process.env, JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex') }, stdio: ['ignore', 'pipe', 'pipe'], detached: true })
   child.stdout.on('data', chunk => { stderr += chunk.toString() })
   child.stderr.on('data', chunk => { stderr += chunk.toString() })
   for (let i = 0; i < 90; i++) { try { if ((await fetch(`${base}/api/health`)).ok) return } catch {} await new Promise(resolve => setTimeout(resolve, 200)) }
   throw new Error(`Wrangler local Worker did not start\n${stderr}`)
 })
 
-after(async () => { child?.kill('SIGTERM'); await rm('.wrangler', { recursive: true, force: true }) })
+after(async () => { await stopChild(); await rm('.wrangler', { recursive: true, force: true }) })
 
 test('Cloudflare local D1 runtime supports registration, artifact creation, and listing', async () => {
   const email = `d1-${randomBytes(3).toString('hex')}@example.com`

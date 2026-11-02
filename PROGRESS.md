@@ -34,6 +34,7 @@ MVP end-to-end workflow implemented and verified
 
 ## Verification
 - `npm run build` passes
+- `npm run test:provider-local` passes and exits cleanly: SQLite, D1/Miniflare, R2 contracts, request-scoped R2, Vercel Node runtime
 - Fresh SQLite database smoke test passes
 - Health, registration, session auth, folder creation, artifact creation and listing pass
 - Artifact update creates version 2 and version history lists versions 2 and 1
@@ -57,13 +58,13 @@ MVP end-to-end workflow implemented and verified
 - [ ] Verify Cloudflare/Vercel builds with provider CLIs and portable storage adapters
 - [x] Add portable S3-compatible and Cloudflare R2 object storage adapter contracts
 - [x] Add storage provider configuration tests
-- [ ] Add portable D1/serverless database adapter and full provider runtime tests
+- [x] Add portable D1/serverless database adapter and local provider runtime tests (real remote D1 remains unverified)
 - [x] Add request-scoped Drizzle D1 adapter and D1 schema bootstrap helper
 - [x] Add SQLite/D1 provider-selection and D1-compatible mock integration tests
 - [x] Refactor API and auth route database access through request-aware provider resolution
 - [x] Add local SQLite end-to-end runtime test after provider refactor
 - [x] Add Wrangler/Miniflare local D1 runtime test for registration, creation, and listing
-- [ ] Make Wrangler/Miniflare D1 runtime test green; current blocker is Node-only SQLite dependency leakage into Worker graph
+- [x] Make Wrangler/Miniflare D1 runtime test green and shut down deterministically (process-group teardown)
 - [x] Capture the real Wrangler/Miniflare startup blocker without masking it in tests
 - [x] Diagnose Node built-in leakage and reject the broken dynamic-import workaround
 - [x] Pass Wrangler/Miniflare D1 runtime test for registration, artifact creation, and listing

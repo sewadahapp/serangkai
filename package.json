@@ -45,7 +45,6 @@
     "drizzle-kit": "^0.31.11",
     "drizzle-orm": "^0.45.4",
     "jose": "^6.2.15",
-    "jsonwebtoken": "^9.0.3",
     "marked": "^18.1.2",
     "mermaid": "^12.2.0",
     "nanoid": "^6.0.2",
