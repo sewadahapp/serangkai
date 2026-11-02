@@ -1,19 +1,20 @@
 # Serangkai Progress
 
 ## Status
-Project initialized - scaffolding phase
+Project initialized with Nuxt 4 - M1 in progress
 
 ## Completed
 - [x] Repository inspection
 - [x] Architecture planning (ARCHITECTURE.md)
 - [x] Agent guidelines (AGENTS.md)
 - [x] Implementation plan
+- [x] Nuxt 4 project scaffolding
 
 ## In Progress
-- [ ] M1: Project Scaffolding - Initialize Nuxt 4 app
+- [ ] M1: Project Scaffolding - Install core dependencies
+- [ ] M2: Core Data Layer
 
 ## Upcoming
-- M2: Core Data Layer
 - M3: Authentication
 - M4: Workspace & Organization
 - M5: Markdown Rendering
