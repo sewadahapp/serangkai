@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
 import { nanoid } from 'nanoid'
 import crypto from 'crypto'
+import { SignJWT, jwtVerify } from 'jose'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production'
 const TOKEN_SALT_ROUNDS = 10
@@ -22,15 +22,19 @@ export function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex')
 }
 
-export function createSessionToken(userId: string): string {
-  return jwt.sign({ userId, type: 'session' }, JWT_SECRET, { expiresIn: '7d' })
+export async function createSessionToken(userId: string): Promise<string> {
+  return new SignJWT({ userId, type: 'session' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('7d')
+    .sign(new TextEncoder().encode(JWT_SECRET))
 }
 
-export function verifySessionToken(token: string): { userId: string } | null {
+export async function verifySessionToken(token: string): Promise<{ userId: string } | null> {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any
+    const { payload: decoded } = await jwtVerify(token, new TextEncoder().encode(JWT_SECRET))
     if (decoded.type === 'session') {
-      return { userId: decoded.userId }
+      return { userId: String(decoded.userId) }
     }
     return null
   } catch {

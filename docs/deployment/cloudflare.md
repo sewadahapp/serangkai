@@ -42,6 +42,10 @@ actual local Worker request path. A remote Cloudflare deployment still requires
 creating a real D1 database, applying migrations, and setting production
 secrets; no remote account is required or used by the test.
 
+The local preview edge storage adapter uses isolate memory only so the runtime
+test can exercise artifact creation without an R2 account. It is not durable and
+must be replaced with the R2 binding adapter for production.
+
 The local runtime test currently exposes a remaining portability blocker when
 the bundled Node-only SQLite dependency is present in the Worker graph. Nitro's
 Cloudflare build succeeds, but the Worker runtime test must remain green before

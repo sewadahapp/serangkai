@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
     updatedAt: new Date(),
   })
   
-  const token = createSessionToken(userId)
+  const token = await createSessionToken(userId)
   setCookie(event, 'session', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

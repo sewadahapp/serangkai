@@ -21,6 +21,8 @@ export function createD1Database(client: D1Like) {
  * singleton; Cloudflare Workers uses the request-scoped D1 binding. */
 export async function getRequestDatabase(event: any) {
   const cloudflare = event?.req?.runtime?.cloudflare
+    || event?.context?.cloudflare
+    || event?.context?._platform?.cloudflare
   const binding = cloudflare?.env?.DB
   if (binding) {
     if (!event.context.d1Database) {

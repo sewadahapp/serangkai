@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, message: 'Invalid credentials' })
   }
   
-  const token = createSessionToken(user.id)
+  const token = await createSessionToken(user.id)
   setCookie(event, 'session', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

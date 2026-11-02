@@ -66,3 +66,5 @@ MVP end-to-end workflow implemented and verified
 - [ ] Make Wrangler/Miniflare D1 runtime test green; current blocker is Node-only SQLite dependency leakage into Worker graph
 - [x] Capture the real Wrangler/Miniflare startup blocker without masking it in tests
 - [x] Diagnose Node built-in leakage and reject the broken dynamic-import workaround
+- [x] Pass Wrangler/Miniflare D1 runtime test for registration, artifact creation, and listing
+- [x] Replace Node JWT dependency with Web Crypto-compatible `jose` for edge runtime

@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   // Check session cookie
   const sessionCookie = getCookie(event, 'session')
   if (sessionCookie) {
-    const verified = verifySessionToken(sessionCookie)
+    const verified = await verifySessionToken(sessionCookie)
     if (verified) {
       const user = await db.select().from(users).where(eq(users.id, verified.userId)).get()
       if (user) {

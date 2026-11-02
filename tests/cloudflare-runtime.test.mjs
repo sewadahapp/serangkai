@@ -12,6 +12,7 @@ let stderr = ''
 
 before(async () => {
   child = spawn('npx', ['wrangler', 'dev', '.output/server/index.mjs', '--assets', '.output/public', '--local', '--port', String(port), '--show-interactive-dev-session=false'], { cwd: process.cwd(), env: { ...process.env, JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex') }, stdio: ['ignore', 'pipe', 'pipe'] })
+  child.stdout.on('data', chunk => { stderr += chunk.toString() })
   child.stderr.on('data', chunk => { stderr += chunk.toString() })
   for (let i = 0; i < 90; i++) { try { if ((await fetch(`${base}/api/health`)).ok) return } catch {} await new Promise(resolve => setTimeout(resolve, 200)) }
   throw new Error(`Wrangler local Worker did not start\n${stderr}`)
@@ -22,7 +23,7 @@ after(async () => { child?.kill('SIGTERM'); await rm('.wrangler', { recursive: t
 test('Cloudflare local D1 runtime supports registration, artifact creation, and listing', async () => {
   const email = `d1-${randomBytes(3).toString('hex')}@example.com`
   const registered = await fetch(`${base}/api/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: 'correct horse battery' }) })
-  assert.equal(registered.status, 200, await registered.text())
+  assert.equal(registered.status, 200, `${await registered.text()}\n${stderr}`)
   const cookie = registered.headers.get('set-cookie')
   const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'D1 runtime artifact', type: 'markdown', content: '# D1' }) })
   assert.equal(created.status, 200, await created.text())
