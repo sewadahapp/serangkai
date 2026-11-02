@@ -39,15 +39,16 @@ MVP end-to-end workflow implemented and verified
 - Health, registration, session auth, folder creation, artifact creation and listing pass
 - Artifact update creates version 2 and version history lists versions 2 and 1
 - Public Markdown returns rendered `<h1>` and restrictive CSP
+- Browser test covers registration, artifact creation, and switching to an unlisted signed link
 - Search returns matching artifacts
 - Latest commits use `Wicaksana Pratama <wicaksanapratama@gmail.com>`
 
 ## Next Milestones
-- [ ] Add browser-level tests with Playwright
-- [ ] Add multipart upload and static bundle handling
-- [ ] Add Mermaid/charts MDC components
-- [ ] Add isolated HTML artifact origin/sandbox review and negative security tests
-- [ ] Add share settings UI and signed unlisted links
+- [x] Add browser-level tests with Playwright
+- [x] Add multipart upload and static bundle handling
+- [x] Add Mermaid/charts MDC components
+- [x] Add isolated HTML artifact origin/sandbox review and negative security tests
+- [x] Add share settings UI and signed unlisted links
 - [ ] Add Cloudflare/Vercel/InstaCloud deployment adapters only after verification
 - [x] Dockerfile healthcheck, non-root runtime, persistent-volume settings, and deployment checklist
 - [x] Verify Docker-compatible image/container with Podman: build, health, registration, restart persistence

@@ -9,10 +9,10 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
 - **Content**: @nuxt/content with MDC for Markdown rendering
 - **Charts/Diagrams**: Mermaid, @tanstack/vue-charts (or similar)
 - **Backend**: Nuxt Nitro server routes
-- **Database**: better-sqlite3 with drizzle-orm (or knex) - SQLite by default
-- **Storage**: Local filesystem with adapter pattern for portability
-- **Auth**: Session-based auth + API tokens
-- **MCP**: @modelcontextprotocol/sdk or custom implementation
+- **Database**: Drizzle ORM with better-sqlite3 by default and a request-scoped D1 adapter for Cloudflare
+- **Storage**: Local filesystem with adapter pattern; S3-compatible/R2 adapter for portable deployments
+- **Auth**: Session cookies signed with `jose` + scoped API tokens
+- **MCP**: Official `@modelcontextprotocol/sdk` Streamable HTTP transport
 
 ## System Design
 
@@ -94,20 +94,22 @@ Implementations: LocalStorageAdapter (default), S3StorageAdapter (future), etc.
 - `DELETE /api/tokens/:id` - Revoke token
 - `GET /api/folders` - List folders
 - `POST /api/folders` - Create folder
-- `PUT /api/folders/:id` - Update folder
-- `DELETE /api/folders/:id` - Delete folder
 - `GET /api/artifacts` - List artifacts (with filters)
 - `POST /api/artifacts` - Create artifact
+- `POST /api/artifacts/upload` - Multipart upload (Markdown, HTML, JSON, PDF, images, ZIP bundles)
 - `GET /api/artifacts/:id` - Get artifact
-- `PUT /api/artifacts/:id` - Update artifact
+- `PUT /api/artifacts/:id` - Update artifact, including visibility
 - `DELETE /api/artifacts/:id` - Delete artifact
 - `GET /api/artifacts/:id/versions` - Version history
-- `GET /api/artifacts/:id/versions/:version` - Get specific version
-- `POST /api/artifacts/:id/publish` - Publish/share controls
+- `GET /api/artifacts/:id/download` - Download the original source
+- `POST /api/artifacts/:id/share` - Build a public or signed unlisted share URL
+- `GET /api/share/:slug` - Public/unlisted artifact delivery
+- `GET /api/share/:slug/*` - Scoped static bundle asset delivery
 - `GET /api/search` - Search artifacts/folders
+- `GET /api/health` - Health check
 
 ### MCP Integration
-MCP server at `/mcp` or similar endpoint providing tools:
+MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `list_artifacts` - List user's artifacts
 - `get_artifact` - Read artifact content
 - `create_artifact` - Create new artifact
@@ -117,11 +119,10 @@ MCP server at `/mcp` or similar endpoint providing tools:
 
 ### Frontend Routes
 - `/` - Dashboard/workspace home
-- `/login`, `/register` - Auth pages
-- `/workspace` or `/` - Main workspace view with folders
-- `/artifacts/[id]` - Artifact view/edit
-- `/share/[slug]` - Public/shared artifact view
-- `/settings` - User settings, tokens
+- `/auth/login`, `/auth/register` - Auth pages
+- `/workspace` - Main workspace view with folders
+- `/artifacts/[id]` - Artifact view, edit, version history, and sharing settings
+- Share delivery happens through `/api/share/:slug` (signed `?k=` link for unlisted artifacts)
 
 ### Security Considerations
 - **Auth**: Secure password hashing (argon2/bcrypt), HttpOnly secure cookies for sessions
