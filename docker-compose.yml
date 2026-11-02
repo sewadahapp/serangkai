@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  serangkai:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - serangkai-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - DATABASE_PATH=/app/data/serangkai.db
+      - STORAGE_PATH=/app/data/files
+    restart: unless-stopped
+
+volumes:
+  serangkai-data:
