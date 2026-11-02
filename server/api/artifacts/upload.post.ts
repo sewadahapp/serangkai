@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid'
 import { artifactVersions, artifacts } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { storage } from '#serangkai-storage-runtime'
+import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireScope } from '../../utils/require-auth'
 import { artifactTypes, inferArtifactType, makeSlug, MAX_UPLOAD_BYTES } from '../../utils/artifacts'
 import { extractBundle } from '#serangkai-bundles-runtime'
@@ -14,6 +14,7 @@ const allowedMimeTypes = new Set([
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
+  const storage = getRequestStorage(event)
   const user = requireScope(event, 'write')
   const parts = await readMultipartFormData(event)
   const file = parts?.find(part => part.name === 'file' && part.data)

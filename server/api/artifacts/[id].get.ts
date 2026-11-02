@@ -1,11 +1,12 @@
 import { artifacts } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { storage } from '#serangkai-storage-runtime'
+import { getRequestStorage } from '#serangkai-storage-runtime'
 import { eq } from 'drizzle-orm'
 import { renderMarkdown } from '../../utils/markdown'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
+  const storage = getRequestStorage(event)
   const user = event.context.user
   if (!user) {
     throw createError({ statusCode: 401, message: 'Unauthorized' })

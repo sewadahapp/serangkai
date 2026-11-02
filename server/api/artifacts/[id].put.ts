@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid'
 import { artifacts, artifactVersions } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { storage } from '#serangkai-storage-runtime'
+import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireScope } from '../../utils/require-auth'
 import { z } from 'zod'
 import { and, eq, max } from 'drizzle-orm'
@@ -16,6 +16,7 @@ const schema = z.object({
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
+  const storage = getRequestStorage(event)
   const user = requireScope(event, 'write')
   const id = getRouterParam(event, 'id')
   if (!id) throw createError({ statusCode: 400, message: 'ID required' })

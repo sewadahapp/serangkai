@@ -1,6 +1,6 @@
 import { artifacts } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
-import { storage } from '#serangkai-storage-runtime'
+import { getRequestStorage } from '#serangkai-storage-runtime'
 import { eq } from 'drizzle-orm'
 import { renderMarkdown } from '../../../utils/markdown'
 import { isValidShareKey } from '../../../utils/share'
@@ -11,6 +11,7 @@ function escapeHtml(value: string) {
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
+  const storage = getRequestStorage(event)
   const slug = getRouterParam(event, 'slug')
   if (!slug) {
     throw createError({ statusCode: 400, message: 'Slug required' })

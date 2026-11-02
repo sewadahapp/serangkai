@@ -1,11 +1,12 @@
 import { and, eq } from 'drizzle-orm'
 import { artifacts } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
-import { storage } from '#serangkai-storage-runtime'
+import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireUser } from '../../../utils/require-auth'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
+  const storage = getRequestStorage(event)
   const user = event.context.user
   const id = getRouterParam(event, 'id')
   const artifact = await db.select().from(artifacts).where(eq(artifacts.id, id || '')).get()

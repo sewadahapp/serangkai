@@ -6,7 +6,7 @@ import { nanoid } from 'nanoid'
 import { toWebRequest } from 'h3'
 import { artifactVersions, artifacts } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { storage } from '#serangkai-storage-runtime'
+import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireScope } from '../../utils/require-auth'
 
 const artifactType = z.enum(['markdown', 'html', 'javascript', 'pdf', 'image', 'json', 'bundle'])
@@ -16,7 +16,7 @@ function textResult(value: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] }
 }
 
-function createMcpServer(userId: string, canWrite: boolean, db: any) {
+function createMcpServer(userId: string, canWrite: boolean, db: any, storage: any) {
   const server = new McpServer({ name: 'serangkai', version: '0.1.0' }, { maxToolInputElements: 100 })
 
   server.registerTool('list_artifacts', {
@@ -94,6 +94,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
 export default defineEventHandler(async (event) => {
   const user = requireScope(event, 'read')
   const db = await getRequestDatabase(event)
+  const storage = getRequestStorage(event)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
@@ -101,7 +102,7 @@ export default defineEventHandler(async (event) => {
   })
   const token = event.context.apiToken
   const canWrite = !token || token.scopes.includes('write') || token.scopes.includes('full')
-  const server = createMcpServer(user.id, canWrite, db)
+  const server = createMcpServer(user.id, canWrite, db, storage)
   await server.connect(transport)
   return transport.handleRequest(toWebRequest(event))
 })

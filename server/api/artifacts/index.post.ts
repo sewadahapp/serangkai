@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid'
 import { artifacts, artifactVersions } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { storage } from '#serangkai-storage-runtime'
+import { getRequestStorage } from '#serangkai-storage-runtime'
 import { z } from 'zod'
 import { requireScope } from '../../utils/require-auth'
 
@@ -17,6 +17,7 @@ const schema = z.object({
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
+  const storage = getRequestStorage(event)
   const user = requireScope(event, 'write')
   
   const body = await readBody(event)
