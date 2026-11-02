@@ -34,6 +34,8 @@ MVP end-to-end workflow implemented and verified
 - [x] Human settings UI for creating, listing, and revoking scoped API tokens
 - [x] Edge-safe API token hashing via Web Crypto, covered by the Cloudflare D1 runtime test
 - [x] Token scope enforcement tests: read cannot write, read/write cannot mint or revoke tokens
+- [x] Multi-arch GHCR image publish workflow plus published-image Compose file
+- [x] Re-verify the built image path: health, registration, artifact creation, restart persistence
 
 ## Verification
 - `npm run build` passes
@@ -45,6 +47,7 @@ MVP end-to-end workflow implemented and verified
 - Browser test covers registration, artifact creation, and switching to an unlisted signed link
 - Full API suite passes: MCP, upload, share, tokens, security, bundles, Markdown, local runtime
 - Cloudflare Worker deploy dry-run, Vercel build, and local provider runtime tests pass; remote provider deployments remain unverified
+- Container image re-verified from the built image with a persistent volume and restart
 - Search returns matching artifacts
 - Latest commits use `Wicaksana Pratama <wicaksanapratama@gmail.com>`
 

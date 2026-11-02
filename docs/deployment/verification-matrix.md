@@ -6,11 +6,11 @@ deployment is supported.
 
 | Target | Local evidence | Real deployment | Boundary |
 | --- | --- | --- | --- |
-| Docker-compatible container | Podman image build, health, registration, restart persistence | Docker Engine unavailable here | Docker Engine and registry-host verification remain separate |
+| Docker-compatible container | Podman image build, health, registration, restart persistence; GHCR multi-arch publish workflow checked in | Docker Engine unavailable here | Docker Engine, registry publishing, and host verification remain separate |
 | Cloudflare Workers + D1 | Nitro build and Wrangler/Miniflare registration/artifact/listing pass | Not deployed | Requires real D1 secrets, migrations, and production config |
 | Cloudflare R2 | Mocked request-scoped binding and binary adapter tests pass | Not deployed | Requires a real R2 bucket/binding and durable object verification |
 | Vercel | Nitro preset build and local Node runtime registration/listing pass | Not deployed | Requires Vercel project, secrets, and durable external storage |
-| InstaCloud | Generic Docker checklist only | Not verified | Requires platform documentation/account or official emulator |
+| InstaCloud | Generic Docker checklist and image run path only | Not verified | Requires platform documentation/account or official emulator |
 
 The Wrangler `deploy --dry-run` check also passes locally and validates the
 generated Worker bundle and checked-in D1 binding without uploading or requiring

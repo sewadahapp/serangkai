@@ -27,6 +27,15 @@ See the provider-specific documents:
 - [Verification matrix](./verification-matrix.md)
 - [Remote verification runbook](./remote-verification-runbook.md)
 
+## Container image
+
+Any provider that runs a Docker image can host Serangkai: the image exposes port
+`3000`, stores runtime state under `/app/data`, and needs `JWT_SECRET` and
+`SHARE_SECRET`. Tagged releases publish multi-arch images to GHCR through
+`.github/workflows/docker.yml`. See [InstaCloud](./instacloud.md) for the
+generic image checklist; that provider remains **Not verified** until tested
+against a real account.
+
 ## Credential-free local verification
 
 Run the complete local/emulated provider suite with:

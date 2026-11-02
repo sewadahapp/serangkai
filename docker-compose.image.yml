@@ -1,0 +1,28 @@
+services:
+  serangkai:
+    # Run a published image instead of building locally:
+    #   SERANGKAI_IMAGE=ghcr.io/OWNER/REPO:latest docker compose -f docker-compose.image.yml up -d
+    image: ${SERANGKAI_IMAGE:?Set SERANGKAI_IMAGE to a published image}
+    ports:
+      - "3000:3000"
+    volumes:
+      - serangkai-data:/app/data
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET before starting}
+      SHARE_SECRET: ${SHARE_SECRET:?Set SHARE_SECRET before starting}
+      DATABASE_PATH: /app/data/serangkai.db
+      STORAGE_PATH: /app/data/files
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  serangkai-data:
