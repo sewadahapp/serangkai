@@ -2,6 +2,7 @@ import { db, artifacts } from '../../../db'
 import { storage } from '../../../storage'
 import { eq } from 'drizzle-orm'
 import { renderMarkdown } from '../../../utils/markdown'
+import { isValidShareKey } from '../../../utils/share'
 
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug')
@@ -14,11 +15,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'Artifact not found' })
   }
   
+  const key = String(getQuery(event).k || '')
   if (artifact.visibility === 'private') {
     const user = event.context.user
     if (!user || user.id !== artifact.userId) {
       throw createError({ statusCode: 403, message: 'Forbidden' })
     }
+  } else if (artifact.visibility === 'unlisted' && !isValidShareKey(artifact.id, key)) {
+    throw createError({ statusCode: 404, message: 'Artifact not found' })
   }
   
   const content = await storage.read(artifact.contentPath)

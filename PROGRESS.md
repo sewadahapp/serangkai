@@ -17,6 +17,9 @@ MVP end-to-end workflow implemented and verified
 - [x] Basic MCP JSON-RPC-style tools endpoint
 - [x] Official MCP SDK Streamable HTTP transport with authenticated tools
 - [x] Automated MCP protocol tests (initialize, tools/list, tools/call, auth denial)
+- [x] Authenticated multipart upload/download with binary preservation and size/type validation
+- [x] Signed capability links for unlisted artifacts
+- [x] Automated upload and sharing negative/API tests
 - [x] Safe Markdown rendering with `marked` + `sanitize-html`
 - [x] CSP headers for public Markdown and HTML artifact delivery
 - [x] Private-by-default authorization checks

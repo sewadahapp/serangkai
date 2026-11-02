@@ -8,6 +8,8 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "test:mcp": "npm run build && node --test tests/mcp-protocol.test.mjs",
+    "test:upload": "npm run build && node --test tests/upload-api.test.mjs",
+    "test:share": "npm run build && node --test tests/share-api.test.mjs",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
