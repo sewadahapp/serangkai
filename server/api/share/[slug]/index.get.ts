@@ -4,6 +4,10 @@ import { eq } from 'drizzle-orm'
 import { renderMarkdown } from '../../../utils/markdown'
 import { isValidShareKey } from '../../../utils/share'
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
+}
+
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug')
   if (!slug) {
@@ -35,7 +39,7 @@ export default defineEventHandler(async (event) => {
   } else if (artifact.type === 'markdown') {
     setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
     setHeader(event, 'Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; font-src https: data:; base-uri 'none'; frame-ancestors 'none'")
-    return `<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>${artifact.title}</title><style>body{font-family:system-ui;max-width:760px;margin:3rem auto;padding:0 1.25rem;line-height:1.7;color:#202124}pre{white-space:pre-wrap}h1,h2,h3{line-height:1.2}code{background:#f1f3f4;padding:.15rem .3rem;border-radius:.25rem}</style></head><body>${renderMarkdown(content.toString())}</body></html>`
+    return `<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(artifact.title)}</title><style>body{font-family:system-ui;max-width:760px;margin:3rem auto;padding:0 1.25rem;line-height:1.7;color:#202124}pre{white-space:pre-wrap}h1,h2,h3{line-height:1.2}code{background:#f1f3f4;padding:.15rem .3rem;border-radius:.25rem}</style></head><body>${renderMarkdown(content.toString())}</body></html>`
   } else if (artifact.type === 'json') {
     setHeader(event, 'Content-Type', 'application/json')
     return content.toString()
