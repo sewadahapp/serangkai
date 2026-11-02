@@ -23,3 +23,9 @@ requires a D1-compatible database adapter before it can be considered fully
 production-supported. This repository verifies the Nitro preset and object
 storage adapter contracts, not the default SQLite/filesystem data layer in
 Workers.
+
+The repository now includes a request-scoped Drizzle D1 adapter and bootstrap
+schema helper. Set `DATABASE_DRIVER=d1` in provider configuration and pass the
+Cloudflare `env.DB` binding to `createD1Database()`. Route migration to this
+request-scoped database is still required before enabling the complete app on
+Workers; local SQLite remains the default Node/container path.

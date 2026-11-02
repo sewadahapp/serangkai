@@ -58,3 +58,5 @@ MVP end-to-end workflow implemented and verified
 - [x] Add portable S3-compatible and Cloudflare R2 object storage adapter contracts
 - [x] Add storage provider configuration tests
 - [ ] Add portable D1/serverless database adapter and full provider runtime tests
+- [x] Add request-scoped Drizzle D1 adapter and D1 schema bootstrap helper
+- [x] Add SQLite/D1 provider-selection and D1-compatible mock integration tests
