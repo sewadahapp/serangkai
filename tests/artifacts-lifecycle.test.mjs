@@ -64,6 +64,26 @@ test('deletes an artifact, its versions, and its stored files', async () => {
   assert.deepEqual(await filesUnder(join(dataDir, 'files', userIdA, artifact.id)), [])
 })
 
+test('uploaded artifacts validate folder ownership', async () => {
+  const folder = (await (await fetch(`${base}/api/folders`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Upload target' }) })).json()).folder
+
+  const formA = new FormData()
+  formA.append('file', new Blob(['# Uploaded'], { type: 'text/markdown' }), 'upload.md')
+  formA.append('folderId', folder.id)
+  const owned = await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie: cookieA }, body: formA })
+  assert.equal(owned.status, 200)
+  const artifact = (await owned.json()).artifact
+  assert.equal(artifact.folderId, folder.id)
+  const read = await fetch(`${base}/api/artifacts/${artifact.id}`, { headers: { cookie: cookieA } })
+  assert.equal((await read.json()).artifact.folderId, folder.id)
+
+  const formB = new FormData()
+  formB.append('file', new Blob(['# Uploaded'], { type: 'text/markdown' }), 'upload.md')
+  formB.append('folderId', folder.id)
+  const foreign = await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie: cookieB }, body: formB })
+  assert.equal(foreign.status, 400)
+})
+
 test('deletes extracted bundle files from the storage volume', async () => {
   const form = new FormData()
   form.append('file', new Blob([await zip([['index.html', '<h1>Temp bundle</h1>']])], { type: 'application/zip' }), 'temp.zip')

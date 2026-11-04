@@ -72,4 +72,9 @@ test('human browser workflow registers and creates an artifact', async () => {
   await page.getByRole('button', { name: 'Confirm delete' }).click()
   await page.waitForURL('**/workspace')
   await assert.doesNotReject(() => page.getByText('No artifacts yet').waitFor())
+
+  await page.getByRole('button', { name: 'Upload' }).click()
+  await page.getByLabel('Artifact file').setInputFiles({ name: 'notes.md', mimeType: 'text/markdown', buffer: Buffer.from('# Uploaded notes') })
+  await page.getByRole('button', { name: 'Upload artifact' }).click()
+  await assert.doesNotReject(() => page.getByText('notes').first().waitFor())
 })

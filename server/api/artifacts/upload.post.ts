@@ -1,10 +1,11 @@
 import { nanoid } from 'nanoid'
-import { artifactVersions, artifacts } from '../../db/schema'
+import { artifactVersions, artifacts, folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireScope } from '../../utils/require-auth'
 import { artifactTypes, inferArtifactType, makeSlug, MAX_UPLOAD_BYTES } from '../../utils/artifacts'
 import { extractBundle } from '#serangkai-bundles-runtime'
+import { and, eq } from 'drizzle-orm'
 
 const allowedMimeTypes = new Set([
   'text/markdown', 'text/plain', 'text/html', 'text/javascript', 'application/javascript',
@@ -28,6 +29,13 @@ export default defineEventHandler(async (event) => {
   const title = titlePart?.data?.toString().trim() || file.filename || 'Uploaded artifact'
   const type = (typePart?.data?.toString() || inferArtifactType(file.filename || '', file.type || '')) as typeof artifactTypes[number]
   const visibility = visibilityPart?.data?.toString() || 'private'
+  const folderId = folderPart?.data?.toString() || null
+
+  if (folderId) {
+    const folder = await db.select().from(folders)
+      .where(and(eq(folders.id, folderId), eq(folders.userId, user.id))).get()
+    if (!folder) throw createError({ statusCode: 400, message: 'Folder not found' })
+  }
 
   if (!artifactTypes.includes(type)) throw createError({ statusCode: 400, message: 'Unsupported artifact type' })
   if (!['private', 'public', 'unlisted'].includes(visibility)) throw createError({ statusCode: 400, message: 'Invalid visibility' })
@@ -45,10 +53,10 @@ export default defineEventHandler(async (event) => {
     await storage.save(contentPath, file.data)
   }
   await db.insert(artifacts).values({
-    id, userId: user.id, folderId: folderPart?.data?.toString() || null, slug, title, type,
+    id, userId: user.id, folderId, slug, title, type,
     visibility: visibility as 'private' | 'public' | 'unlisted', contentPath,
     metadata: { filename: file.filename, mimeType: file.type, size: file.data.length }, createdAt: new Date(), updatedAt: new Date(),
   })
   await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version: 1, contentPath, metadata: {}, createdAt: new Date() })
-  return { artifact: { id, slug, title, type, visibility, size: file.data.length } }
+  return { artifact: { id, slug, title, type, visibility, folderId, size: file.data.length } }
 })

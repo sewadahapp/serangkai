@@ -5,12 +5,13 @@
       <div class="flex gap-2">
         <SButton @click="openNewFolder">New Folder</SButton>
         <SButton @click="openNewArtifact">New Artifact</SButton>
+        <SButton variant="outline" @click="openUpload">Upload</SButton>
       </div>
     </div>
 
-    <SCard v-if="showNewFolder || showNewArtifact" class="mb-6">
+    <SCard v-if="showNewFolder || showNewArtifact || showUpload" class="mb-6">
       <SCardHeader>
-        <SCardTitle>{{ showNewFolder ? 'Create folder' : 'Create artifact' }}</SCardTitle>
+        <SCardTitle>{{ showNewFolder ? 'Create folder' : showUpload ? 'Upload artifact' : 'Create artifact' }}</SCardTitle>
       </SCardHeader>
       <SCardContent>
         <form v-if="showNewFolder" class="space-y-3" @submit.prevent="createFolder">
@@ -24,7 +25,7 @@
             <SButton type="button" variant="ghost" @click="showNewFolder = false">Cancel</SButton>
           </div>
         </form>
-        <form v-else class="space-y-3" @submit.prevent="createArtifact">
+        <form v-else-if="showNewArtifact" class="space-y-3" @submit.prevent="createArtifact">
           <SInput v-model="artifactTitle" placeholder="Artifact title" required />
           <div class="grid gap-3 sm:grid-cols-3">
             <select v-model="artifactType" aria-label="Artifact type" class="rounded-md border bg-background px-3 py-2">
@@ -46,6 +47,32 @@
           <div class="flex gap-2">
             <SButton type="submit" :disabled="saving">Create artifact</SButton>
             <SButton type="button" variant="ghost" @click="showNewArtifact = false">Cancel</SButton>
+          </div>
+        </form>
+        <form v-else class="space-y-3" @submit.prevent="uploadArtifact">
+          <input
+            type="file"
+            aria-label="Artifact file"
+            accept=".md,.markdown,.txt,.html,.htm,.js,.json,.pdf,.png,.jpg,.jpeg,.gif,.webp,.svg,.zip"
+            class="block w-full rounded-md border bg-background px-3 py-2 text-sm"
+            @change="selectUploadFile"
+          />
+          <div class="grid gap-3 sm:grid-cols-3">
+            <SInput v-model="uploadTitle" placeholder="Title (optional)" />
+            <select v-model="uploadVisibility" aria-label="Upload visibility" class="rounded-md border bg-background px-3 py-2">
+              <option value="private">Private</option>
+              <option value="unlisted">Unlisted</option>
+              <option value="public">Public</option>
+            </select>
+            <select v-model="uploadFolderId" aria-label="Upload folder" class="rounded-md border bg-background px-3 py-2">
+              <option value="">No folder</option>
+              <option v-for="row in folderRows" :key="row.id" :value="row.id">{{ folderIndent(row.depth) }}{{ row.name }}</option>
+            </select>
+          </div>
+          <p v-if="uploadFile" class="text-sm text-muted-foreground">{{ uploadFile.name }} · {{ (uploadFile.size / 1024).toFixed(1) }} KiB</p>
+          <div class="flex gap-2">
+            <SButton type="submit" :disabled="uploading || !uploadFile">{{ uploading ? 'Uploading...' : 'Upload artifact' }}</SButton>
+            <SButton type="button" variant="ghost" @click="showUpload = false">Cancel</SButton>
           </div>
         </form>
         <p v-if="error" class="mt-3 text-sm text-red-500">{{ error }}</p>
@@ -171,6 +198,12 @@ const error = ref('')
 
 const showNewFolder = ref(false)
 const showNewArtifact = ref(false)
+const showUpload = ref(false)
+const uploadFile = ref<File | null>(null)
+const uploadTitle = ref('')
+const uploadVisibility = ref('private')
+const uploadFolderId = ref('')
+const uploading = ref(false)
 
 const folderMap = computed(() => new Map(folders.value.map(folder => [folder.id, folder])))
 
@@ -232,12 +265,30 @@ const openNewFolder = () => {
   parentFolderId.value = selectedFolderId.value || ''
   showNewFolder.value = true
   showNewArtifact.value = false
+  showUpload.value = false
 }
 
 const openNewArtifact = () => {
   artifactFolderId.value = selectedFolderId.value || ''
   showNewArtifact.value = true
   showNewFolder.value = false
+  showUpload.value = false
+}
+
+const openUpload = () => {
+  uploadFolderId.value = selectedFolderId.value || ''
+  uploadFile.value = null
+  uploadTitle.value = ''
+  showUpload.value = true
+  showNewFolder.value = false
+  showNewArtifact.value = false
+  error.value = ''
+}
+
+const selectUploadFile = (event: Event) => {
+  const file = (event.target as HTMLInputElement).files?.[0] || null
+  uploadFile.value = file
+  if (file && !uploadTitle.value) uploadTitle.value = file.name.replace(/\.[^.]+$/, '')
 }
 
 const selectFolder = (folderId: string | null) => {
@@ -338,6 +389,30 @@ const createArtifact = async () => {
     error.value = e.data?.message || 'Could not create artifact'
   } finally {
     saving.value = false
+  }
+}
+
+const uploadArtifact = async () => {
+  if (!uploadFile.value) {
+    error.value = 'Choose a file to upload'
+    return
+  }
+  uploading.value = true; error.value = ''
+  try {
+    const form = new FormData()
+    form.append('file', uploadFile.value)
+    if (uploadTitle.value.trim()) form.append('title', uploadTitle.value.trim())
+    form.append('visibility', uploadVisibility.value)
+    if (uploadFolderId.value) form.append('folderId', uploadFolderId.value)
+    await $fetch('/api/artifacts/upload', { method: 'POST', body: form })
+    showUpload.value = false
+    uploadFile.value = null
+    uploadTitle.value = ''
+    await loadWorkspace()
+  } catch (e: any) {
+    error.value = e.data?.message || 'Could not upload artifact'
+  } finally {
+    uploading.value = false
   }
 }
 </script>
