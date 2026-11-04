@@ -45,6 +45,7 @@ MVP end-to-end workflow implemented and verified
 - [x] Delete removes current content, all version files, and extracted bundle directories
 - [x] Workspace upload UI for Markdown, HTML, JSON, PDF, images, and static ZIP bundles
 - [x] Upload path validates folder ownership before attaching an artifact
+- [x] Folder-scoped search that includes descendant folders
 
 ## Verification
 - `npm run build` passes

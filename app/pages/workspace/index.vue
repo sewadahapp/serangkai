@@ -81,6 +81,9 @@
 
     <div class="mb-6">
       <SInput v-model="searchQuery" placeholder="Search artifacts and folders..." @input="search" />
+      <p v-if="searchQuery.trim()" class="mt-2 text-sm text-muted-foreground">
+        {{ selectedFolder ? `Searching in ${selectedFolder.name} and its subfolders` : 'Searching all artifacts and folders' }}
+      </p>
     </div>
     
     <div class="grid md:grid-cols-4 gap-6">
@@ -248,6 +251,7 @@ const descendantIds = (folderId: string) => {
 }
 
 const visibleArtifacts = computed(() => {
+  if (searchQuery.value.trim()) return artifacts.value
   if (!selectedFolderId.value) return artifacts.value
   const ids = descendantIds(selectedFolderId.value)
   return artifacts.value.filter(artifact => artifact.folderId && ids.has(artifact.folderId))
@@ -298,6 +302,8 @@ const selectFolder = (folderId: string | null) => {
   folderMessage.value = ''
   showNewFolder.value = false
   showNewArtifact.value = false
+  showUpload.value = false
+  if (searchQuery.value.trim()) search()
 }
 
 const renameFolder = async () => {
@@ -346,9 +352,8 @@ onMounted(async () => {
 })
 
 const search = async () => {
-  selectedFolderId.value = null
   if (!searchQuery.value.trim()) return loadWorkspace()
-  const result = await $fetch('/api/search', { query: { q: searchQuery.value } })
+  const result = await $fetch('/api/search', { query: { q: searchQuery.value, ...(selectedFolderId.value ? { folderId: selectedFolderId.value } : {}) } })
   folders.value = result.folders || []
   artifacts.value = result.artifacts || []
 }

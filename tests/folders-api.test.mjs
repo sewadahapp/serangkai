@@ -54,6 +54,29 @@ test('folders nest with paths and artifacts can be created and moved inside them
   assert.equal((await moved.json()).artifact.folderId, null)
 })
 
+test('search can be scoped to a folder subtree', async () => {
+  const parent = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Search parent' })).json()).folder
+  const child = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Search child', parentId: parent.id })).json()).folder
+  const sibling = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Search sibling' })).json()).folder
+
+  for (const [title, folderId] of [['Alpha parent', parent.id], ['Alpha child', child.id], ['Alpha sibling', sibling.id], ['Alpha root', undefined]]) {
+    const response = await json(cookieA, 'POST', '/api/artifacts', { title, type: 'markdown', content: '# Alpha', ...(folderId ? { folderId } : {}) })
+    assert.equal(response.status, 200)
+  }
+
+  const all = await json(cookieA, 'GET', '/api/search?q=Alpha')
+  assert.equal((await all.json()).artifacts.length, 4)
+
+  const parentScope = await json(cookieA, 'GET', `/api/search?q=Alpha&folderId=${parent.id}`)
+  const parentTitles = (await parentScope.json()).artifacts.map(artifact => artifact.title).sort()
+  assert.deepEqual(parentTitles, ['Alpha child', 'Alpha parent'])
+
+  const childScope = await json(cookieA, 'GET', `/api/search?q=Alpha&folderId=${child.id}`)
+  assert.deepEqual((await childScope.json()).artifacts.map(artifact => artifact.title), ['Alpha child'])
+
+  assert.equal((await json(cookieB, 'GET', `/api/search?q=Alpha&folderId=${parent.id}`)).status, 404)
+})
+
 test('renames folder paths with descendants and refuses to delete non-empty folders', async () => {
   const parent = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Rename parent' })).json()).folder
   const childFolder = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Child', parentId: parent.id })).json()).folder

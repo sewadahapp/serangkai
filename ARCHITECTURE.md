@@ -107,7 +107,7 @@ Implementations: LocalStorageAdapter (default), S3StorageAdapter (future), etc.
 - `POST /api/artifacts/:id/share` - Build a public or signed unlisted share URL
 - `GET /api/share/:slug` - Public/unlisted artifact delivery
 - `GET /api/share/:slug/*` - Scoped static bundle asset delivery
-- `GET /api/search` - Search artifacts/folders
+- `GET /api/search` - Search artifacts/folders, optionally scoped to a folder subtree
 - `GET /api/health` - Health check
 
 ### MCP Integration
