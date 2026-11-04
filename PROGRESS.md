@@ -36,6 +36,10 @@ MVP end-to-end workflow implemented and verified
 - [x] Token scope enforcement tests: read cannot write, read/write cannot mint or revoke tokens
 - [x] Multi-arch GHCR image publish workflow plus published-image Compose file
 - [x] Re-verify the built image path: health, registration, artifact creation, restart persistence
+- [x] Nested folder tree in the workspace with folder filtering and artifact counts
+- [x] Create artifacts directly in a folder and move existing artifacts between folders
+- [x] Cross-tenant folder ownership checks for folder creation, artifact creation, and artifact moves
+- [x] MCP folder tools (`list_folders`, `create_folder`) and folder-aware artifact create/update
 
 ## Verification
 - `npm run build` passes
@@ -45,7 +49,7 @@ MVP end-to-end workflow implemented and verified
 - Artifact update creates version 2 and version history lists versions 2 and 1
 - Public Markdown returns rendered `<h1>` and restrictive CSP
 - Browser test covers registration, artifact creation, and switching to an unlisted signed link
-- Full API suite passes: MCP, upload, share, tokens, security, bundles, Markdown, local runtime
+- Full API suite passes: MCP, upload, share, tokens, folders, security, bundles, Markdown, local runtime
 - Cloudflare Worker deploy dry-run, Vercel build, and local provider runtime tests pass; remote provider deployments remain unverified
 - Container image re-verified from the built image with a persistent volume and restart
 - Search returns matching artifacts

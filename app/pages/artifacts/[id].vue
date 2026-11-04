@@ -52,6 +52,20 @@
       </SCardContent>
     </SCard>
 
+    <SCard v-if="artifact" class="mt-6">
+      <SCardHeader><SCardTitle>Folder</SCardTitle></SCardHeader>
+      <SCardContent>
+        <div class="flex flex-wrap items-center gap-2">
+          <select v-model="draftFolderId" aria-label="Artifact folder" class="rounded-md border bg-background px-3 py-2">
+            <option value="">No folder</option>
+            <option v-for="folder in folders" :key="folder.id" :value="folder.id">{{ folder.path || folder.name }}</option>
+          </select>
+          <SButton :disabled="savingFolder" @click="saveFolder">{{ savingFolder ? 'Moving...' : 'Move artifact' }}</SButton>
+          <span v-if="folderMessage" class="text-sm text-muted-foreground">{{ folderMessage }}</span>
+        </div>
+      </SCardContent>
+    </SCard>
+
     <SCard v-if="versions.length" class="mt-6">
       <SCardHeader><SCardTitle>Version history</SCardTitle></SCardHeader>
       <SCardContent><ol class="space-y-2 text-sm"><li v-for="version in versions" :key="version.id" class="flex justify-between"><span>Version {{ version.version }}</span><time>{{ new Date(version.createdAt).toLocaleString() }}</time></li></ol></SCardContent>
@@ -74,6 +88,10 @@ const draftVisibility = ref('private')
 const shareUrl = ref('')
 const shareMessage = ref('')
 const savingVisibility = ref(false)
+const folders = ref<any[]>([])
+const draftFolderId = ref('')
+const savingFolder = ref(false)
+const folderMessage = ref('')
 
 const loadShareLink = async () => {
   shareUrl.value = ''
@@ -97,6 +115,16 @@ const saveVisibility = async () => {
   finally { savingVisibility.value = false }
 }
 
+const saveFolder = async () => {
+  savingFolder.value = true; folderMessage.value = ''
+  try {
+    const res = await $fetch(`/api/artifacts/${route.params.id}`, { method: 'PUT', body: { folderId: draftFolderId.value || null } })
+    artifact.value = res.artifact
+    folderMessage.value = 'Folder updated.'
+  } catch (e: any) { folderMessage.value = e.data?.message || 'Could not move artifact' }
+  finally { savingFolder.value = false }
+}
+
 onMounted(async () => {
   try {
     const res = await $fetch(`/api/artifacts/${route.params.id}`)
@@ -106,9 +134,14 @@ onMounted(async () => {
     draftTitle.value = res.artifact.title
     draftContent.value = res.content
     draftVisibility.value = res.artifact.visibility
+    draftFolderId.value = res.artifact.folderId || ''
     await loadShareLink()
-    const history = await $fetch(`/api/artifacts/${route.params.id}/versions`)
+    const [history, folderList] = await Promise.all([
+      $fetch(`/api/artifacts/${route.params.id}/versions`),
+      $fetch('/api/folders'),
+    ])
     versions.value = history.versions || []
+    folders.value = folderList.folders || []
   } catch (e) {
     console.error(e)
   }

@@ -1,9 +1,10 @@
 import { nanoid } from 'nanoid'
-import { artifacts, artifactVersions } from '../../db/schema'
+import { artifacts, artifactVersions, folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { getRequestStorage } from '#serangkai-storage-runtime'
 import { z } from 'zod'
 import { requireScope } from '../../utils/require-auth'
+import { and, eq } from 'drizzle-orm'
 
 const schema = z.object({
   title: z.string().min(1),
@@ -29,6 +30,14 @@ export default defineEventHandler(async (event) => {
   
   const { title, slug: providedSlug, type, content, folderId, visibility, metadata } = result.data
   const slug = providedSlug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + nanoid(6)
+
+  if (folderId) {
+    const folder = await db.select().from(folders)
+      .where(and(eq(folders.id, folderId), eq(folders.userId, user.id))).get()
+    if (!folder) {
+      throw createError({ statusCode: 400, message: 'Folder not found' })
+    }
+  }
   
   const artifactId = nanoid()
   const contentKey = `${user.id}/${artifactId}/content`
@@ -57,5 +66,5 @@ export default defineEventHandler(async (event) => {
     createdAt: new Date(),
   })
   
-  return { artifact: { id: artifactId, slug, title, type, visibility } }
+  return { artifact: { id: artifactId, slug, title, type, visibility, folderId: folderId || null } }
 })

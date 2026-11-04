@@ -14,6 +14,7 @@
     "test:upload": "npm run build && node --test tests/upload-api.test.mjs",
     "test:share": "npm run build && node --test tests/share-api.test.mjs",
     "test:tokens": "npm run build && node --test tests/tokens-api.test.mjs",
+    "test:folders": "npm run build && node --test tests/folders-api.test.mjs",
     "test:security": "npm run build && node --test tests/security-api.test.mjs",
     "test:browser": "npm run build && node --test tests/browser-workspace.test.mjs",
     "test:markdown": "node --import tsx --test tests/markdown-render.test.mjs",

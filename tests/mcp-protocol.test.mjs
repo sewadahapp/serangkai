@@ -90,7 +90,7 @@ test('supports MCP initialization and tool discovery', async () => {
 
   const tools = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} })
   const names = tools.result.tools.map(tool => tool.name)
-  assert.deepEqual(names, ['list_artifacts', 'get_artifact', 'create_artifact', 'update_artifact'])
+  assert.deepEqual(names, ['list_folders', 'create_folder', 'list_artifacts', 'get_artifact', 'create_artifact', 'update_artifact'])
 })
 
 test('creates and reads an artifact through MCP tools', async () => {
@@ -101,6 +101,22 @@ test('creates and reads an artifact through MCP tools', async () => {
   const read = await mcp({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'get_artifact', arguments: { id: artifact.id } } })
   const result = JSON.parse(read.result.content[0].text)
   assert.equal(result.content, '# MCP')
+})
+
+test('creates folders and files artifacts inside them through MCP tools', async () => {
+  const folderResponse = await mcp({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'create_folder', arguments: { name: 'Reports' } } })
+  const folder = JSON.parse(folderResponse.result.content[0].text)
+  assert.equal(folder.path, '/Reports')
+
+  const created = await mcp({ jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'create_artifact', arguments: { title: 'Folder artifact', type: 'markdown', content: '# Foldered', folderId: folder.id } } })
+  const artifact = JSON.parse(created.result.content[0].text)
+  assert.equal(artifact.folderId, folder.id)
+
+  const listed = await mcp({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'list_folders', arguments: {} } })
+  assert.equal(JSON.parse(listed.result.content[0].text)[0].name, 'Reports')
+
+  const moved = await mcp({ jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'update_artifact', arguments: { id: artifact.id, folderId: null } } })
+  assert.equal(JSON.parse(moved.result.content[0].text).folderId, null)
 })
 
 test('rejects MCP requests without authentication', async () => {

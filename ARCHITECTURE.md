@@ -98,7 +98,7 @@ Implementations: LocalStorageAdapter (default), S3StorageAdapter (future), etc.
 - `POST /api/artifacts` - Create artifact
 - `POST /api/artifacts/upload` - Multipart upload (Markdown, HTML, JSON, PDF, images, ZIP bundles)
 - `GET /api/artifacts/:id` - Get artifact
-- `PUT /api/artifacts/:id` - Update artifact, including visibility
+- `PUT /api/artifacts/:id` - Update artifact, including visibility and folder
 - `DELETE /api/artifacts/:id` - Delete artifact
 - `GET /api/artifacts/:id/versions` - Version history
 - `GET /api/artifacts/:id/download` - Download the original source
@@ -110,12 +110,12 @@ Implementations: LocalStorageAdapter (default), S3StorageAdapter (future), etc.
 
 ### MCP Integration
 MCP server at `/api/mcp` (Streamable HTTP) providing tools:
+- `list_folders` - List folders
+- `create_folder` - Create a folder, optionally nested
 - `list_artifacts` - List user's artifacts
 - `get_artifact` - Read artifact content
-- `create_artifact` - Create new artifact
-- `update_artifact` - Update existing artifact
-- `create_folder` - Create folder
-- `search` - Search workspace
+- `create_artifact` - Create new artifact, optionally inside a folder
+- `update_artifact` - Update content, visibility, or folder
 
 ### Frontend Routes
 - `/` - Dashboard/workspace home

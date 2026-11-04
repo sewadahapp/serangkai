@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { toWebRequest } from 'h3'
-import { artifactVersions, artifacts } from '../../db/schema'
+import { artifactVersions, artifacts, folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireScope } from '../../utils/require-auth'
@@ -18,6 +18,35 @@ function textResult(value: unknown) {
 
 function createMcpServer(userId: string, canWrite: boolean, db: any, storage: any) {
   const server = new McpServer({ name: 'serangkai', version: '0.1.0' }, { maxToolInputElements: 100 })
+  const findFolder = (folderId: string) => db.select().from(folders)
+    .where(and(eq(folders.id, folderId), eq(folders.userId, userId))).get()
+
+  server.registerTool('list_folders', {
+    title: 'List folders',
+    description: 'List folders owned by the authenticated Serangkai user.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  }, async () => {
+    const rows = await db.select().from(folders).where(eq(folders.userId, userId))
+    return textResult(rows)
+  })
+
+  server.registerTool('create_folder', {
+    title: 'Create folder',
+    description: 'Create a folder, optionally nested under an existing folder.',
+    inputSchema: { name: z.string().min(1).max(120), parentId: z.string().optional() },
+  }, async ({ name, parentId }) => {
+    if (!canWrite) return { isError: true, content: [{ type: 'text', text: 'This API token requires write scope.' }] }
+    let path = `/${name}`
+    if (parentId) {
+      const parent = await findFolder(parentId)
+      if (!parent) return { isError: true, content: [{ type: 'text', text: 'Parent folder not found.' }] }
+      path = `${parent.path}/${name}`
+    }
+    const id = nanoid()
+    await db.insert(folders).values({ id, userId, parentId: parentId || null, name, path, createdAt: new Date(), updatedAt: new Date() })
+    return textResult({ id, name, parentId: parentId || null, path })
+  })
 
   server.registerTool('list_artifacts', {
     title: 'List artifacts',
@@ -42,7 +71,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
     )).get()
     if (!row) return { isError: true, content: [{ type: 'text', text: 'Artifact not found.' }] }
     const content = (await storage.read(row.contentPath)).toString()
-    return textResult({ id: row.id, slug: row.slug, title: row.title, type: row.type, visibility: row.visibility, content })
+    return textResult({ id: row.id, slug: row.slug, title: row.title, type: row.type, visibility: row.visibility, folderId: row.folderId, content })
   })
 
   server.registerTool('create_artifact', {
@@ -57,25 +86,27 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
     },
   }, async ({ title, type, content, folderId, visibility: artifactVisibility }) => {
     if (!canWrite) return { isError: true, content: [{ type: 'text', text: 'This API token requires write scope.' }] }
+    if (folderId && !(await findFolder(folderId))) return { isError: true, content: [{ type: 'text', text: 'Folder not found.' }] }
     const id = nanoid()
     const slug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80)}-${nanoid(6)}`
     const contentPath = `${userId}/${id}/content`
     await storage.save(contentPath, content)
     await db.insert(artifacts).values({ id, userId, folderId: folderId || null, slug, title, type, visibility: artifactVisibility, contentPath, metadata: {}, createdAt: new Date(), updatedAt: new Date() })
     await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version: 1, contentPath, metadata: {}, createdAt: new Date() })
-    return textResult({ id, slug, title, type, visibility: artifactVisibility })
+    return textResult({ id, slug, title, type, visibility: artifactVisibility, folderId: folderId || null })
   })
 
   server.registerTool('update_artifact', {
     title: 'Update artifact',
     description: 'Update an artifact and create a new immutable version when content changes.',
     inputSchema: {
-      id: z.string(), title: z.string().min(1).max(200).optional(), content: z.string().max(10_000_000).optional(), visibility: visibility.optional(),
+      id: z.string(), title: z.string().min(1).max(200).optional(), content: z.string().max(10_000_000).optional(), visibility: visibility.optional(), folderId: z.string().nullable().optional(),
     },
-  }, async ({ id, title, content, visibility: artifactVisibility }) => {
+  }, async ({ id, title, content, visibility: artifactVisibility, folderId }) => {
     if (!canWrite) return { isError: true, content: [{ type: 'text', text: 'This API token requires write scope.' }] }
     const row = await db.select().from(artifacts).where(and(eq(artifacts.id, id), eq(artifacts.userId, userId))).get()
     if (!row) return { isError: true, content: [{ type: 'text', text: 'Artifact not found.' }] }
+    if (folderId && !(await findFolder(folderId))) return { isError: true, content: [{ type: 'text', text: 'Folder not found.' }] }
     let contentPath = row.contentPath
     if (content !== undefined) {
       const versions = await db.select({ version: artifactVersions.version }).from(artifactVersions).where(eq(artifactVersions.artifactId, id))
@@ -84,8 +115,8 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
       await storage.save(contentPath, content)
       await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version, contentPath, metadata: row.metadata || {}, createdAt: new Date() })
     }
-    await db.update(artifacts).set({ ...(title === undefined ? {} : { title }), ...(artifactVisibility === undefined ? {} : { visibility: artifactVisibility }), ...(content === undefined ? {} : { contentPath }), updatedAt: new Date() }).where(eq(artifacts.id, id))
-    return textResult({ id, title: title || row.title, visibility: artifactVisibility || row.visibility, contentPath })
+    await db.update(artifacts).set({ ...(title === undefined ? {} : { title }), ...(artifactVisibility === undefined ? {} : { visibility: artifactVisibility }), ...(folderId === undefined ? {} : { folderId }), ...(content === undefined ? {} : { contentPath }), updatedAt: new Date() }).where(eq(artifacts.id, id))
+    return textResult({ id, title: title || row.title, visibility: artifactVisibility || row.visibility, folderId: folderId === undefined ? row.folderId : folderId, contentPath })
   })
 
   return server

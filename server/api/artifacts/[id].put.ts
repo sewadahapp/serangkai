@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import { artifacts, artifactVersions } from '../../db/schema'
+import { artifacts, artifactVersions, folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireScope } from '../../utils/require-auth'
@@ -42,6 +42,14 @@ export default defineEventHandler(async (event) => {
       id: nanoid(), artifactId: artifact.id, version, contentPath,
       metadata: changes.metadata || artifact.metadata || {}, createdAt: now,
     })
+  }
+
+  if (changes.folderId) {
+    const folder = await db.select().from(folders)
+      .where(and(eq(folders.id, changes.folderId), eq(folders.userId, user.id))).get()
+    if (!folder) {
+      throw createError({ statusCode: 400, message: 'Folder not found' })
+    }
   }
 
   await db.update(artifacts).set({

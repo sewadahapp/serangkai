@@ -31,6 +31,7 @@ export default defineEventHandler(async (event) => {
       title: artifact.title, 
       type: artifact.type,
       visibility: artifact.visibility,
+      folderId: artifact.folderId,
       metadata: artifact.metadata,
       createdAt: artifact.createdAt,
       updatedAt: artifact.updatedAt

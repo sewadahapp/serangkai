@@ -22,6 +22,7 @@ code on the server and does not run build jobs for uploaded bundles.
 - API tokens are stored as SHA-256 hashes (Web Crypto, identical on Node and edge runtimes) and have scopes (`read`, `write`, `full`).
 - MCP write tools require `write` or `full` scope.
 - Minting or revoking API tokens requires a session or a `full`-scope token, so a leaked read/write token cannot escalate itself.
+- Folder relationships are ownership-checked on create and update; artifacts and folders cannot be attached to another user's tree.
 
 ## Verified negative cases
 
