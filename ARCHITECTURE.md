@@ -94,6 +94,8 @@ Implementations: LocalStorageAdapter (default), S3StorageAdapter (future), etc.
 - `DELETE /api/tokens/:id` - Revoke token
 - `GET /api/folders` - List folders
 - `POST /api/folders` - Create folder
+- `PUT /api/folders/:id` - Rename a folder and rewrite descendant paths
+- `DELETE /api/folders/:id` - Delete an empty folder
 - `GET /api/artifacts` - List artifacts (with filters)
 - `POST /api/artifacts` - Create artifact
 - `POST /api/artifacts/upload` - Multipart upload (Markdown, HTML, JSON, PDF, images, ZIP bundles)

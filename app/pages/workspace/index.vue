@@ -87,6 +87,21 @@
               </button>
               <div v-if="folderRows.length === 0" class="text-sm text-muted-foreground">No folders</div>
             </div>
+            <div v-if="selectedFolder" class="mt-3 space-y-2 border-t pt-3">
+              <div class="flex gap-2">
+                <SInput v-model="renameValue" placeholder="Rename folder" class="flex-1" />
+                <SButton :disabled="savingFolder" @click="renameFolder">Rename</SButton>
+              </div>
+              <template v-if="confirmDeleteFolder">
+                <p class="text-sm text-muted-foreground">Delete “{{ selectedFolder.name }}”? Only empty folders can be deleted.</p>
+                <div class="flex gap-2">
+                  <SButton variant="outline" :disabled="savingFolder" @click="deleteFolder">Confirm delete</SButton>
+                  <SButton variant="ghost" @click="confirmDeleteFolder = false">Cancel</SButton>
+                </div>
+              </template>
+              <SButton v-else variant="outline" @click="confirmDeleteFolder = true">Delete folder</SButton>
+              <p v-if="folderMessage" class="text-sm text-muted-foreground">{{ folderMessage }}</p>
+            </div>
           </SCardContent>
         </SCard>
       </aside>
@@ -147,6 +162,10 @@ const artifactType = ref('markdown')
 const artifactVisibility = ref('private')
 const artifactContent = ref('# New artifact\n\nStart writing here.')
 const selectedFolderId = ref<string | null>(null)
+const renameValue = ref('')
+const savingFolder = ref(false)
+const confirmDeleteFolder = ref(false)
+const folderMessage = ref('')
 const saving = ref(false)
 const error = ref('')
 
@@ -223,6 +242,42 @@ const openNewArtifact = () => {
 
 const selectFolder = (folderId: string | null) => {
   selectedFolderId.value = folderId
+  renameValue.value = folderId ? folderMap.value.get(folderId)?.name || '' : ''
+  confirmDeleteFolder.value = false
+  folderMessage.value = ''
+  showNewFolder.value = false
+  showNewArtifact.value = false
+}
+
+const renameFolder = async () => {
+  if (!selectedFolderId.value) return
+  savingFolder.value = true; folderMessage.value = ''
+  try {
+    const res = await $fetch(`/api/folders/${selectedFolderId.value}`, { method: 'PUT', body: { name: renameValue.value } })
+    await loadWorkspace()
+    renameValue.value = res.folder.name
+    folderMessage.value = 'Folder renamed.'
+  } catch (e: any) {
+    folderMessage.value = e.data?.message || 'Could not rename folder'
+  } finally {
+    savingFolder.value = false
+  }
+}
+
+const deleteFolder = async () => {
+  if (!selectedFolderId.value) return
+  savingFolder.value = true; folderMessage.value = ''
+  try {
+    await $fetch(`/api/folders/${selectedFolderId.value}`, { method: 'DELETE' })
+    selectedFolderId.value = null
+    renameValue.value = ''
+    confirmDeleteFolder.value = false
+    await loadWorkspace()
+  } catch (e: any) {
+    folderMessage.value = e.data?.message || 'Could not delete folder'
+  } finally {
+    savingFolder.value = false
+  }
 }
 
 const loadWorkspace = async () => {
@@ -255,7 +310,7 @@ const createFolder = async () => {
     parentFolderId.value = ''
     showNewFolder.value = false
     await loadWorkspace()
-    selectedFolderId.value = res.folder.id
+    selectFolder(res.folder.id)
   } catch (e: any) {
     error.value = e.data?.message || 'Could not create folder'
   } finally {

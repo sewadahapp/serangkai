@@ -54,6 +54,35 @@ test('folders nest with paths and artifacts can be created and moved inside them
   assert.equal((await moved.json()).artifact.folderId, null)
 })
 
+test('renames folder paths with descendants and refuses to delete non-empty folders', async () => {
+  const parent = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Rename parent' })).json()).folder
+  const childFolder = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Child', parentId: parent.id })).json()).folder
+  const artifact = (await (await json(cookieA, 'POST', '/api/artifacts', { title: 'Folder content', type: 'markdown', content: '# Content', folderId: parent.id })).json()).artifact
+
+  const renamed = await json(cookieA, 'PUT', `/api/folders/${parent.id}`, { name: 'Renamed parent' })
+  assert.equal(renamed.status, 200)
+  assert.equal((await renamed.json()).folder.path, '/Renamed parent')
+
+  const folders = (await (await json(cookieA, 'GET', '/api/folders')).json()).folders
+  assert.equal(folders.find(folder => folder.id === childFolder.id).path, '/Renamed parent/Child')
+
+  const blocked = await json(cookieA, 'DELETE', `/api/folders/${parent.id}`)
+  assert.equal(blocked.status, 409)
+  assert.match((await blocked.json()).message, /not empty/)
+
+  assert.equal((await json(cookieA, 'DELETE', `/api/folders/${childFolder.id}`)).status, 200)
+  assert.equal((await json(cookieA, 'DELETE', `/api/folders/${parent.id}`)).status, 409)
+
+  const slashRename = await json(cookieA, 'PUT', `/api/folders/${parent.id}`, { name: 'Bad/Name' })
+  assert.equal(slashRename.status, 400)
+
+  assert.equal((await json(cookieB, 'PUT', `/api/folders/${parent.id}`, { name: 'Stolen' })).status, 404)
+  assert.equal((await json(cookieB, 'DELETE', `/api/folders/${parent.id}`)).status, 404)
+
+  // The artifact is still safe after the refused deletes.
+  assert.equal((await json(cookieA, 'GET', `/api/artifacts/${artifact.id}`)).status, 200)
+})
+
 test('rejects foreign parent folders, foreign artifact folders, and slash names', async () => {
   const parent = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Private parent' })).json()).folder
 
