@@ -22,7 +22,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, message: 'Artifact not found' })
   }
   
-  const content = await storage.read(artifact.contentPath)
+  // Binary artifacts are previewed/downloaded through dedicated endpoints;
+  // do not inflate them into a string for the metadata response.
+  const isBinary = artifact.type === 'image' || artifact.type === 'pdf' || artifact.type === 'bundle'
+  const content = isBinary ? Buffer.alloc(0) : await storage.read(artifact.contentPath)
   
   return { 
     artifact: { 

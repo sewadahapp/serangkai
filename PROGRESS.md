@@ -46,6 +46,7 @@ MVP end-to-end workflow implemented and verified
 - [x] Workspace upload UI for Markdown, HTML, JSON, PDF, images, and static ZIP bundles
 - [x] Upload path validates folder ownership before attaching an artifact
 - [x] Folder-scoped search that includes descendant folders
+- [x] Owner-only inline image and PDF previews, plus a bundle-open action
 
 ## Verification
 - `npm run build` passes

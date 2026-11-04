@@ -5,6 +5,7 @@
       <div v-if="artifact" class="flex flex-wrap gap-2">
         <SButton variant="outline" @click="editing = !editing">{{ editing ? 'Preview' : 'Edit' }}</SButton>
         <SButton variant="outline" :to="`/api/artifacts/${route.params.id}/download`">Download</SButton>
+        <SButton v-if="artifact.type === 'bundle'" variant="outline" :to="`/api/share/${artifact.slug}/index.html`" target="_blank" rel="noopener">Open bundle</SButton>
         <SButton v-if="shareUrl" variant="outline" :to="shareUrl" target="_blank" rel="noopener">Open share link</SButton>
         <template v-if="confirmDelete">
           <SButton variant="outline" :disabled="deleting" @click="removeArtifact">{{ deleting ? 'Deleting...' : 'Confirm delete' }}</SButton>
@@ -28,7 +29,9 @@
             <span v-if="message" class="text-sm text-muted-foreground">{{ message }}</span>
           </div>
         </form>
-        <MarkdownDocument v-if="!editing && artifact.type === 'markdown'" :html="renderedContent" />
+        <img v-if="!editing && artifact.type === 'image'" :src="`/api/artifacts/${artifact.id}/preview`" :alt="artifact.title" class="max-h-[70vh] max-w-full rounded border" />
+        <iframe v-else-if="!editing && artifact.type === 'pdf'" :src="`/api/artifacts/${artifact.id}/preview`" :title="`${artifact.title} PDF`" class="h-[70vh] w-full rounded border" />
+        <MarkdownDocument v-else-if="!editing && artifact.type === 'markdown'" :html="renderedContent" />
         <pre v-else-if="!editing" class="whitespace-pre-wrap bg-muted p-4 rounded overflow-auto">{{ content }}</pre>
       </SCardContent>
     </SCard>

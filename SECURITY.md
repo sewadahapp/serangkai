@@ -23,6 +23,7 @@ code on the server and does not run build jobs for uploaded bundles.
 - MCP write tools require `write` or `full` scope.
 - Minting or revoking API tokens requires a session or a `full`-scope token, so a leaked read/write token cannot escalate itself.
 - Folder relationships are ownership-checked on create and update; artifacts and folders cannot be attached to another user's tree.
+- Inline image/PDF previews are owner-only, served with `nosniff`, and images receive a sandbox CSP.
 
 ## Verified negative cases
 

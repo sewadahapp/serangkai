@@ -84,6 +84,43 @@ test('uploaded artifacts validate folder ownership', async () => {
   assert.equal(foreign.status, 400)
 })
 
+test('previews images and PDFs inline for the owner only', async () => {
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
+  const imageForm = new FormData()
+  imageForm.append('file', new Blob([png], { type: 'image/png' }), 'pixel.png')
+  imageForm.append('title', 'Pixel')
+  const imageUpload = await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie: cookieA }, body: imageForm })
+  assert.equal(imageUpload.status, 200)
+  const image = (await imageUpload.json()).artifact
+
+  const preview = await fetch(`${base}/api/artifacts/${image.id}/preview`, { headers: { cookie: cookieA } })
+  assert.equal(preview.status, 200)
+  assert.equal(preview.headers.get('content-type'), 'image/png')
+  assert.match(preview.headers.get('content-security-policy'), /sandbox/)
+  assert.match(preview.headers.get('content-disposition'), /^inline/)
+  assert.equal(preview.headers.get('x-content-type-options'), 'nosniff')
+  assert.deepEqual(Buffer.from(await preview.arrayBuffer()), png)
+
+  assert.equal((await fetch(`${base}/api/artifacts/${image.id}/preview`)).status, 401)
+  assert.equal((await fetch(`${base}/api/artifacts/${image.id}/preview`, { headers: { cookie: cookieB } })).status, 404)
+
+  const metadata = await fetch(`${base}/api/artifacts/${image.id}`, { headers: { cookie: cookieA } })
+  assert.equal((await metadata.json()).content, '')
+
+  const pdfForm = new FormData()
+  pdfForm.append('file', new Blob([Buffer.from('%PDF-1.4\n%%EOF')], { type: 'application/pdf' }), 'doc.pdf')
+  const pdfUpload = await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie: cookieA }, body: pdfForm })
+  const pdf = (await pdfUpload.json()).artifact
+  const pdfPreview = await fetch(`${base}/api/artifacts/${pdf.id}/preview`, { headers: { cookie: cookieA } })
+  assert.equal(pdfPreview.status, 200)
+  assert.equal(pdfPreview.headers.get('content-type'), 'application/pdf')
+  assert.equal(pdfPreview.headers.get('x-frame-options'), 'SAMEORIGIN')
+
+  const text = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Text', type: 'markdown', content: '# Text' }) })
+  const textArtifact = (await text.json()).artifact
+  assert.equal((await fetch(`${base}/api/artifacts/${textArtifact.id}/preview`, { headers: { cookie: cookieA } })).status, 400)
+})
+
 test('deletes extracted bundle files from the storage volume', async () => {
   const form = new FormData()
   form.append('file', new Blob([await zip([['index.html', '<h1>Temp bundle</h1>']])], { type: 'application/zip' }), 'temp.zip')

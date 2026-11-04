@@ -104,6 +104,7 @@ Implementations: LocalStorageAdapter (default), S3StorageAdapter (future), etc.
 - `DELETE /api/artifacts/:id` - Delete artifact
 - `GET /api/artifacts/:id/versions` - Version history
 - `GET /api/artifacts/:id/download` - Download the original source
+- `GET /api/artifacts/:id/preview` - Owner-only inline image/PDF preview
 - `POST /api/artifacts/:id/share` - Build a public or signed unlisted share URL
 - `GET /api/share/:slug` - Public/unlisted artifact delivery
 - `GET /api/share/:slug/*` - Scoped static bundle asset delivery
