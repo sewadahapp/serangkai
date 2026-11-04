@@ -41,6 +41,8 @@ MVP end-to-end workflow implemented and verified
 - [x] Cross-tenant folder ownership checks for folder creation, artifact creation, and artifact moves
 - [x] MCP folder tools (`list_folders`, `create_folder`) and folder-aware artifact create/update
 - [x] Folder rename with descendant path rewrites and safe empty-only deletion
+- [x] Artifact download and two-step delete controls in the artifact UI
+- [x] Delete removes current content, all version files, and extracted bundle directories
 
 ## Verification
 - `npm run build` passes

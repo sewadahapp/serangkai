@@ -18,6 +18,7 @@ test('CI workflow runs build, deployment invariants, provider contracts, and int
     'tests/mcp-protocol.test.mjs',
     'tests/tokens-api.test.mjs',
     'tests/folders-api.test.mjs',
+    'tests/artifacts-lifecycle.test.mjs',
     'tests/browser-workspace.test.mjs',
   ]) assert.match(workflow, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
 })

@@ -2,11 +2,18 @@
   <div>
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-3xl font-bold">{{ artifact?.title || 'Loading...' }}</h1>
-      <div v-if="artifact" class="flex gap-2">
+      <div v-if="artifact" class="flex flex-wrap gap-2">
         <SButton variant="outline" @click="editing = !editing">{{ editing ? 'Preview' : 'Edit' }}</SButton>
+        <SButton variant="outline" :to="`/api/artifacts/${route.params.id}/download`">Download</SButton>
         <SButton v-if="shareUrl" variant="outline" :to="shareUrl" target="_blank" rel="noopener">Open share link</SButton>
+        <template v-if="confirmDelete">
+          <SButton variant="outline" :disabled="deleting" @click="removeArtifact">{{ deleting ? 'Deleting...' : 'Confirm delete' }}</SButton>
+          <SButton variant="ghost" @click="confirmDelete = false">Cancel</SButton>
+        </template>
+        <SButton v-else variant="outline" @click="confirmDelete = true">Delete</SButton>
       </div>
     </div>
+    <p v-if="deleteMessage" class="mb-4 text-sm text-red-500">{{ deleteMessage }}</p>
     
     <SCard v-if="artifact">
       <SCardHeader>
@@ -92,6 +99,9 @@ const folders = ref<any[]>([])
 const draftFolderId = ref('')
 const savingFolder = ref(false)
 const folderMessage = ref('')
+const confirmDelete = ref(false)
+const deleting = ref(false)
+const deleteMessage = ref('')
 
 const loadShareLink = async () => {
   shareUrl.value = ''
@@ -123,6 +133,19 @@ const saveFolder = async () => {
     folderMessage.value = 'Folder updated.'
   } catch (e: any) { folderMessage.value = e.data?.message || 'Could not move artifact' }
   finally { savingFolder.value = false }
+}
+
+const removeArtifact = async () => {
+  deleting.value = true; deleteMessage.value = ''
+  try {
+    await $fetch(`/api/artifacts/${route.params.id}`, { method: 'DELETE' })
+    await navigateTo('/workspace')
+  } catch (e: any) {
+    deleteMessage.value = e.data?.message || 'Could not delete artifact'
+    confirmDelete.value = false
+  } finally {
+    deleting.value = false
+  }
 }
 
 onMounted(async () => {
