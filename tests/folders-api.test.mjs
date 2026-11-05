@@ -54,6 +54,33 @@ test('folders nest with paths and artifacts can be created and moved inside them
   assert.equal((await moved.json()).artifact.folderId, null)
 })
 
+test('moves folders, rewrites descendant paths, and rejects cycles', async () => {
+  const a = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Move A' })).json()).folder
+  const b = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Move B' })).json()).folder
+  const c = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Move C', parentId: b.id })).json()).folder
+
+  const moved = await json(cookieA, 'PUT', `/api/folders/${b.id}`, { parentId: a.id })
+  assert.equal(moved.status, 200)
+  assert.equal((await moved.json()).folder.path, '/Move A/Move B')
+
+  const after = (await (await json(cookieA, 'GET', '/api/folders')).json()).folders
+  assert.equal(after.find(folder => folder.id === c.id).path, '/Move A/Move B/Move C')
+  assert.equal(after.find(folder => folder.id === b.id).parentId, a.id)
+
+  assert.equal((await json(cookieA, 'PUT', `/api/folders/${b.id}`, { parentId: b.id })).status, 400)
+  assert.equal((await json(cookieA, 'PUT', `/api/folders/${a.id}`, { parentId: c.id })).status, 400)
+  assert.equal((await json(cookieA, 'PUT', `/api/folders/${a.id}`, { parentId: 'does-not-exist' })).status, 400)
+  assert.equal((await json(cookieB, 'PUT', `/api/folders/${b.id}`, { parentId: null })).status, 404)
+
+  const toRoot = await json(cookieA, 'PUT', `/api/folders/${b.id}`, { parentId: null })
+  assert.equal((await toRoot.json()).folder.path, '/Move B')
+  const rooted = (await (await json(cookieA, 'GET', '/api/folders')).json()).folders
+  assert.equal(rooted.find(folder => folder.id === c.id).path, '/Move B/Move C')
+
+  const renamedAndMoved = await json(cookieA, 'PUT', `/api/folders/${b.id}`, { name: 'Move B2', parentId: a.id })
+  assert.equal((await renamedAndMoved.json()).folder.path, '/Move A/Move B2')
+})
+
 test('search can be scoped to a folder subtree', async () => {
   const parent = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Search parent' })).json()).folder
   const child = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Search child', parentId: parent.id })).json()).folder

@@ -122,6 +122,13 @@
                 <SInput v-model="renameValue" placeholder="Rename folder" class="flex-1" />
                 <SButton :disabled="savingFolder" @click="renameFolder">Rename</SButton>
               </div>
+              <div class="flex gap-2">
+                <select v-model="moveParentId" aria-label="Move folder under" class="flex-1 rounded-md border bg-background px-3 py-2">
+                  <option value="">Top level</option>
+                  <option v-for="row in moveTargets" :key="row.id" :value="row.id">{{ folderIndent(row.depth) }}{{ row.name }}</option>
+                </select>
+                <SButton :disabled="savingFolder" @click="moveFolder">Move</SButton>
+              </div>
               <template v-if="confirmDeleteFolder">
                 <p class="text-sm text-muted-foreground">Delete “{{ selectedFolder.name }}”? Only empty folders can be deleted.</p>
                 <div class="flex gap-2">
@@ -193,6 +200,7 @@ const artifactVisibility = ref('private')
 const artifactContent = ref('# New artifact\n\nStart writing here.')
 const selectedFolderId = ref<string | null>(null)
 const renameValue = ref('')
+const moveParentId = ref('')
 const savingFolder = ref(false)
 const confirmDeleteFolder = ref(false)
 const folderMessage = ref('')
@@ -234,6 +242,12 @@ const folderRows = computed(() => {
 })
 
 const selectedFolder = computed(() => selectedFolderId.value ? folderMap.value.get(selectedFolderId.value) || null : null)
+
+const moveTargets = computed(() => {
+  if (!selectedFolderId.value) return folderRows.value
+  const blocked = descendantIds(selectedFolderId.value)
+  return folderRows.value.filter(row => !blocked.has(row.id))
+})
 
 const descendantIds = (folderId: string) => {
   const ids = new Set([folderId])
@@ -298,6 +312,7 @@ const selectUploadFile = (event: Event) => {
 const selectFolder = (folderId: string | null) => {
   selectedFolderId.value = folderId
   renameValue.value = folderId ? folderMap.value.get(folderId)?.name || '' : ''
+  moveParentId.value = folderId ? folderMap.value.get(folderId)?.parentId || '' : ''
   confirmDeleteFolder.value = false
   folderMessage.value = ''
   showNewFolder.value = false
@@ -316,6 +331,22 @@ const renameFolder = async () => {
     folderMessage.value = 'Folder renamed.'
   } catch (e: any) {
     folderMessage.value = e.data?.message || 'Could not rename folder'
+  } finally {
+    savingFolder.value = false
+  }
+}
+
+const moveFolder = async () => {
+  if (!selectedFolderId.value) return
+  savingFolder.value = true; folderMessage.value = ''
+  try {
+    const res = await $fetch(`/api/folders/${selectedFolderId.value}`, { method: 'PUT', body: { parentId: moveParentId.value || null } })
+    const movedId = res.folder.id
+    await loadWorkspace()
+    selectFolder(movedId)
+    folderMessage.value = 'Folder moved.'
+  } catch (e: any) {
+    folderMessage.value = e.data?.message || 'Could not move folder'
   } finally {
     savingFolder.value = false
   }

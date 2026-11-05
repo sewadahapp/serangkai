@@ -47,6 +47,7 @@ MVP end-to-end workflow implemented and verified
 - [x] Upload path validates folder ownership before attaching an artifact
 - [x] Folder-scoped search that includes descendant folders
 - [x] Owner-only inline image and PDF previews, plus a bundle-open action
+- [x] Folder move/reparenting with cycle rejection and descendant path rewrites
 
 ## Verification
 - `npm run build` passes
