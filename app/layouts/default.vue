@@ -8,7 +8,9 @@
         <SButton v-if="!user" to="/auth/login" variant="ghost">Login</SButton>
         <SButton v-if="!user" to="/auth/register">Register</SButton>
         <SButton v-if="user" to="/workspace" variant="ghost">Workspace</SButton>
+        <SButton v-if="user" to="/agent" variant="ghost">Agents</SButton>
         <SButton v-if="user" to="/settings" variant="ghost">Settings</SButton>
+        <SButton v-if="!user" to="/agent" variant="ghost">Agents</SButton>
         <SButton v-if="user" @click="logout">Logout</SButton>
       </template>
     </SHeader>

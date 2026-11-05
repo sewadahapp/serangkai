@@ -49,6 +49,7 @@ MVP end-to-end workflow implemented and verified
 - [x] Owner-only inline image and PDF previews, plus a bundle-open action
 - [x] Folder move/reparenting with cycle rejection and descendant path rewrites
 - [x] Version history viewing and append-only restore from the artifact page
+- [x] In-app agent connection guide with MCP config, REST examples, and scope reference
 
 ## Verification
 - `npm run build` passes

@@ -128,6 +128,7 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `/workspace` - Main workspace view with folders
 - `/artifacts/[id]` - Artifact view, edit, version history, and sharing settings
 - `/settings` - API token creation, listing, and revocation
+- `/agent` - MCP/REST connection guide with endpoint, client config, and scope reference
 - Share delivery happens through `/api/share/:slug` (signed `?k=` link for unlisted artifacts)
 
 ### Security Considerations

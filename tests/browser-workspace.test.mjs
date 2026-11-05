@@ -87,6 +87,14 @@ test('human browser workflow registers and creates an artifact', async () => {
   assert.match(await tokenField.inputValue(), /^[A-Za-z0-9_-]{32}$/)
   await assert.doesNotReject(() => page.getByText('Browser token').waitFor())
 
+  await page.getByRole('link', { name: 'Agents' }).click()
+  await page.waitForURL('**/agent')
+  await assert.doesNotReject(() => page.getByLabel('MCP endpoint').waitFor())
+  assert.match(await page.getByLabel('MCP endpoint').inputValue(), /\/api\/mcp$/)
+  assert.match(await page.getByLabel('REST endpoint').inputValue(), /\/api\/artifacts$/)
+  await assert.doesNotReject(() => page.getByText('list_folders').first().waitFor())
+  await assert.doesNotReject(() => page.getByText(/Bearer YOUR_TOKEN/).waitFor())
+
   await page.getByRole('link', { name: 'Workspace' }).click()
   await page.waitForURL('**/workspace')
   await page.getByRole('link', { name: /Browser-created artifact/ }).click()
