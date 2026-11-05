@@ -18,6 +18,12 @@ logs
 .fleet
 .idea
 
+# Local agent/skill installs (kept out of the repository)
+.opencode/
+.agents/
+.claude/
+.cursor/
+
 # Local env files
 .env
 .env.*
