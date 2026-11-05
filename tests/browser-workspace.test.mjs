@@ -115,4 +115,7 @@ test('human browser workflow registers and creates an artifact', async () => {
   const image = page.getByRole('img', { name: 'pixel' })
   await assert.doesNotReject(() => image.waitFor())
   assert.equal(await image.evaluate(element => element.complete && element.naturalWidth), 1)
+
+  await page.getByRole('button', { name: 'Duplicate' }).click()
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'pixel (copy)' }).waitFor())
 })

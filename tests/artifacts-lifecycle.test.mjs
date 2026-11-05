@@ -162,6 +162,37 @@ test('reads and restores historical versions without rewriting history', async (
   assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}/versions/1/restore`, { method: 'POST', headers: { authorization: `Bearer ${readOnly}` } })).status, 403)
 })
 
+test('duplicates artifacts as private copies with the current content', async () => {
+  const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Original', type: 'markdown', content: '# Original', visibility: 'public' }) })
+  const artifact = (await created.json()).artifact
+  await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ content: '# Revised' }) })
+
+  const duplicate = await fetch(`${base}/api/artifacts/${artifact.id}/duplicate`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Copy of original' }) })
+  assert.equal(duplicate.status, 200)
+  const copy = (await duplicate.json()).artifact
+  assert.notEqual(copy.id, artifact.id)
+  assert.equal(copy.title, 'Copy of original')
+  assert.equal(copy.visibility, 'private')
+
+  const read = await fetch(`${base}/api/artifacts/${copy.id}`, { headers: { cookie: cookieA } })
+  const body = await read.json()
+  assert.equal(body.content, '# Revised')
+  assert.equal(body.artifact.folderId, null)
+
+  const versions = await fetch(`${base}/api/artifacts/${copy.id}/versions`, { headers: { cookie: cookieA } })
+  assert.deepEqual((await versions.json()).versions.map(version => version.version), [1])
+
+  const defaultTitle = await fetch(`${base}/api/artifacts/${artifact.id}/duplicate`, { method: 'POST', headers: { cookie: cookieA } })
+  assert.equal((await defaultTitle.json()).artifact.title, 'Original (copy)')
+
+  assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}/duplicate`, { method: 'POST', headers: { cookie: cookieB } })).status, 404)
+  assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}/duplicate`, { method: 'POST' })).status, 401)
+
+  const token = await fetch(`${base}/api/tokens`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'reader', scopes: ['read'] }) })
+  const { token: readOnly } = await token.json()
+  assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}/duplicate`, { method: 'POST', headers: { authorization: `Bearer ${readOnly}` } })).status, 403)
+})
+
 test('deletes extracted bundle files from the storage volume', async () => {
   const form = new FormData()
   form.append('file', new Blob([await zip([['index.html', '<h1>Temp bundle</h1>']])], { type: 'application/zip' }), 'temp.zip')

@@ -5,6 +5,7 @@
       <div v-if="artifact" class="flex flex-wrap gap-2">
         <SButton variant="outline" @click="editing = !editing">{{ editing ? 'Preview' : 'Edit' }}</SButton>
         <SButton variant="outline" :to="`/api/artifacts/${route.params.id}/download`">Download</SButton>
+        <SButton variant="outline" :disabled="duplicating" @click="duplicateArtifact">{{ duplicating ? 'Duplicating...' : 'Duplicate' }}</SButton>
         <SButton v-if="artifact.type === 'bundle'" variant="outline" :to="`/api/share/${artifact.slug}/index.html`" target="_blank" rel="noopener">Open bundle</SButton>
         <SButton v-if="shareUrl" variant="outline" :to="shareUrl" target="_blank" rel="noopener">Open share link</SButton>
         <template v-if="confirmDelete">
@@ -129,6 +130,7 @@ const deleteMessage = ref('')
 const viewing = ref<{ version: number; content: string } | null>(null)
 const restoring = ref<number | null>(null)
 const versionMessage = ref('')
+const duplicating = ref(false)
 
 const latestVersion = computed(() => versions.value[0]?.version ?? null)
 
@@ -199,6 +201,18 @@ const saveFolder = async () => {
     folderMessage.value = 'Folder updated.'
   } catch (e: any) { folderMessage.value = e.data?.message || 'Could not move artifact' }
   finally { savingFolder.value = false }
+}
+
+const duplicateArtifact = async () => {
+  duplicating.value = true; deleteMessage.value = ''
+  try {
+    const res = await $fetch(`/api/artifacts/${route.params.id}/duplicate`, { method: 'POST' })
+    await navigateTo(`/artifacts/${res.artifact.id}`)
+  } catch (e: any) {
+    deleteMessage.value = e.data?.message || 'Could not duplicate artifact'
+  } finally {
+    duplicating.value = false
+  }
 }
 
 const removeArtifact = async () => {

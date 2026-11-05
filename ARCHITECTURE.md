@@ -107,6 +107,7 @@ Implementations: LocalStorageAdapter (default), S3StorageAdapter (future), etc.
 - `POST /api/artifacts/:id/versions/:version/restore` - Restore a version as a new version
 - `GET /api/artifacts/:id/download` - Download the original source
 - `GET /api/artifacts/:id/preview` - Owner-only inline image/PDF preview
+- `POST /api/artifacts/:id/duplicate` - Copy an artifact as a new private artifact
 - `POST /api/artifacts/:id/share` - Build a public or signed unlisted share URL
 - `GET /api/share/:slug` - Public/unlisted artifact delivery
 - `GET /api/share/:slug/*` - Scoped static bundle asset delivery
