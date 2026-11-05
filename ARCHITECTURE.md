@@ -6,6 +6,10 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
 ## Technology Stack
 - **Frontend/Framework**: Nuxt 4, Vue 3, TypeScript
 - **UI Components**: @sewadah/selaras
+- **Design system**: Minimalism & Swiss Style — trust blue `#2563EB` primary with an
+  `#EA580C` accent, Plus Jakarta Sans, light mode by default with a dark mode toggle.
+  Generated with the `ui-ux-pro-max` skill (variance 3 / motion 3 / density 5) and
+  wired through `selaras.theme.colors` in `nuxt.config.ts`.
 - **Content**: @nuxt/content with MDC for Markdown rendering
 - **Charts/Diagrams**: Mermaid, @tanstack/vue-charts (or similar)
 - **Backend**: Nuxt Nitro server routes
@@ -126,14 +130,22 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `update_artifact` - Update content, visibility, or folder
 
 ### Frontend Routes
-- `/` - Dashboard/workspace home
-- `/auth/login`, `/auth/register` - Auth pages
-- `/workspace` - Main workspace view with folders
+- `/` - Landing page with capability, agent-setup, and CTA sections
+- `/auth/login`, `/auth/register` - Auth pages with labeled `SFormField` inputs
 - `/dashboard` - Workspace overview: counts, storage total, recent activity, types
-- `/artifacts/[id]` - Artifact view, edit, version history, and sharing settings
+- `/workspace` - Artifact workspace with folder tree, scoped search, create/upload panels
+- `/artifacts/[id]` - Artifact preview/edit, sharing, folder, and version panels
 - `/settings` - API token creation, listing, and revocation
 - `/agent` - MCP/REST connection guide with endpoint, client config, and scope reference
 - Share delivery happens through `/api/share/:slug` (signed `?k=` link for unlisted artifacts)
+
+### Design system notes
+- Semantic roles (`primary`, `accent`, plus Selaras builtins) are compiled at build
+  time; components reference `var(--selaras-resolved-*)` tokens rather than raw hex.
+- `app/assets/css/main.css` holds the font face, shell width, prose measure, skip
+  link, and a global `prefers-reduced-motion` override.
+- All form controls live inside `SFormField` so labels, hints, and errors are
+  programmatically associated. `SLabel` does not exist in Selaras.
 
 ### Security Considerations
 - **Auth**: Secure password hashing (argon2/bcrypt), HttpOnly secure cookies for sessions

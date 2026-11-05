@@ -1,36 +1,45 @@
 <template>
-  <div class="max-w-md mx-auto">
-    <SCard>
-      <SCardHeader>
-        <SCardTitle>Login</SCardTitle>
-      </SCardHeader>
-      <SCardContent>
-        <form @submit.prevent="login" class="space-y-4">
-          <div>
-            <SLabel for="email">Email</SLabel>
-            <SInput id="email" v-model="email" type="email" required />
-          </div>
-          <div>
-            <SLabel for="password">Password</SLabel>
-            <SInput id="password" v-model="password" type="password" required />
-          </div>
-          <SButton type="submit" class="w-full" :disabled="loading">Login</SButton>
-          <p v-if="error" class="text-red-500 text-sm">{{ error }}</p>
-        </form>
-        <p class="mt-4 text-center text-sm">
-          Don't have an account? <NuxtLink to="/auth/register" class="text-primary">Register</NuxtLink>
-        </p>
-      </SCardContent>
-    </SCard>
+  <div class="mx-auto w-full max-w-md">
+    <div class="mb-6">
+      <p class="serangkai-eyebrow">Welcome back</p>
+      <h1 class="mt-2 text-2xl font-semibold tracking-tight">Log in to Serangkai</h1>
+      <p class="mt-1.5 text-sm text-[var(--selaras-resolved-text-muted)]">
+        Your artifacts stay private to this account.
+      </p>
+    </div>
+
+    <div class="serangkai-panel p-6">
+      <form class="space-y-4" @submit.prevent="login">
+        <SFormField label="Email" required>
+          <SInput v-model="email" type="email" autocomplete="email" required class="w-full" />
+        </SFormField>
+        <SFormField label="Password" required>
+          <SInput v-model="password" type="password" autocomplete="current-password" required class="w-full" />
+        </SFormField>
+
+        <SAlert v-if="error" color="danger" variant="subtle" :title="error" />
+
+        <SButton type="submit" block size="lg" :loading="loading" :disabled="loading">
+          {{ loading ? 'Logging in...' : 'Log in' }}
+        </SButton>
+      </form>
+    </div>
+
+    <p class="mt-5 text-center text-sm text-[var(--selaras-resolved-text-muted)]">
+      Don't have an account?
+      <NuxtLink to="/auth/register" class="font-medium text-[var(--selaras-resolved-color-primary-text)] underline-offset-4 hover:underline">Register</NuxtLink>
+    </p>
   </div>
 </template>
 
 <script setup lang="ts">
+useHead({ title: 'Log in · Serangkai' })
+
 const email = ref('')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)
-const user = useState('user')
+const user = useState<any>('user')
 
 const login = async () => {
   loading.value = true
@@ -41,7 +50,7 @@ const login = async () => {
       body: { email: email.value, password: password.value }
     })
     user.value = res.user
-    navigateTo('/workspace')
+    await navigateTo('/workspace')
   } catch (e: any) {
     error.value = e.data?.message || 'Login failed'
   } finally {

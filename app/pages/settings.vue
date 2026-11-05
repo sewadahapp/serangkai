@@ -1,77 +1,88 @@
 <template>
   <div class="space-y-6">
-    <div class="flex justify-between items-center">
-      <h1 class="text-3xl font-bold">Settings</h1>
-    </div>
+    <SerangkaiPageHeader title="Settings" description="Manage API tokens for agents and scripts." />
 
-    <SCard v-if="!user">
-      <SCardHeader><SCardTitle>Sign in required</SCardTitle></SCardHeader>
-      <SCardContent>
-        <p class="mb-4 text-sm text-muted-foreground">Sign in to manage workspace settings and API tokens.</p>
-        <SButton to="/auth/login">Login</SButton>
-      </SCardContent>
-    </SCard>
+    <SAlert v-if="!user" color="info" variant="subtle" title="Sign in required" description="Sign in to manage API tokens." />
 
     <template v-else>
-      <SCard>
-        <SCardHeader><SCardTitle>API tokens</SCardTitle></SCardHeader>
-        <SCardContent>
-          <p class="mb-4 text-sm text-muted-foreground">
-            Tokens let AI agents and scripts call the REST and MCP APIs. Treat them like passwords and give them the smallest scope that works.
-          </p>
-          <form class="space-y-4" @submit.prevent="createToken">
-            <div class="grid gap-3 sm:grid-cols-2">
-              <label class="block text-sm">
-                <span class="mb-1 block text-muted-foreground">Name</span>
-                <SInput v-model="tokenName" placeholder="Token name" required />
-              </label>
-              <label class="block text-sm">
-                <span class="mb-1 block text-muted-foreground">Expires (optional)</span>
-                <input v-model="expiresAt" type="date" class="w-full rounded-md border bg-background px-3 py-2" />
+      <section class="serangkai-panel p-5" aria-labelledby="new-token">
+        <h2 id="new-token" class="text-sm font-semibold">Create a token</h2>
+        <p class="mt-1 text-sm text-[var(--selaras-resolved-text-muted)]">
+          Give each agent the smallest scope that works. Only a full-scope token can create or revoke tokens.
+        </p>
+
+        <form class="mt-4 space-y-4" @submit.prevent="createToken">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <SFormField label="Name" required>
+              <SInput v-model="tokenName" placeholder="Token name" required class="w-full" />
+            </SFormField>
+            <SFormField v-slot="{ id }" label="Expires" hint="Leave empty for a token that does not expire.">
+              <input :id="id" v-model="expiresAt" type="date" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm" />
+            </SFormField>
+          </div>
+
+          <fieldset>
+            <legend class="text-sm font-medium">Scopes</legend>
+            <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2">
+              <label v-for="scope in scopeOptions" :key="scope.value" class="flex cursor-pointer items-start gap-2 text-sm">
+                <input v-model="scopes" type="checkbox" :value="scope.value" class="mt-0.5 size-4 cursor-pointer accent-[var(--selaras-resolved-color-primary-fill)]" />
+                <span>
+                  <span class="font-medium">{{ scope.label }}</span>
+                  <span class="block text-xs text-[var(--selaras-resolved-text-muted)]">{{ scope.hint }}</span>
+                </span>
               </label>
             </div>
-            <fieldset class="flex flex-wrap gap-4 text-sm">
-              <legend class="mb-1 text-muted-foreground">Scopes</legend>
-              <label class="flex items-center gap-2"><input v-model="scopes" type="checkbox" value="read" /> Read</label>
-              <label class="flex items-center gap-2"><input v-model="scopes" type="checkbox" value="write" /> Write</label>
-              <label class="flex items-center gap-2"><input v-model="scopes" type="checkbox" value="full" /> Full (manage tokens)</label>
-            </fieldset>
-            <SButton type="submit" :disabled="creatingToken">{{ creatingToken ? 'Creating...' : 'Create token' }}</SButton>
-          </form>
+          </fieldset>
 
-          <div v-if="newToken" class="mt-4 rounded-md border p-3">
-            <p class="mb-2 text-sm font-medium">Copy this token now. It will not be shown again.</p>
-            <input :value="newToken" readonly aria-label="New API token" class="w-full rounded-md border bg-muted px-3 py-2 font-mono text-xs" />
-          </div>
-          <p v-if="tokenMessage" class="mt-3 text-sm text-muted-foreground">{{ tokenMessage }}</p>
-        </SCardContent>
-      </SCard>
+          <SButton type="submit" :loading="creatingToken" :disabled="creatingToken">Create token</SButton>
+        </form>
 
-      <SCard>
-        <SCardHeader><SCardTitle>Existing tokens</SCardTitle></SCardHeader>
-        <SCardContent>
-          <ul v-if="tokens.length" class="divide-y">
-            <li v-for="token in tokens" :key="token.id" class="flex flex-wrap items-center justify-between gap-3 py-3">
-              <div>
-                <p class="font-medium">{{ token.name }}</p>
-                <p class="text-sm text-muted-foreground">
-                  {{ token.scopes.join(', ') }} · created {{ new Date(token.createdAt).toLocaleDateString() }}
-                  <template v-if="token.lastUsedAt"> · last used {{ new Date(token.lastUsedAt).toLocaleString() }}</template>
-                  <template v-if="token.expiresAt"> · expires {{ new Date(token.expiresAt).toLocaleDateString() }}</template>
-                </p>
-              </div>
-              <SButton variant="outline" @click="revokeToken(token)">Revoke</SButton>
-            </li>
-          </ul>
-          <p v-else class="text-sm text-muted-foreground">No tokens yet.</p>
-        </SCardContent>
-      </SCard>
+        <div v-if="newToken" class="mt-4 rounded-md border border-[var(--selaras-resolved-color-primary-border)] bg-[var(--selaras-resolved-color-primary-subtle)] p-4">
+          <p class="text-sm font-medium text-[var(--selaras-resolved-color-primary-on-subtle)]">Copy this token now — it will not be shown again.</p>
+          <input :value="newToken" readonly aria-label="New API token" class="mt-2 w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 font-mono text-xs" />
+        </div>
+
+        <SAlert v-if="tokenMessage" class="mt-4" color="info" variant="subtle" :title="tokenMessage" />
+      </section>
+
+      <section class="serangkai-panel overflow-hidden" aria-labelledby="existing-tokens">
+        <div class="border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
+          <h2 id="existing-tokens" class="text-sm font-semibold">Existing tokens</h2>
+        </div>
+        <ul v-if="tokens.length" class="divide-y divide-[var(--selaras-resolved-border-muted)]">
+          <li v-for="token in tokens" :key="token.id" class="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+            <div class="min-w-0">
+              <p class="font-medium">{{ token.name }}</p>
+              <p class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-[var(--selaras-resolved-text-muted)]">
+                <span>{{ token.scopes.join(', ') }}</span>
+                <span aria-hidden="true">·</span>
+                <span>created {{ new Date(token.createdAt).toLocaleDateString() }}</span>
+                <template v-if="token.lastUsedAt">
+                  <span aria-hidden="true">·</span>
+                  <span>last used {{ new Date(token.lastUsedAt).toLocaleString() }}</span>
+                </template>
+                <template v-if="token.expiresAt">
+                  <span aria-hidden="true">·</span>
+                  <span>expires {{ new Date(token.expiresAt).toLocaleDateString() }}</span>
+                </template>
+              </p>
+            </div>
+            <SButton variant="ghost" color="danger" size="sm" @click="revokeToken(token)">Revoke</SButton>
+          </li>
+        </ul>
+        <div v-else class="px-5 py-8 text-center">
+          <p class="text-sm text-[var(--selaras-resolved-text-muted)]">No tokens yet. Create one to connect an agent.</p>
+          <SButton to="/agent" variant="outline" class="mt-3">Connection guide</SButton>
+        </div>
+      </section>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-const user = useState('user')
+useHead({ title: 'Settings · Serangkai' })
+
+const user = useState<any>('user')
 const tokens = ref<any[]>([])
 const tokenName = ref('')
 const scopes = ref<string[]>(['read', 'write'])
@@ -80,9 +91,15 @@ const creatingToken = ref(false)
 const tokenMessage = ref('')
 const newToken = ref('')
 
+const scopeOptions = [
+  { value: 'read', label: 'Read', hint: 'List and read artifacts, folders, and versions.' },
+  { value: 'write', label: 'Write', hint: 'Create, update, move, restore, and delete.' },
+  { value: 'full', label: 'Full', hint: 'Everything, plus token management.' },
+]
+
 const loadTokens = async () => {
   try {
-    const res = await $fetch('/api/tokens')
+    const res = await $fetch<any>('/api/tokens')
     tokens.value = res.tokens || []
   } catch (e: any) {
     tokenMessage.value = e.data?.message || 'Could not load tokens'
@@ -94,7 +111,7 @@ const createToken = async () => {
   if (!scopes.value.length) { tokenMessage.value = 'Select at least one scope.'; return }
   creatingToken.value = true
   try {
-    const res = await $fetch('/api/tokens', {
+    const res = await $fetch<any>('/api/tokens', {
       method: 'POST',
       body: {
         name: tokenName.value,

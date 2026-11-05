@@ -24,6 +24,8 @@ code on the server and does not run build jobs for uploaded bundles.
 - Minting or revoking API tokens requires a session or a `full`-scope token, so a leaked read/write token cannot escalate itself.
 - Folder relationships are ownership-checked on create and update; artifacts and folders cannot be attached to another user's tree.
 - Inline image/PDF previews are owner-only, served with `nosniff`, and images receive a sandbox CSP.
+- Session resolution runs during SSR via request-forwarded cookies, so signed-in
+  pages never flash logged-out chrome (or expose a different header) before hydration.
 
 ## Verified negative cases
 

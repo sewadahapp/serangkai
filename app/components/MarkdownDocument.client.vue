@@ -1,5 +1,5 @@
 <template>
-  <article ref="root" class="prose max-w-none" v-html="html" />
+  <article ref="root" class="selaras-prose max-w-none" v-html="html" />
 </template>
 
 <script setup lang="ts">

@@ -1,178 +1,259 @@
 <template>
-  <div>
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-3xl font-bold">Workspace</h1>
-      <div class="flex gap-2">
-        <SButton @click="openNewFolder">New Folder</SButton>
-        <SButton @click="openNewArtifact">New Artifact</SButton>
+  <div class="space-y-6">
+    <SerangkaiPageHeader title="Workspace" description="Create, upload, and organize artifacts. Private until you share them.">
+      <template #actions>
+        <SButton variant="outline" @click="openNewFolder">New folder</SButton>
         <SButton variant="outline" @click="openUpload">Upload</SButton>
-      </div>
-    </div>
+        <SButton @click="openNewArtifact">New artifact</SButton>
+      </template>
+    </SerangkaiPageHeader>
 
-    <SCard v-if="showNewFolder || showNewArtifact || showUpload" class="mb-6">
-      <SCardHeader>
-        <SCardTitle>{{ showNewFolder ? 'Create folder' : showUpload ? 'Upload artifact' : 'Create artifact' }}</SCardTitle>
-      </SCardHeader>
-      <SCardContent>
-        <form v-if="showNewFolder" class="space-y-3" @submit.prevent="createFolder">
-          <SInput v-model="folderName" placeholder="Folder name" required class="w-full" />
-          <select v-model="parentFolderId" aria-label="Parent folder" class="w-full rounded-md border bg-background px-3 py-2">
-            <option value="">Top level</option>
-            <option v-for="row in folderRows" :key="row.id" :value="row.id">{{ folderIndent(row.depth) }}{{ row.name }}</option>
-          </select>
-          <div class="flex gap-2">
-            <SButton type="submit" :disabled="saving">Create</SButton>
-            <SButton type="button" variant="ghost" @click="showNewFolder = false">Cancel</SButton>
-          </div>
-        </form>
-        <form v-else-if="showNewArtifact" class="space-y-3" @submit.prevent="createArtifact">
-          <SInput v-model="artifactTitle" placeholder="Artifact title" required />
-          <div class="grid gap-3 sm:grid-cols-3">
-            <select v-model="artifactType" aria-label="Artifact type" class="rounded-md border bg-background px-3 py-2">
+    <div v-if="showNewFolder || showNewArtifact || showUpload" class="serangkai-panel p-5">
+      <div class="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 class="font-semibold">{{ showNewFolder ? 'Create folder' : showUpload ? 'Upload artifact' : 'Create artifact' }}</h2>
+          <p class="mt-0.5 text-sm text-[var(--selaras-resolved-text-muted)]">
+            {{ showNewFolder ? 'Nest it under the selected folder or keep it at the top level.' : showUpload ? 'Markdown, HTML, JSON, PDF, images, and static ZIP bundles.' : 'Write Markdown, HTML, or JSON directly.' }}
+          </p>
+        </div>
+        <SButton variant="ghost" size="sm" @click="closePanels">Close</SButton>
+      </div>
+
+      <form v-if="showNewFolder" class="space-y-3" @submit.prevent="createFolder">
+        <div class="grid gap-3 sm:grid-cols-2">
+          <SFormField label="Folder name" required>
+            <SInput v-model="folderName" placeholder="Folder name" required class="w-full" />
+          </SFormField>
+          <SFormField v-slot="{ id }" label="Parent">
+            <select :id="id" v-model="parentFolderId" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
+              <option value="">Top level</option>
+              <option v-for="row in folderRows" :key="row.id" :value="row.id">{{ folderIndent(row.depth) }}{{ row.name }}</option>
+            </select>
+          </SFormField>
+        </div>
+        <div class="flex gap-2">
+          <SButton type="submit" :loading="saving" :disabled="saving">Create folder</SButton>
+          <SButton type="button" variant="ghost" @click="showNewFolder = false">Cancel</SButton>
+        </div>
+      </form>
+
+      <form v-else-if="showNewArtifact" class="space-y-3" @submit.prevent="createArtifact">
+        <div class="grid gap-3 sm:grid-cols-3">
+          <SFormField label="Title" required>
+            <SInput v-model="artifactTitle" placeholder="Artifact title" required class="w-full" />
+          </SFormField>
+          <SFormField v-slot="{ id }" label="Type">
+            <select :id="id" v-model="artifactType" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
               <option value="markdown">Markdown</option>
               <option value="html">HTML</option>
               <option value="json">JSON</option>
             </select>
-            <select v-model="artifactVisibility" aria-label="Artifact visibility" class="rounded-md border bg-background px-3 py-2">
+          </SFormField>
+          <SFormField v-slot="{ id }" label="Visibility">
+            <select :id="id" v-model="artifactVisibility" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
               <option value="private">Private</option>
-              <option value="public">Public</option>
               <option value="unlisted">Unlisted</option>
+              <option value="public">Public</option>
             </select>
-            <select v-model="artifactFolderId" aria-label="Artifact folder" class="rounded-md border bg-background px-3 py-2">
-              <option value="">No folder</option>
-              <option v-for="row in folderRows" :key="row.id" :value="row.id">{{ folderIndent(row.depth) }}{{ row.name }}</option>
-            </select>
-          </div>
-          <textarea v-model="artifactContent" class="min-h-48 w-full rounded-md border bg-background p-3 font-mono text-sm" placeholder="# Start writing..." required />
-          <div class="flex gap-2">
-            <SButton type="submit" :disabled="saving">Create artifact</SButton>
-            <SButton type="button" variant="ghost" @click="showNewArtifact = false">Cancel</SButton>
-          </div>
-        </form>
-        <form v-else class="space-y-3" @submit.prevent="uploadArtifact">
+          </SFormField>
+        </div>
+        <SFormField v-slot="{ id }" label="Folder">
+          <select :id="id" v-model="artifactFolderId" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
+            <option value="">No folder</option>
+            <option v-for="row in folderRows" :key="row.id" :value="row.id">{{ folderIndent(row.depth) }}{{ row.name }}</option>
+          </select>
+        </SFormField>
+        <SFormField v-slot="{ id }" label="Content" required>
+          <textarea :id="id" v-model="artifactContent" class="min-h-48 w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] p-3 font-mono text-sm" placeholder="# Start writing..." required />
+        </SFormField>
+        <div class="flex gap-2">
+          <SButton type="submit" :loading="saving" :disabled="saving">Create artifact</SButton>
+          <SButton type="button" variant="ghost" @click="showNewArtifact = false">Cancel</SButton>
+        </div>
+      </form>
+
+      <form v-else class="space-y-3" @submit.prevent="uploadArtifact">
+        <SFormField v-slot="{ id }" label="File" required hint="Markdown, HTML, JS, JSON, PDF, images, or a ZIP bundle.">
           <input
+            :id="id"
             type="file"
-            aria-label="Artifact file"
             accept=".md,.markdown,.txt,.html,.htm,.js,.json,.pdf,.png,.jpg,.jpeg,.gif,.webp,.svg,.zip"
-            class="block w-full rounded-md border bg-background px-3 py-2 text-sm"
+            class="block w-full cursor-pointer rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm file:me-3 file:cursor-pointer file:rounded file:border-0 file:bg-[var(--selaras-resolved-surface-elevated)] file:px-2.5 file:py-1 file:text-sm file:font-medium"
             @change="selectUploadFile"
           />
-          <div class="grid gap-3 sm:grid-cols-3">
-            <SInput v-model="uploadTitle" placeholder="Title (optional)" />
-            <select v-model="uploadVisibility" aria-label="Upload visibility" class="rounded-md border bg-background px-3 py-2">
+        </SFormField>
+        <div class="grid gap-3 sm:grid-cols-3">
+          <SFormField label="Title">
+            <SInput v-model="uploadTitle" placeholder="Optional" class="w-full" />
+          </SFormField>
+          <SFormField v-slot="{ id }" label="Visibility">
+            <select :id="id" v-model="uploadVisibility" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
               <option value="private">Private</option>
               <option value="unlisted">Unlisted</option>
               <option value="public">Public</option>
             </select>
-            <select v-model="uploadFolderId" aria-label="Upload folder" class="rounded-md border bg-background px-3 py-2">
+          </SFormField>
+          <SFormField v-slot="{ id }" label="Folder">
+            <select :id="id" v-model="uploadFolderId" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
               <option value="">No folder</option>
               <option v-for="row in folderRows" :key="row.id" :value="row.id">{{ folderIndent(row.depth) }}{{ row.name }}</option>
             </select>
-          </div>
-          <p v-if="uploadFile" class="text-sm text-muted-foreground">{{ uploadFile.name }} · {{ (uploadFile.size / 1024).toFixed(1) }} KiB</p>
-          <div class="flex gap-2">
-            <SButton type="submit" :disabled="uploading || !uploadFile">{{ uploading ? 'Uploading...' : 'Upload artifact' }}</SButton>
-            <SButton type="button" variant="ghost" @click="showUpload = false">Cancel</SButton>
-          </div>
-        </form>
-        <p v-if="error" class="mt-3 text-sm text-red-500">{{ error }}</p>
-      </SCardContent>
-    </SCard>
+          </SFormField>
+        </div>
+        <p v-if="uploadFile" class="text-sm text-[var(--selaras-resolved-text-muted)]">
+          {{ uploadFile.name }} · {{ formatBytes(uploadFile.size) }}
+        </p>
+        <div class="flex gap-2">
+          <SButton type="submit" :loading="uploading" :disabled="uploading || !uploadFile">Upload artifact</SButton>
+          <SButton type="button" variant="ghost" @click="showUpload = false">Cancel</SButton>
+        </div>
+      </form>
 
-    <div class="mb-6">
-      <SInput v-model="searchQuery" placeholder="Search artifacts and folders..." @input="search" />
-      <p v-if="searchQuery.trim()" class="mt-2 text-sm text-muted-foreground">
-        {{ selectedFolder ? `Searching in ${selectedFolder.name} and its subfolders` : 'Searching all artifacts and folders' }}
-      </p>
+      <SAlert v-if="error" class="mt-4" color="danger" variant="subtle" :title="error" />
     </div>
-    
-    <div class="grid md:grid-cols-4 gap-6">
-      <aside class="md:col-span-1">
-        <SCard>
-          <SCardHeader>
-            <SCardTitle>Folders</SCardTitle>
-          </SCardHeader>
-          <SCardContent>
-            <div class="space-y-1">
-              <button
-                type="button"
-                class="flex w-full items-center justify-between rounded p-2 text-left hover:bg-accent"
-                :class="{ 'bg-accent': selectedFolderId === null }"
-                @click="selectFolder(null)"
-              >
-                <span>All artifacts</span>
-                <span class="text-xs text-muted-foreground">{{ artifacts.length }}</span>
-              </button>
-              <button
-                v-for="row in folderRows"
-                :key="row.id"
-                type="button"
-                class="flex w-full items-center justify-between rounded p-2 text-left hover:bg-accent"
-                :class="{ 'bg-accent': selectedFolderId === row.id }"
-                :style="{ paddingLeft: `${0.5 + row.depth * 0.9}rem` }"
-                @click="selectFolder(row.id)"
-              >
-                <span class="truncate">{{ row.name }}</span>
-                <span class="text-xs text-muted-foreground">{{ folderArtifactCount(row.id) }}</span>
-              </button>
-              <div v-if="folderRows.length === 0" class="text-sm text-muted-foreground">No folders</div>
-            </div>
-            <div v-if="selectedFolder" class="mt-3 space-y-2 border-t pt-3">
+
+    <div class="grid gap-6 lg:grid-cols-[17rem_1fr]">
+      <aside class="space-y-4">
+        <div class="serangkai-panel overflow-hidden">
+          <div class="border-b border-[var(--selaras-resolved-border-muted)] px-4 py-3">
+            <h2 class="text-sm font-semibold">Folders</h2>
+          </div>
+          <nav aria-label="Folders" class="space-y-0.5 p-2">
+            <button
+              type="button"
+              class="flex w-full cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-[var(--selaras-resolved-surface-elevated)]"
+              :class="{ 'bg-[var(--selaras-resolved-surface-elevated)] font-medium': selectedFolderId === null }"
+              @click="selectFolder(null)"
+            >
+              <span>All artifacts</span>
+              <span class="serangkai-tabular text-xs text-[var(--selaras-resolved-text-muted)]">{{ artifacts.length }}</span>
+            </button>
+            <button
+              v-for="row in folderRows"
+              :key="row.id"
+              type="button"
+              class="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-[var(--selaras-resolved-surface-elevated)]"
+              :class="{ 'bg-[var(--selaras-resolved-surface-elevated)] font-medium': selectedFolderId === row.id }"
+              :style="{ paddingInlineStart: `${0.5 + row.depth * 0.85}rem` }"
+              @click="selectFolder(row.id)"
+            >
+              <span class="truncate">{{ row.name }}</span>
+              <span class="serangkai-tabular text-xs text-[var(--selaras-resolved-text-muted)]">{{ folderArtifactCount(row.id) }}</span>
+            </button>
+            <p v-if="folderRows.length === 0" class="px-2 py-2 text-sm text-[var(--selaras-resolved-text-muted)]">No folders yet.</p>
+          </nav>
+        </div>
+
+        <div v-if="selectedFolder" class="serangkai-panel p-4">
+          <h2 class="text-sm font-semibold">Manage “{{ selectedFolder.name }}”</h2>
+
+          <div class="mt-3 space-y-3">
+            <SFormField label="Rename">
               <div class="flex gap-2">
-                <SInput v-model="renameValue" placeholder="Rename folder" class="flex-1" />
-                <SButton :disabled="savingFolder" @click="renameFolder">Rename</SButton>
+                <SInput v-model="renameValue" placeholder="Folder name" class="min-w-0 flex-1" />
+                <SButton variant="outline" :loading="savingFolder" :disabled="savingFolder" @click="renameFolder">Rename</SButton>
               </div>
+            </SFormField>
+
+            <SFormField v-slot="{ id }" label="Move under">
               <div class="flex gap-2">
-                <select v-model="moveParentId" aria-label="Move folder under" class="flex-1 rounded-md border bg-background px-3 py-2">
+                <select :id="id" v-model="moveParentId" class="min-w-0 flex-1 rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
                   <option value="">Top level</option>
                   <option v-for="row in moveTargets" :key="row.id" :value="row.id">{{ folderIndent(row.depth) }}{{ row.name }}</option>
                 </select>
-                <SButton :disabled="savingFolder" @click="moveFolder">Move</SButton>
+                <SButton variant="outline" :loading="savingFolder" :disabled="savingFolder" @click="moveFolder">Move</SButton>
               </div>
+            </SFormField>
+
+            <div class="border-t border-[var(--selaras-resolved-border-muted)] pt-3">
               <template v-if="confirmDeleteFolder">
-                <p class="text-sm text-muted-foreground">Delete “{{ selectedFolder.name }}”? Only empty folders can be deleted.</p>
-                <div class="flex gap-2">
-                  <SButton variant="outline" :disabled="savingFolder" @click="deleteFolder">Confirm delete</SButton>
+                <p class="text-sm text-[var(--selaras-resolved-text-muted)]">Delete “{{ selectedFolder.name }}”? Only empty folders can be deleted.</p>
+                <div class="mt-2 flex gap-2">
+                  <SButton variant="outline" color="danger" :loading="savingFolder" :disabled="savingFolder" @click="deleteFolder">Confirm delete</SButton>
                   <SButton variant="ghost" @click="confirmDeleteFolder = false">Cancel</SButton>
                 </div>
               </template>
-              <SButton v-else variant="outline" @click="confirmDeleteFolder = true">Delete folder</SButton>
-              <p v-if="folderMessage" class="text-sm text-muted-foreground">{{ folderMessage }}</p>
+              <SButton v-else variant="ghost" color="danger" @click="confirmDeleteFolder = true">Delete folder</SButton>
             </div>
-          </SCardContent>
-        </SCard>
+
+            <p v-if="folderMessage" class="text-sm text-[var(--selaras-resolved-text-muted)]">{{ folderMessage }}</p>
+          </div>
+        </div>
       </aside>
-      
-      <main class="md:col-span-3">
-        <SCard>
-          <SCardHeader>
-            <SCardTitle>{{ selectedFolder ? selectedFolder.name : 'Artifacts' }}</SCardTitle>
-          </SCardHeader>
-          <SCardContent>
-            <div class="space-y-2">
-              <NuxtLink v-for="artifact in visibleArtifacts" :key="artifact.id" :to="`/artifacts/${artifact.id}`" 
-                class="block p-4 border rounded hover:bg-accent">
-                <div class="flex justify-between">
-                  <div>
-                    <h3 class="font-semibold">{{ artifact.title }}</h3>
-                    <p class="text-sm text-muted-foreground">
-                      {{ artifact.type }} • {{ artifact.visibility }}<template v-if="artifact.folderId"> • {{ folderLabel(artifact.folderId) }}</template>
-                    </p>
-                  </div>
-                </div>
-              </NuxtLink>
-              <div v-if="visibleArtifacts.length === 0" class="text-center text-muted-foreground py-8">
-                {{ selectedFolder ? 'No artifacts in this folder yet.' : 'No artifacts yet. Create your first artifact!' }}
+
+      <section aria-labelledby="artifact-list">
+        <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="artifact-list" class="text-lg font-semibold tracking-tight">
+              {{ searchQuery.trim() ? 'Search results' : selectedFolder ? selectedFolder.name : 'All artifacts' }}
+            </h2>
+            <p class="mt-0.5 text-sm text-[var(--selaras-resolved-text-muted)]">
+              <template v-if="searchQuery.trim()">
+                {{ selectedFolder ? `In ${selectedFolder.name} and its subfolders` : 'Across all artifacts and folders' }} · {{ visibleArtifacts.length }} found
+              </template>
+              <template v-else>{{ visibleArtifacts.length }} {{ visibleArtifacts.length === 1 ? 'artifact' : 'artifacts' }}</template>
+            </p>
+          </div>
+
+          <div class="w-full sm:w-72">
+            <SInput
+              v-model="searchQuery"
+              type="search"
+              aria-label="Search artifacts and folders"
+              placeholder="Search artifacts and folders…"
+              icon="lucide:search"
+              clearable
+              class="w-full"
+              @input="search"
+            />
+          </div>
+        </div>
+
+        <div v-if="visibleArtifacts.length" class="space-y-2">
+          <NuxtLink
+            v-for="artifact in visibleArtifacts"
+            :key="artifact.id"
+            :to="`/artifacts/${artifact.id}`"
+            class="group flex items-start justify-between gap-4 rounded-lg border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] p-4 transition-colors hover:border-[var(--selaras-resolved-border-hover)] hover:bg-[var(--selaras-resolved-surface-elevated)]"
+          >
+            <div class="min-w-0">
+              <h3 class="truncate font-medium group-hover:underline group-hover:underline-offset-4">{{ artifact.title }}</h3>
+              <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-[var(--selaras-resolved-text-muted)]">
+                <SBadge :label="artifact.type" variant="subtle" color="neutral" size="sm" />
+                <SBadge
+                  :label="artifact.visibility"
+                  variant="subtle"
+                  :color="artifact.visibility === 'private' ? 'neutral' : artifact.visibility === 'public' ? 'success' : 'accent'"
+                  size="sm"
+                />
+                <span v-if="artifact.folderId" class="truncate">· {{ folderLabel(artifact.folderId) }}</span>
               </div>
             </div>
-          </SCardContent>
-        </SCard>
-      </main>
+            <time class="shrink-0 text-xs text-[var(--selaras-resolved-text-muted)]" :datetime="artifact.updatedAt">
+              {{ formatDate(artifact.updatedAt) }}
+            </time>
+          </NuxtLink>
+        </div>
+
+        <SEmptyState
+          v-else
+          icon="lucide:file-text"
+          :title="searchQuery.trim() ? 'No matches' : 'No artifacts yet'"
+          :description="searchQuery.trim() ? 'Try another phrase, or clear the search to see everything.' : 'Create an artifact or upload a file to get started.'"
+        >
+          <template #actions>
+            <SButton v-if="searchQuery.trim()" variant="outline" @click="clearSearch">Clear search</SButton>
+            <SButton v-else @click="openNewArtifact">New artifact</SButton>
+          </template>
+        </SEmptyState>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+useHead({ title: 'Workspace · Serangkai' })
+
 interface Folder {
   id: string
   name: string
@@ -186,6 +267,7 @@ interface Artifact {
   type: string
   visibility: string
   folderId: string | null
+  updatedAt: string
 }
 
 const folders = ref<Folder[]>([])
@@ -201,10 +283,10 @@ const artifactContent = ref('# New artifact\n\nStart writing here.')
 const selectedFolderId = ref<string | null>(null)
 const renameValue = ref('')
 const moveParentId = ref('')
+const saving = ref(false)
 const savingFolder = ref(false)
 const confirmDeleteFolder = ref(false)
 const folderMessage = ref('')
-const saving = ref(false)
 const error = ref('')
 
 const showNewFolder = ref(false)
@@ -243,12 +325,6 @@ const folderRows = computed(() => {
 
 const selectedFolder = computed(() => selectedFolderId.value ? folderMap.value.get(selectedFolderId.value) || null : null)
 
-const moveTargets = computed(() => {
-  if (!selectedFolderId.value) return folderRows.value
-  const blocked = descendantIds(selectedFolderId.value)
-  return folderRows.value.filter(row => !blocked.has(row.id))
-})
-
 const descendantIds = (folderId: string) => {
   const ids = new Set([folderId])
   let changed = true
@@ -263,6 +339,12 @@ const descendantIds = (folderId: string) => {
   }
   return ids
 }
+
+const moveTargets = computed(() => {
+  if (!selectedFolderId.value) return folderRows.value
+  const blocked = descendantIds(selectedFolderId.value)
+  return folderRows.value.filter(row => !blocked.has(row.id))
+})
 
 const visibleArtifacts = computed(() => {
   if (searchQuery.value.trim()) return artifacts.value
@@ -279,27 +361,43 @@ const folderArtifactCount = (folderId: string) => {
 const folderLabel = (folderId: string) => folderMap.value.get(folderId)?.name || ''
 const folderIndent = (depth: number) => '— '.repeat(depth)
 
+const formatDate = (value: string) => {
+  const date = new Date(value)
+  const diff = Date.now() - date.getTime()
+  if (diff < 60_000) return 'just now'
+  if (diff < 86_400_000) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
+const formatBytes = (bytes: number) => {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KiB', 'MiB', 'GiB']
+  const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)))
+  return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`
+}
+
+const closePanels = () => { showNewFolder.value = false; showNewArtifact.value = false; showUpload.value = false }
+
 const openNewFolder = () => {
+  closePanels()
   parentFolderId.value = selectedFolderId.value || ''
   showNewFolder.value = true
-  showNewArtifact.value = false
-  showUpload.value = false
+  error.value = ''
 }
 
 const openNewArtifact = () => {
+  closePanels()
   artifactFolderId.value = selectedFolderId.value || ''
   showNewArtifact.value = true
-  showNewFolder.value = false
-  showUpload.value = false
+  error.value = ''
 }
 
 const openUpload = () => {
+  closePanels()
   uploadFolderId.value = selectedFolderId.value || ''
   uploadFile.value = null
   uploadTitle.value = ''
   showUpload.value = true
-  showNewFolder.value = false
-  showNewArtifact.value = false
   error.value = ''
 }
 
@@ -315,57 +413,8 @@ const selectFolder = (folderId: string | null) => {
   moveParentId.value = folderId ? folderMap.value.get(folderId)?.parentId || '' : ''
   confirmDeleteFolder.value = false
   folderMessage.value = ''
-  showNewFolder.value = false
-  showNewArtifact.value = false
-  showUpload.value = false
+  closePanels()
   if (searchQuery.value.trim()) search()
-}
-
-const renameFolder = async () => {
-  if (!selectedFolderId.value) return
-  savingFolder.value = true; folderMessage.value = ''
-  try {
-    const res = await $fetch(`/api/folders/${selectedFolderId.value}`, { method: 'PUT', body: { name: renameValue.value } })
-    await loadWorkspace()
-    renameValue.value = res.folder.name
-    folderMessage.value = 'Folder renamed.'
-  } catch (e: any) {
-    folderMessage.value = e.data?.message || 'Could not rename folder'
-  } finally {
-    savingFolder.value = false
-  }
-}
-
-const moveFolder = async () => {
-  if (!selectedFolderId.value) return
-  savingFolder.value = true; folderMessage.value = ''
-  try {
-    const res = await $fetch(`/api/folders/${selectedFolderId.value}`, { method: 'PUT', body: { parentId: moveParentId.value || null } })
-    const movedId = res.folder.id
-    await loadWorkspace()
-    selectFolder(movedId)
-    folderMessage.value = 'Folder moved.'
-  } catch (e: any) {
-    folderMessage.value = e.data?.message || 'Could not move folder'
-  } finally {
-    savingFolder.value = false
-  }
-}
-
-const deleteFolder = async () => {
-  if (!selectedFolderId.value) return
-  savingFolder.value = true; folderMessage.value = ''
-  try {
-    await $fetch(`/api/folders/${selectedFolderId.value}`, { method: 'DELETE' })
-    selectedFolderId.value = null
-    renameValue.value = ''
-    confirmDeleteFolder.value = false
-    await loadWorkspace()
-  } catch (e: any) {
-    folderMessage.value = e.data?.message || 'Could not delete folder'
-  } finally {
-    savingFolder.value = false
-  }
 }
 
 const loadWorkspace = async () => {
@@ -387,6 +436,11 @@ const search = async () => {
   const result = await $fetch('/api/search', { query: { q: searchQuery.value, ...(selectedFolderId.value ? { folderId: selectedFolderId.value } : {}) } })
   folders.value = result.folders || []
   artifacts.value = result.artifacts || []
+}
+
+const clearSearch = async () => {
+  searchQuery.value = ''
+  await loadWorkspace()
 }
 
 const createFolder = async () => {
@@ -449,6 +503,53 @@ const uploadArtifact = async () => {
     error.value = e.data?.message || 'Could not upload artifact'
   } finally {
     uploading.value = false
+  }
+}
+
+const renameFolder = async () => {
+  if (!selectedFolderId.value) return
+  savingFolder.value = true; folderMessage.value = ''
+  try {
+    const res = await $fetch(`/api/folders/${selectedFolderId.value}`, { method: 'PUT', body: { name: renameValue.value } })
+    await loadWorkspace()
+    renameValue.value = res.folder.name
+    folderMessage.value = 'Folder renamed.'
+  } catch (e: any) {
+    folderMessage.value = e.data?.message || 'Could not rename folder'
+  } finally {
+    savingFolder.value = false
+  }
+}
+
+const moveFolder = async () => {
+  if (!selectedFolderId.value) return
+  savingFolder.value = true; folderMessage.value = ''
+  try {
+    const res = await $fetch(`/api/folders/${selectedFolderId.value}`, { method: 'PUT', body: { parentId: moveParentId.value || null } })
+    const movedId = res.folder.id
+    await loadWorkspace()
+    selectFolder(movedId)
+    folderMessage.value = 'Folder moved.'
+  } catch (e: any) {
+    folderMessage.value = e.data?.message || 'Could not move folder'
+  } finally {
+    savingFolder.value = false
+  }
+}
+
+const deleteFolder = async () => {
+  if (!selectedFolderId.value) return
+  savingFolder.value = true; folderMessage.value = ''
+  try {
+    await $fetch(`/api/folders/${selectedFolderId.value}`, { method: 'DELETE' })
+    selectedFolderId.value = null
+    renameValue.value = ''
+    confirmDeleteFolder.value = false
+    await loadWorkspace()
+  } catch (e: any) {
+    folderMessage.value = e.data?.message || 'Could not delete folder'
+  } finally {
+    savingFolder.value = false
   }
 }
 </script>

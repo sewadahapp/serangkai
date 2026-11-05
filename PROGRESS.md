@@ -53,6 +53,11 @@ MVP end-to-end workflow implemented and verified
 - [x] One-click artifact duplication that always starts as a private copy
 - [x] Workspace overview dashboard with counts, storage total, recent activity, and type breakdown
 - [x] MCP `search` tool with optional folder-subtree scoping
+- [x] Full UI redesign with the `ui-ux-pro-max` design system: primary/accent roles, Plus Jakarta Sans, semantic tokens, light + dark mode
+- [x] Accessible app shell: skip link, sticky header, responsive nav, dropdown account menu, footer
+- [x] Replaced non-existent `SLabel` with `SFormField` so every input has a real programmatic label
+- [x] Fixed SSR session resolution so the header no longer renders logged-out chrome for signed-in users
+- [x] Loaded `@sewadah/selaras/prose.css` so Markdown headings, lists, and code actually render styled
 
 ## Verification
 - `npm run build` passes

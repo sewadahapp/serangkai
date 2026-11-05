@@ -1,113 +1,175 @@
 <template>
-  <div>
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-3xl font-bold">{{ artifact?.title || 'Loading...' }}</h1>
-      <div v-if="artifact" class="flex flex-wrap gap-2">
+  <div v-if="artifact" class="space-y-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="min-w-0">
+        <NuxtLink to="/workspace" class="text-sm text-[var(--selaras-resolved-text-muted)] underline-offset-4 hover:underline">← Workspace</NuxtLink>
+        <h1 class="serangkai-balance mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{{ artifact.title }}</h1>
+        <div class="mt-2 flex flex-wrap items-center gap-1.5">
+          <SBadge :label="artifact.type" variant="subtle" color="neutral" size="sm" />
+          <SBadge
+            :label="artifact.visibility"
+            variant="subtle"
+            :color="artifact.visibility === 'private' ? 'neutral' : artifact.visibility === 'public' ? 'success' : 'accent'"
+            size="sm"
+          />
+          <span v-if="artifact.folderId" class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ folderPath }}</span>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
         <SButton variant="outline" @click="editing = !editing">{{ editing ? 'Preview' : 'Edit' }}</SButton>
-        <SButton variant="outline" :to="`/api/artifacts/${route.params.id}/download`">Download</SButton>
-        <SButton variant="outline" :disabled="duplicating" @click="duplicateArtifact">{{ duplicating ? 'Duplicating...' : 'Duplicate' }}</SButton>
+        <SButton variant="outline" :to="`/api/artifacts/${route.params.id}/download`" icon="lucide:download">Download</SButton>
+        <SButton variant="outline" :loading="duplicating" :disabled="duplicating" @click="duplicateArtifact">Duplicate</SButton>
         <SButton v-if="artifact.type === 'bundle'" variant="outline" :to="`/api/share/${artifact.slug}/index.html`" target="_blank" rel="noopener">Open bundle</SButton>
         <SButton v-if="shareUrl" variant="outline" :to="shareUrl" target="_blank" rel="noopener">Open share link</SButton>
         <template v-if="confirmDelete">
-          <SButton variant="outline" :disabled="deleting" @click="removeArtifact">{{ deleting ? 'Deleting...' : 'Confirm delete' }}</SButton>
+          <SButton color="danger" :loading="deleting" :disabled="deleting" @click="removeArtifact">Confirm delete</SButton>
           <SButton variant="ghost" @click="confirmDelete = false">Cancel</SButton>
         </template>
-        <SButton v-else variant="outline" @click="confirmDelete = true">Delete</SButton>
+        <SButton v-else variant="ghost" color="danger" @click="confirmDelete = true">Delete</SButton>
       </div>
     </div>
-    <p v-if="deleteMessage" class="mb-4 text-sm text-red-500">{{ deleteMessage }}</p>
-    
-    <SCard v-if="artifact">
-      <SCardHeader>
-        <SCardTitle>Content</SCardTitle>
-      </SCardHeader>
-      <SCardContent>
-        <form v-if="editing" class="space-y-3" @submit.prevent="save">
-          <SInput v-model="draftTitle" required />
-          <textarea v-model="draftContent" class="min-h-96 w-full rounded-md border bg-background p-4 font-mono text-sm" required />
-          <div class="flex items-center gap-3">
-            <SButton type="submit" :disabled="saving">{{ saving ? 'Saving...' : 'Save version' }}</SButton>
-          </div>
-        </form>
-        <p v-if="message" class="mb-3 text-sm text-muted-foreground">{{ message }}</p>
-        <img v-if="!editing && artifact.type === 'image'" :src="`/api/artifacts/${artifact.id}/preview`" :alt="artifact.title" class="max-h-[70vh] max-w-full rounded border" />
-        <iframe v-else-if="!editing && artifact.type === 'pdf'" :src="`/api/artifacts/${artifact.id}/preview`" :title="`${artifact.title} PDF`" class="h-[70vh] w-full rounded border" />
-        <MarkdownDocument v-else-if="!editing && artifact.type === 'markdown'" :html="renderedContent" />
-        <pre v-else-if="!editing" class="whitespace-pre-wrap bg-muted p-4 rounded overflow-auto">{{ content }}</pre>
-      </SCardContent>
-    </SCard>
 
-    <SCard v-if="artifact" class="mt-6">
-      <SCardHeader><SCardTitle>Sharing</SCardTitle></SCardHeader>
-      <SCardContent>
-        <div class="space-y-3">
-          <label class="block text-sm">
-            <span class="mb-1 block text-muted-foreground">Visibility</span>
-            <select v-model="draftVisibility" aria-label="Artifact visibility" class="rounded-md border bg-background px-3 py-2">
-              <option value="private">Private — only you</option>
-              <option value="unlisted">Unlisted — signed link required</option>
-              <option value="public">Public — anyone with the link</option>
-            </select>
-          </label>
-          <div class="flex flex-wrap items-center gap-2">
-            <SButton :disabled="savingVisibility" @click="saveVisibility">{{ savingVisibility ? 'Saving...' : 'Save visibility' }}</SButton>
-            <SButton v-if="draftVisibility !== 'private'" variant="outline" :to="shareUrl || undefined" target="_blank" rel="noopener" :disabled="!shareUrl">Open share link</SButton>
-          </div>
-          <p v-if="draftVisibility === 'private'" class="text-sm text-muted-foreground">Only you can open this artifact.</p>
-          <template v-else-if="shareUrl">
-            <input :value="shareUrl" readonly aria-label="Share link" class="w-full rounded-md border bg-muted px-3 py-2 font-mono text-xs" />
-            <p class="text-sm text-muted-foreground">{{ draftVisibility === 'unlisted' ? 'The signed link is required to open this artifact. Anyone with the link can read it.' : 'Anyone with the link can read this artifact.' }}</p>
-          </template>
-          <p v-if="shareMessage" class="text-sm text-muted-foreground">{{ shareMessage }}</p>
+    <SAlert v-if="deleteMessage" color="danger" variant="subtle" :title="deleteMessage" />
+
+    <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <section aria-labelledby="artifact-content" class="serangkai-panel overflow-hidden">
+        <div class="flex items-center justify-between gap-3 border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
+          <h2 id="artifact-content" class="text-sm font-semibold">Content</h2>
+          <span v-if="message" class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ message }}</span>
         </div>
-      </SCardContent>
-    </SCard>
 
-    <SCard v-if="artifact" class="mt-6">
-      <SCardHeader><SCardTitle>Folder</SCardTitle></SCardHeader>
-      <SCardContent>
-        <div class="flex flex-wrap items-center gap-2">
-          <select v-model="draftFolderId" aria-label="Artifact folder" class="rounded-md border bg-background px-3 py-2">
-            <option value="">No folder</option>
-            <option v-for="folder in folders" :key="folder.id" :value="folder.id">{{ folder.path || folder.name }}</option>
-          </select>
-          <SButton :disabled="savingFolder" @click="saveFolder">{{ savingFolder ? 'Moving...' : 'Move artifact' }}</SButton>
-          <span v-if="folderMessage" class="text-sm text-muted-foreground">{{ folderMessage }}</span>
-        </div>
-      </SCardContent>
-    </SCard>
-
-    <SCard v-if="versions.length" class="mt-6">
-      <SCardHeader><SCardTitle>Version history</SCardTitle></SCardHeader>
-      <SCardContent>
-        <ol class="space-y-2 text-sm">
-          <li v-for="version in versions" :key="version.id" class="flex flex-wrap items-center justify-between gap-2">
-            <span>Version {{ version.version }}</span>
-            <div class="flex items-center gap-3">
-              <time class="text-muted-foreground">{{ new Date(version.createdAt).toLocaleString() }}</time>
-              <SButton variant="ghost" size="sm" @click="viewVersion(version.version)">View</SButton>
-              <SButton v-if="version.version !== latestVersion" variant="outline" size="sm" :disabled="restoring === version.version" @click="restoreVersion(version.version)">
-                {{ restoring === version.version ? 'Restoring...' : 'Restore' }}
-              </SButton>
+        <div class="p-5">
+          <form v-if="editing" class="space-y-3" @submit.prevent="save">
+            <SFormField label="Title" required>
+              <SInput v-model="draftTitle" required class="w-full" />
+            </SFormField>
+            <SFormField v-slot="{ id }" label="Content" required>
+              <textarea :id="id" v-model="draftContent" class="min-h-96 w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] p-4 font-mono text-sm" required />
+            </SFormField>
+            <div class="flex flex-wrap items-center gap-2">
+              <SButton type="submit" :loading="saving" :disabled="saving">Save version</SButton>
+              <SButton type="button" variant="ghost" @click="editing = false">Cancel</SButton>
             </div>
-          </li>
-        </ol>
-        <div v-if="viewing" class="mt-4 space-y-2 border-t pt-4">
-          <div class="flex items-center justify-between">
-            <p class="text-sm font-medium">Version {{ viewing.version }}</p>
-            <SButton variant="ghost" size="sm" @click="closeViewing">Close</SButton>
-          </div>
-          <pre class="max-h-96 overflow-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{{ viewing.content }}</pre>
+          </form>
+
+          <template v-else>
+            <img
+              v-if="artifact.type === 'image'"
+              :src="`/api/artifacts/${artifact.id}/preview`"
+              :alt="artifact.title"
+              class="max-h-[70vh] max-w-full rounded-md border border-[var(--selaras-resolved-border-default)]"
+            />
+            <iframe
+              v-else-if="artifact.type === 'pdf'"
+              :src="`/api/artifacts/${artifact.id}/preview`"
+              :title="`${artifact.title} PDF`"
+              class="h-[70vh] w-full rounded-md border border-[var(--selaras-resolved-border-default)]"
+            />
+            <div v-else-if="artifact.type === 'markdown'" class="serangkai-prose">
+              <MarkdownDocument :html="renderedContent" />
+            </div>
+            <pre v-else class="overflow-auto whitespace-pre-wrap rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-4 font-mono text-sm">{{ content }}</pre>
+          </template>
         </div>
-        <p v-if="versionMessage" class="mt-3 text-sm text-muted-foreground">{{ versionMessage }}</p>
-      </SCardContent>
-    </SCard>
+      </section>
+
+      <div class="space-y-4">
+        <section class="serangkai-panel p-4" aria-labelledby="sharing-heading">
+          <h2 id="sharing-heading" class="text-sm font-semibold">Sharing</h2>
+
+          <div class="mt-3 space-y-3">
+            <SFormField v-slot="{ id }" label="Visibility">
+              <select :id="id" v-model="draftVisibility" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
+                <option value="private">Private — only you</option>
+                <option value="unlisted">Unlisted — signed link required</option>
+                <option value="public">Public — anyone with the link</option>
+              </select>
+            </SFormField>
+
+            <div class="flex flex-wrap gap-2">
+              <SButton :loading="savingVisibility" :disabled="savingVisibility" @click="saveVisibility">Save visibility</SButton>
+              <SButton v-if="draftVisibility !== 'private'" variant="outline" :to="shareUrl || undefined" target="_blank" rel="noopener" :disabled="!shareUrl">Open link</SButton>
+            </div>
+
+            <p v-if="draftVisibility === 'private'" class="text-sm text-[var(--selaras-resolved-text-muted)]">Only you can open this artifact.</p>
+            <template v-else-if="shareUrl">
+              <SFormField label="Share link">
+                <input :value="shareUrl" readonly aria-label="Share link" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-elevated)] px-3 py-2 font-mono text-xs" />
+              </SFormField>
+              <p class="text-sm text-[var(--selaras-resolved-text-muted)]">
+                {{ draftVisibility === 'unlisted' ? 'The signed link is required. Anyone with it can read this artifact.' : 'Anyone with the link can read this artifact.' }}
+              </p>
+            </template>
+            <p v-if="shareMessage" class="text-sm text-[var(--selaras-resolved-text-muted)]">{{ shareMessage }}</p>
+          </div>
+        </section>
+
+        <section class="serangkai-panel p-4" aria-labelledby="folder-heading">
+          <h2 id="folder-heading" class="text-sm font-semibold">Folder</h2>
+          <div class="mt-3 space-y-2">
+            <SFormField v-slot="{ id }" label="Move to">
+              <select :id="id" v-model="draftFolderId" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
+                <option value="">No folder</option>
+                <option v-for="folder in folders" :key="folder.id" :value="folder.id">{{ folder.path || folder.name }}</option>
+              </select>
+            </SFormField>
+            <SButton :loading="savingFolder" :disabled="savingFolder" @click="saveFolder">Move artifact</SButton>
+            <p v-if="folderMessage" class="text-sm text-[var(--selaras-resolved-text-muted)]">{{ folderMessage }}</p>
+          </div>
+        </section>
+
+        <section v-if="versions.length" class="serangkai-panel p-4" aria-labelledby="versions-heading">
+          <div class="flex items-center justify-between gap-2">
+            <h2 id="versions-heading" class="text-sm font-semibold">History</h2>
+            <span class="serangkai-tabular text-xs text-[var(--selaras-resolved-text-muted)]">{{ versions.length }} versions</span>
+          </div>
+
+          <ol class="mt-3 space-y-1.5">
+            <li v-for="version in versions" :key="version.id" class="rounded-md border border-[var(--selaras-resolved-border-muted)] px-2.5 py-2">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-medium">v{{ version.version }}</span>
+                <time class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ formatDate(version.createdAt) }}</time>
+              </div>
+              <div class="mt-1.5 flex gap-1.5">
+                <SButton variant="text" size="sm" @click="viewVersion(version.version)">View</SButton>
+                <SButton
+                  v-if="version.version !== latestVersion"
+                  variant="text"
+                  size="sm"
+                  :loading="restoring === version.version"
+                  :disabled="restoring === version.version"
+                  @click="restoreVersion(version.version)"
+                >
+                  Restore
+                </SButton>
+              </div>
+            </li>
+          </ol>
+
+          <div v-if="viewing" class="mt-3 border-t border-[var(--selaras-resolved-border-muted)] pt-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs font-semibold uppercase tracking-wider text-[var(--selaras-resolved-text-muted)]">Version {{ viewing.version }}</p>
+              <SButton variant="text" size="sm" @click="closeViewing">Close</SButton>
+            </div>
+            <pre class="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-3 font-mono text-xs">{{ viewing.content }}</pre>
+          </div>
+
+          <p v-if="versionMessage" class="mt-2 text-xs text-[var(--selaras-resolved-text-muted)]">{{ versionMessage }}</p>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div v-else class="serangkai-panel p-12 text-center">
+    <SSkeleton class="mx-auto h-6 w-56" />
+    <p class="mt-3 text-sm text-[var(--selaras-resolved-text-muted)]">Loading artifact…</p>
   </div>
 </template>
 
 <script setup lang="ts">
 const route = useRoute()
-const artifact = ref(null)
+const artifact = ref<any>(null)
 const content = ref('')
 const renderedContent = ref('')
 const editing = ref(false)
@@ -132,7 +194,14 @@ const restoring = ref<number | null>(null)
 const versionMessage = ref('')
 const duplicating = ref(false)
 
+watch(artifact, (value) => {
+  if (value) useHead({ title: `${value.title} · Serangkai` })
+}, { immediate: true })
+
 const latestVersion = computed(() => versions.value[0]?.version ?? null)
+const folderPath = computed(() => folders.value.find(folder => folder.id === artifact.value?.folderId)?.path || '')
+
+const formatDate = (value: string) => new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
 
 const viewVersion = async (version: number) => {
   versionMessage.value = ''
@@ -160,7 +229,7 @@ const restoreVersion = async (version: number) => {
 }
 
 const reloadArtifact = async () => {
-  const res = await $fetch(`/api/artifacts/${route.params.id}`)
+  const res = await $fetch<any>(`/api/artifacts/${route.params.id}`)
   artifact.value = res.artifact
   content.value = res.content
   renderedContent.value = res.renderedContent || ''
@@ -168,14 +237,14 @@ const reloadArtifact = async () => {
   draftContent.value = res.content
   draftVisibility.value = res.artifact.visibility
   draftFolderId.value = res.artifact.folderId || ''
-  versions.value = (await $fetch(`/api/artifacts/${route.params.id}/versions`)).versions || []
+  versions.value = (await $fetch<any>(`/api/artifacts/${route.params.id}/versions`)).versions || []
 }
 
 const loadShareLink = async () => {
   shareUrl.value = ''
   if (draftVisibility.value === 'private') return
   try {
-    const link = await $fetch(`/api/artifacts/${route.params.id}/share`, { method: 'POST' })
+    const link = await $fetch<any>(`/api/artifacts/${route.params.id}/share`, { method: 'POST' })
     shareUrl.value = link.url
   } catch (e: any) {
     shareMessage.value = e.data?.message || 'Could not create a share link'
@@ -185,7 +254,7 @@ const loadShareLink = async () => {
 const saveVisibility = async () => {
   savingVisibility.value = true; shareMessage.value = ''
   try {
-    const res = await $fetch(`/api/artifacts/${route.params.id}`, { method: 'PUT', body: { visibility: draftVisibility.value } })
+    const res = await $fetch<any>(`/api/artifacts/${route.params.id}`, { method: 'PUT', body: { visibility: draftVisibility.value } })
     artifact.value = res.artifact
     await loadShareLink()
     if (!shareMessage.value) shareMessage.value = 'Sharing settings saved.'
@@ -196,7 +265,7 @@ const saveVisibility = async () => {
 const saveFolder = async () => {
   savingFolder.value = true; folderMessage.value = ''
   try {
-    const res = await $fetch(`/api/artifacts/${route.params.id}`, { method: 'PUT', body: { folderId: draftFolderId.value || null } })
+    const res = await $fetch<any>(`/api/artifacts/${route.params.id}`, { method: 'PUT', body: { folderId: draftFolderId.value || null } })
     artifact.value = res.artifact
     folderMessage.value = 'Folder updated.'
   } catch (e: any) { folderMessage.value = e.data?.message || 'Could not move artifact' }
@@ -206,7 +275,7 @@ const saveFolder = async () => {
 const duplicateArtifact = async () => {
   duplicating.value = true; deleteMessage.value = ''
   try {
-    const res = await $fetch(`/api/artifacts/${route.params.id}/duplicate`, { method: 'POST' })
+    const res = await $fetch<any>(`/api/artifacts/${route.params.id}/duplicate`, { method: 'POST' })
     await navigateTo(`/artifacts/${res.artifact.id}`)
   } catch (e: any) {
     deleteMessage.value = e.data?.message || 'Could not duplicate artifact'
@@ -230,7 +299,7 @@ const removeArtifact = async () => {
 
 onMounted(async () => {
   try {
-    const res = await $fetch(`/api/artifacts/${route.params.id}`)
+    const res = await $fetch<any>(`/api/artifacts/${route.params.id}`)
     artifact.value = res.artifact
     content.value = res.content
     renderedContent.value = res.renderedContent || ''
@@ -240,8 +309,8 @@ onMounted(async () => {
     draftFolderId.value = res.artifact.folderId || ''
     await loadShareLink()
     const [history, folderList] = await Promise.all([
-      $fetch(`/api/artifacts/${route.params.id}/versions`),
-      $fetch('/api/folders'),
+      $fetch<any>(`/api/artifacts/${route.params.id}/versions`),
+      $fetch<any>('/api/folders'),
     ])
     versions.value = history.versions || []
     folders.value = folderList.folders || []
@@ -253,14 +322,13 @@ onMounted(async () => {
 const save = async () => {
   saving.value = true; message.value = ''
   try {
-    const res = await $fetch(`/api/artifacts/${route.params.id}`, { method: 'PUT', body: { title: draftTitle.value, content: draftContent.value } })
+    const res = await $fetch<any>(`/api/artifacts/${route.params.id}`, { method: 'PUT', body: { title: draftTitle.value, content: draftContent.value } })
     artifact.value = res.artifact
     content.value = draftContent.value
-    renderedContent.value = res.artifact.type === 'markdown' ? (await $fetch(`/api/artifacts/${route.params.id}`)).renderedContent : ''
-    versions.value = (await $fetch(`/api/artifacts/${route.params.id}/versions`)).versions || []
+    renderedContent.value = res.artifact.type === 'markdown' ? (await $fetch<any>(`/api/artifacts/${route.params.id}`)).renderedContent : ''
+    versions.value = (await $fetch<any>(`/api/artifacts/${route.params.id}/versions`)).versions || []
     editing.value = false; message.value = `Saved version ${res.version}`
   } catch (e: any) { message.value = e.data?.message || 'Could not save' }
   finally { saving.value = false }
 }
-
 </script>
