@@ -48,6 +48,7 @@ MVP end-to-end workflow implemented and verified
 - [x] Folder-scoped search that includes descendant folders
 - [x] Owner-only inline image and PDF previews, plus a bundle-open action
 - [x] Folder move/reparenting with cycle rejection and descendant path rewrites
+- [x] Version history viewing and append-only restore from the artifact page
 
 ## Verification
 - `npm run build` passes

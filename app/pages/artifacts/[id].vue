@@ -26,9 +26,9 @@
           <textarea v-model="draftContent" class="min-h-96 w-full rounded-md border bg-background p-4 font-mono text-sm" required />
           <div class="flex items-center gap-3">
             <SButton type="submit" :disabled="saving">{{ saving ? 'Saving...' : 'Save version' }}</SButton>
-            <span v-if="message" class="text-sm text-muted-foreground">{{ message }}</span>
           </div>
         </form>
+        <p v-if="message" class="mb-3 text-sm text-muted-foreground">{{ message }}</p>
         <img v-if="!editing && artifact.type === 'image'" :src="`/api/artifacts/${artifact.id}/preview`" :alt="artifact.title" class="max-h-[70vh] max-w-full rounded border" />
         <iframe v-else-if="!editing && artifact.type === 'pdf'" :src="`/api/artifacts/${artifact.id}/preview`" :title="`${artifact.title} PDF`" class="h-[70vh] w-full rounded border" />
         <MarkdownDocument v-else-if="!editing && artifact.type === 'markdown'" :html="renderedContent" />
@@ -78,7 +78,28 @@
 
     <SCard v-if="versions.length" class="mt-6">
       <SCardHeader><SCardTitle>Version history</SCardTitle></SCardHeader>
-      <SCardContent><ol class="space-y-2 text-sm"><li v-for="version in versions" :key="version.id" class="flex justify-between"><span>Version {{ version.version }}</span><time>{{ new Date(version.createdAt).toLocaleString() }}</time></li></ol></SCardContent>
+      <SCardContent>
+        <ol class="space-y-2 text-sm">
+          <li v-for="version in versions" :key="version.id" class="flex flex-wrap items-center justify-between gap-2">
+            <span>Version {{ version.version }}</span>
+            <div class="flex items-center gap-3">
+              <time class="text-muted-foreground">{{ new Date(version.createdAt).toLocaleString() }}</time>
+              <SButton variant="ghost" size="sm" @click="viewVersion(version.version)">View</SButton>
+              <SButton v-if="version.version !== latestVersion" variant="outline" size="sm" :disabled="restoring === version.version" @click="restoreVersion(version.version)">
+                {{ restoring === version.version ? 'Restoring...' : 'Restore' }}
+              </SButton>
+            </div>
+          </li>
+        </ol>
+        <div v-if="viewing" class="mt-4 space-y-2 border-t pt-4">
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-medium">Version {{ viewing.version }}</p>
+            <SButton variant="ghost" size="sm" @click="closeViewing">Close</SButton>
+          </div>
+          <pre class="max-h-96 overflow-auto whitespace-pre-wrap rounded bg-muted p-3 text-xs">{{ viewing.content }}</pre>
+        </div>
+        <p v-if="versionMessage" class="mt-3 text-sm text-muted-foreground">{{ versionMessage }}</p>
+      </SCardContent>
     </SCard>
   </div>
 </template>
@@ -105,6 +126,48 @@ const folderMessage = ref('')
 const confirmDelete = ref(false)
 const deleting = ref(false)
 const deleteMessage = ref('')
+const viewing = ref<{ version: number; content: string } | null>(null)
+const restoring = ref<number | null>(null)
+const versionMessage = ref('')
+
+const latestVersion = computed(() => versions.value[0]?.version ?? null)
+
+const viewVersion = async (version: number) => {
+  versionMessage.value = ''
+  try {
+    const res = await $fetch(`/api/artifacts/${route.params.id}/versions/${version}`)
+    viewing.value = { version: res.version.version, content: res.content }
+  } catch (e: any) {
+    versionMessage.value = e.data?.message || `Could not load version ${version}`
+  }
+}
+
+const closeViewing = () => { viewing.value = null }
+
+const restoreVersion = async (version: number) => {
+  restoring.value = version; versionMessage.value = ''
+  try {
+    const res = await $fetch(`/api/artifacts/${route.params.id}/versions/${version}/restore`, { method: 'POST' })
+    versionMessage.value = `Restored version ${version} as version ${res.version}.`
+    await reloadArtifact()
+  } catch (e: any) {
+    versionMessage.value = e.data?.message || `Could not restore version ${version}`
+  } finally {
+    restoring.value = null
+  }
+}
+
+const reloadArtifact = async () => {
+  const res = await $fetch(`/api/artifacts/${route.params.id}`)
+  artifact.value = res.artifact
+  content.value = res.content
+  renderedContent.value = res.renderedContent || ''
+  draftTitle.value = res.artifact.title
+  draftContent.value = res.content
+  draftVisibility.value = res.artifact.visibility
+  draftFolderId.value = res.artifact.folderId || ''
+  versions.value = (await $fetch(`/api/artifacts/${route.params.id}/versions`)).versions || []
+}
 
 const loadShareLink = async () => {
   shareUrl.value = ''

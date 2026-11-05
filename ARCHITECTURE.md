@@ -103,6 +103,8 @@ Implementations: LocalStorageAdapter (default), S3StorageAdapter (future), etc.
 - `PUT /api/artifacts/:id` - Update artifact, including visibility and folder
 - `DELETE /api/artifacts/:id` - Delete artifact
 - `GET /api/artifacts/:id/versions` - Version history
+- `GET /api/artifacts/:id/versions/:version` - Read a historical version
+- `POST /api/artifacts/:id/versions/:version/restore` - Restore a version as a new version
 - `GET /api/artifacts/:id/download` - Download the original source
 - `GET /api/artifacts/:id/preview` - Owner-only inline image/PDF preview
 - `POST /api/artifacts/:id/share` - Build a public or signed unlisted share URL
