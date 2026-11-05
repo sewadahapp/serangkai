@@ -2,6 +2,10 @@ node_modules
 .nuxt
 .output
 .git
+.opencode
+.agents
+.claude
+.cursor
 data
 *.log
 .DS_Store
