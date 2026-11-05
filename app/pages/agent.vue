@@ -72,7 +72,7 @@ const origin = computed(() => (import.meta.client ? window.location.origin : '')
 const mcpUrl = computed(() => `${origin.value}/api/mcp`)
 const restUrl = computed(() => `${origin.value}/api/artifacts`)
 
-const tools = ['list_folders', 'create_folder', 'list_artifacts', 'get_artifact', 'create_artifact', 'update_artifact']
+const tools = ['list_folders', 'search', 'create_folder', 'list_artifacts', 'get_artifact', 'create_artifact', 'update_artifact']
 
 const mcpConfig = computed(() => JSON.stringify({
   mcpServers: {

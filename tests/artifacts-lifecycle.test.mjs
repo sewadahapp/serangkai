@@ -193,6 +193,37 @@ test('duplicates artifacts as private copies with the current content', async ()
   assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}/duplicate`, { method: 'POST', headers: { authorization: `Bearer ${readOnly}` } })).status, 403)
 })
 
+test('overview summarizes counts, visibility, storage, and recent artifacts', async () => {
+  const send = (cookie, method, path, body) => fetch(`${base}${path}`, { method, headers: { cookie, 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) })
+  const folder = (await (await send(cookieA, 'POST', '/api/folders', { name: 'Overview folder' })).json()).folder
+  await send(cookieA, 'POST', '/api/artifacts', { title: 'Overview public', type: 'markdown', content: '# A', visibility: 'public', folderId: folder.id })
+  await send(cookieA, 'POST', '/api/artifacts', { title: 'Overview unlisted', type: 'markdown', content: '# B', visibility: 'unlisted' })
+
+  const form = new FormData()
+  form.append('file', new Blob([Buffer.from('x'.repeat(2048))], { type: 'application/pdf' }), 'overview.pdf')
+  form.append('title', 'Overview pdf')
+  assert.equal((await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie: cookieA }, body: form })).status, 200)
+
+  const overview = await send(cookieA, 'GET', '/api/overview')
+  const body = await overview.json()
+  assert.ok(body.summary.artifacts >= 3)
+  assert.ok(body.summary.folders >= 1)
+  assert.ok(body.summary.publicArtifacts >= 1)
+  assert.ok(body.summary.unlistedArtifacts >= 1)
+  assert.ok(body.summary.privateArtifacts >= 1)
+  assert.ok(body.summary.totalBytes >= 2048)
+  assert.ok(body.summary.byType.markdown >= 2)
+  assert.ok(body.summary.byType.pdf >= 1)
+  assert.ok(body.recent.length > 0)
+  assert.ok(body.recent.every(artifact => !('contentPath' in artifact) && !('userId' in artifact)))
+  assert.ok(body.recent.some(artifact => artifact.title === 'Overview pdf'))
+
+  assert.equal((await fetch(`${base}/api/overview`)).status, 401)
+  const other = await (await fetch(`${base}/api/overview`, { headers: { cookie: cookieB } })).json()
+  assert.equal(other.summary.publicArtifacts, 0)
+  assert.equal(other.recent.length, 0)
+})
+
 test('deletes extracted bundle files from the storage volume', async () => {
   const form = new FormData()
   form.append('file', new Blob([await zip([['index.html', '<h1>Temp bundle</h1>']])], { type: 'application/zip' }), 'temp.zip')

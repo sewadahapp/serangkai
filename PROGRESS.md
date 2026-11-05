@@ -51,6 +51,8 @@ MVP end-to-end workflow implemented and verified
 - [x] Version history viewing and append-only restore from the artifact page
 - [x] In-app agent connection guide with MCP config, REST examples, and scope reference
 - [x] One-click artifact duplication that always starts as a private copy
+- [x] Workspace overview dashboard with counts, storage total, recent activity, and type breakdown
+- [x] MCP `search` tool with optional folder-subtree scoping
 
 ## Verification
 - `npm run build` passes

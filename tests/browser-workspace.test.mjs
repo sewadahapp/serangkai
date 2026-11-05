@@ -95,7 +95,13 @@ test('human browser workflow registers and creates an artifact', async () => {
   await assert.doesNotReject(() => page.getByText('list_folders').first().waitFor())
   await assert.doesNotReject(() => page.getByText(/Bearer YOUR_TOKEN/).waitFor())
 
-  await page.getByRole('link', { name: 'Workspace' }).click()
+  await page.getByRole('link', { name: 'Overview' }).click()
+  await page.waitForURL('**/dashboard')
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Overview' }).waitFor())
+  await assert.doesNotReject(() => page.getByText('Recent activity').waitFor())
+  await assert.doesNotReject(() => page.getByText('Browser-created artifact').first().waitFor())
+
+  await page.getByRole('link', { name: 'Workspace', exact: true }).click()
   await page.waitForURL('**/workspace')
   await page.getByRole('link', { name: /Browser-created artifact/ }).click()
   await page.waitForURL('**/artifacts/**')

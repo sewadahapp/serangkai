@@ -1,7 +1,7 @@
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, like, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { toWebRequest } from 'h3'
 import { artifactVersions, artifacts, folders } from '../../db/schema'
@@ -29,6 +29,44 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
   }, async () => {
     const rows = await db.select().from(folders).where(eq(folders.userId, userId))
     return textResult(rows)
+  })
+
+  server.registerTool('search', {
+    title: 'Search workspace',
+    description: 'Search artifacts and folders by title, name, or slug.',
+    inputSchema: { query: z.string().min(1), folderId: z.string().optional() },
+    annotations: { readOnlyHint: true },
+  }, async ({ query, folderId }) => {
+    const pattern = `%${query}%`
+    const [matchedArtifacts, matchedFolders] = await Promise.all([
+      db.select().from(artifacts).where(and(
+        eq(artifacts.userId, userId),
+        or(like(artifacts.title, pattern), like(artifacts.slug, pattern)),
+      )),
+      db.select().from(folders).where(and(eq(folders.userId, userId), like(folders.name, pattern))),
+    ])
+    let scopedArtifacts = matchedArtifacts
+    if (folderId) {
+      const owned = await findFolder(folderId)
+      if (!owned) return { isError: true, content: [{ type: 'text', text: 'Folder not found.' }] }
+      const allFolders = await db.select().from(folders).where(eq(folders.userId, userId))
+      const scope = new Set([folderId])
+      let changed = true
+      while (changed) {
+        changed = false
+        for (const folder of allFolders) {
+          if (folder.parentId && scope.has(folder.parentId) && !scope.has(folder.id)) {
+            scope.add(folder.id)
+            changed = true
+          }
+        }
+      }
+      scopedArtifacts = matchedArtifacts.filter(artifact => artifact.folderId && scope.has(artifact.folderId))
+    }
+    return textResult({
+      artifacts: scopedArtifacts.map(({ contentPath: _contentPath, ...row }) => row),
+      folders: matchedFolders,
+    })
   })
 
   server.registerTool('create_folder', {

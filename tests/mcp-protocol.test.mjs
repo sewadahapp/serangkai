@@ -90,7 +90,7 @@ test('supports MCP initialization and tool discovery', async () => {
 
   const tools = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} })
   const names = tools.result.tools.map(tool => tool.name)
-  assert.deepEqual(names, ['list_folders', 'create_folder', 'list_artifacts', 'get_artifact', 'create_artifact', 'update_artifact'])
+  assert.deepEqual(names, ['list_folders', 'search', 'create_folder', 'list_artifacts', 'get_artifact', 'create_artifact', 'update_artifact'])
 })
 
 test('creates and reads an artifact through MCP tools', async () => {
@@ -117,6 +117,26 @@ test('creates folders and files artifacts inside them through MCP tools', async 
 
   const moved = await mcp({ jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'update_artifact', arguments: { id: artifact.id, folderId: null } } })
   assert.equal(JSON.parse(moved.result.content[0].text).folderId, null)
+})
+
+test('searches artifacts and folders through MCP, scoped to a folder', async () => {
+  const folderResponse = await mcp({ jsonrpc: '2.0', id: 11, method: 'tools/call', params: { name: 'create_folder', arguments: { name: 'Search scope' } } })
+  const folder = JSON.parse(folderResponse.result.content[0].text)
+  const inside = JSON.parse((await mcp({ jsonrpc: '2.0', id: 12, method: 'tools/call', params: { name: 'create_artifact', arguments: { title: 'Zebra inside', type: 'markdown', content: '# In', folderId: folder.id } } })).result.content[0].text)
+  await mcp({ jsonrpc: '2.0', id: 13, method: 'tools/call', params: { name: 'create_artifact', arguments: { title: 'Zebra outside', type: 'markdown', content: '# Out' } } })
+
+  const global = await mcp({ jsonrpc: '2.0', id: 14, method: 'tools/call', params: { name: 'search', arguments: { query: 'Zebra' } } })
+  const globalResult = JSON.parse(global.result.content[0].text)
+  assert.deepEqual(globalResult.artifacts.map(artifact => artifact.title).sort(), ['Zebra inside', 'Zebra outside'])
+
+  const scoped = await mcp({ jsonrpc: '2.0', id: 15, method: 'tools/call', params: { name: 'search', arguments: { query: 'Zebra', folderId: folder.id } } })
+  assert.deepEqual(JSON.parse(scoped.result.content[0].text).artifacts.map(artifact => artifact.id), [inside.id])
+
+  const folderSearch = await mcp({ jsonrpc: '2.0', id: 16, method: 'tools/call', params: { name: 'search', arguments: { query: 'Search scope' } } })
+  assert.equal(JSON.parse(folderSearch.result.content[0].text).folders[0].name, 'Search scope')
+
+  const missing = await mcp({ jsonrpc: '2.0', id: 17, method: 'tools/call', params: { name: 'search', arguments: { query: 'Zebra', folderId: 'nope' } } })
+  assert.equal(missing.result.isError, true)
 })
 
 test('rejects MCP requests without authentication', async () => {

@@ -112,11 +112,13 @@ Implementations: LocalStorageAdapter (default), S3StorageAdapter (future), etc.
 - `GET /api/share/:slug` - Public/unlisted artifact delivery
 - `GET /api/share/:slug/*` - Scoped static bundle asset delivery
 - `GET /api/search` - Search artifacts/folders, optionally scoped to a folder subtree
+- `GET /api/overview` - Workspace summary: counts, visibility, storage total, recent artifacts
 - `GET /api/health` - Health check
 
 ### MCP Integration
 MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `list_folders` - List folders
+- `search` - Search artifacts and folders, optionally scoped to a folder subtree
 - `create_folder` - Create a folder, optionally nested
 - `list_artifacts` - List user's artifacts
 - `get_artifact` - Read artifact content
@@ -127,6 +129,7 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `/` - Dashboard/workspace home
 - `/auth/login`, `/auth/register` - Auth pages
 - `/workspace` - Main workspace view with folders
+- `/dashboard` - Workspace overview: counts, storage total, recent activity, types
 - `/artifacts/[id]` - Artifact view, edit, version history, and sharing settings
 - `/settings` - API token creation, listing, and revocation
 - `/agent` - MCP/REST connection guide with endpoint, client config, and scope reference
