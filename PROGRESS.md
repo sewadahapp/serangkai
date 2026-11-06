@@ -80,6 +80,7 @@ documented as unverified rather than claimed as supported.
 - [x] Shared Markdown renders on a real `/share/[slug]` reader page with the app's prose, Mermaid, charts, and color mode; `/api/share/:slug` applies visibility and redirects
 - [x] Markdown headings get stable ids, and the share reader shows an `SContentToc` contents rail (the in-app preview keeps its sidebar to sharing, folder, and history)
 - [x] Mermaid containers use the same border and surface tokens as charts
+- [x] JSON and JavaScript artifact previews are syntax highlighted with the file header and copy button
 - [x] Fixed a flaky signed-link tamper assertion (setting the last digit to `0` was a no-op 1/16 of the time)
 
 ## Verification

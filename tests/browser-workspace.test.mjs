@@ -201,3 +201,18 @@ test('the share reader shows a table of contents', async () => {
   const href = await tocLinks.first().getAttribute('href')
   assert.equal(await page.locator(href).count(), 1)
 })
+
+test('JSON artifacts are syntax highlighted in the preview', async () => {
+  const artifactId = await page.evaluate(async () => {
+    const form = new FormData()
+    form.append('file', new File(['{"brand":"Sewadah","concepts":[{"name":"Shared Space"}]}'], 'presentation-spec.json', { type: 'application/json' }), 'presentation-spec.json')
+    form.append('title', 'presentation-spec')
+    const res = await fetch('/api/artifacts/upload', { method: 'POST', body: form })
+    return (await res.json()).artifact.id
+  })
+
+  await page.goto(`${base}/artifacts/${artifactId}`)
+  await assert.doesNotReject(() => page.locator('.serangkai-shiki span[style*="--shiki-light"]').first().waitFor())
+  assert.ok(await page.locator('.serangkai-shiki span[style*="--shiki-light"]').count() > 0)
+  assert.match(await page.locator('.serangkai-prose, main').innerText(), /presentation-spec\.json/)
+})

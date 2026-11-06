@@ -200,7 +200,8 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - App-owned snippets (MCP config, curl examples, shell workflows) use
   `SerangkaiCode`, which wraps the real `SProsePre` so the header and copy
   button are the component's, and fetches only the highlighted body from
-  `POST /api/highlight`. That endpoint returns Shiki spans sanitized down to
+  `POST /api/highlight`. JSON and JavaScript artifact previews use it too, so
+  uploaded source files read like code rather than plain text. That endpoint returns Shiki spans sanitized down to
   `pre`/`code`/`span`, or escaped text for unknown languages, and rejects
   snippets above 50,000 characters so the public route cannot be used to burn
   unbounded CPU. The landing page's hero request and MCP config use it too,

@@ -70,6 +70,12 @@
             <div v-else-if="artifact.type === 'markdown'" class="serangkai-prose mx-auto">
               <MarkdownDocument :html="renderedContent" />
             </div>
+            <SerangkaiCode
+              v-else-if="artifact.type === 'json' || artifact.type === 'javascript'"
+              :code="content"
+              :language="artifact.type === 'json' ? 'json' : 'javascript'"
+              :filename="artifact.metadata?.filename"
+            />
             <pre v-else class="overflow-auto whitespace-pre-wrap rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-4 font-mono text-sm">{{ content }}</pre>
           </template>
         </div>
