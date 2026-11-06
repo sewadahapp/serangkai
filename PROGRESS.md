@@ -58,6 +58,8 @@ MVP end-to-end workflow implemented and verified
 - [x] Replaced non-existent `SLabel` with `SFormField` so every input has a real programmatic label
 - [x] Fixed SSR session resolution so the header no longer renders logged-out chrome for signed-in users
 - [x] Loaded `@sewadah/selaras/prose.css` so Markdown headings, lists, and code actually render styled
+- [x] Installed the Selaras agent skill and local MCP server; replaced every native select, checkbox, and file input with SSelect, SCheckbox, and SFileUpload
+- [x] Mounted SApp at the root and replaced hand-rolled two-step confirms with useConfirm + SAlertDialog, plus success toasts via useToast
 
 ## Verification
 - `npm run build` passes

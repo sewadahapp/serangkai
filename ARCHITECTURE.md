@@ -5,7 +5,14 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
 
 ## Technology Stack
 - **Frontend/Framework**: Nuxt 4, Vue 3, TypeScript
-- **UI Components**: @sewadah/selaras
+- **UI Components**: @sewadah/selaras — 13 components in use (`SApp`, `SSelect`,
+  `SFormField`, `SFileUpload`, `SCheckbox`, `SAlertDialog` via `useConfirm`,
+  `SToast` via `useToast`, and others). `app.vue` mounts `SApp` once, which is
+  required for `useToast`/`useConfirm`/`useModal` renderers to exist.
+- **Agent support**: the `selaras` skill (copied from the installed package into
+  `.opencode/skills/`) and the local `@sewadah/selaras-mcp` stdio server, wired in
+  `opencode.json`, serving the offline catalog that ships inside
+  `@sewadah/selaras`.
 - **Design system**: Minimalism & Swiss Style — trust blue `#2563EB` primary with an
   `#EA580C` accent, Plus Jakarta Sans, light mode by default with a dark mode toggle.
   Generated with the `ui-ux-pro-max` skill (variance 3 / motion 3 / density 5) and

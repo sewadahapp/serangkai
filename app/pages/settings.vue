@@ -23,14 +23,16 @@
 
           <fieldset>
             <legend class="text-sm font-medium">Scopes</legend>
-            <div class="mt-2 flex flex-wrap gap-x-5 gap-y-2">
-              <label v-for="scope in scopeOptions" :key="scope.value" class="flex cursor-pointer items-start gap-2 text-sm">
-                <input v-model="scopes" type="checkbox" :value="scope.value" class="mt-0.5 size-4 cursor-pointer accent-[var(--selaras-resolved-color-primary-fill)]" />
-                <span>
-                  <span class="font-medium">{{ scope.label }}</span>
-                  <span class="block text-xs text-[var(--selaras-resolved-text-muted)]">{{ scope.hint }}</span>
-                </span>
-              </label>
+            <div class="mt-3 grid gap-2 sm:grid-cols-3">
+              <SCheckbox
+                v-for="scope in scopeOptions"
+                :key="scope.value"
+                variant="card"
+                :model-value="scopes.includes(scope.value)"
+                :label="scope.label"
+                :description="scope.hint"
+                @update:model-value="(checked) => toggleScope(scope.value, checked)"
+              />
             </div>
           </fieldset>
 
@@ -96,6 +98,13 @@ const scopeOptions = [
   { value: 'write', label: 'Write', hint: 'Create, update, move, restore, and delete.' },
   { value: 'full', label: 'Full', hint: 'Everything, plus token management.' },
 ]
+
+const toggleScope = (value: string, checked: boolean | 'indeterminate') => {
+  const next = new Set(scopes.value)
+  if (checked === true) next.add(value)
+  else next.delete(value)
+  scopes.value = [...next]
+}
 
 const loadTokens = async () => {
   try {

@@ -25,10 +25,7 @@
             <SInput v-model="folderName" placeholder="Folder name" required class="w-full" />
           </SFormField>
           <SFormField v-slot="{ id }" label="Parent">
-            <select :id="id" v-model="parentFolderId" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
-              <option value="">Top level</option>
-              <option v-for="row in folderRows" :key="row.id" :value="row.id">{{ folderIndent(row.depth) }}{{ row.name }}</option>
-            </select>
+            <SSelect :id="id" v-model="parentFolderId" :items="parentOptions" placeholder="Top level" class="w-full" />
           </SFormField>
         </div>
         <div class="flex gap-2">
@@ -43,25 +40,14 @@
             <SInput v-model="artifactTitle" placeholder="Artifact title" required class="w-full" />
           </SFormField>
           <SFormField v-slot="{ id }" label="Type">
-            <select :id="id" v-model="artifactType" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
-              <option value="markdown">Markdown</option>
-              <option value="html">HTML</option>
-              <option value="json">JSON</option>
-            </select>
+            <SSelect :id="id" v-model="artifactType" :items="typeOptions" class="w-full" />
           </SFormField>
           <SFormField v-slot="{ id }" label="Visibility">
-            <select :id="id" v-model="artifactVisibility" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
-              <option value="private">Private</option>
-              <option value="unlisted">Unlisted</option>
-              <option value="public">Public</option>
-            </select>
+            <SSelect :id="id" v-model="artifactVisibility" :items="visibilityOptions" class="w-full" />
           </SFormField>
         </div>
         <SFormField v-slot="{ id }" label="Folder">
-          <select :id="id" v-model="artifactFolderId" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
-            <option value="">No folder</option>
-            <option v-for="row in folderRows" :key="row.id" :value="row.id">{{ folderIndent(row.depth) }}{{ row.name }}</option>
-          </select>
+          <SSelect :id="id" v-model="artifactFolderId" :items="artifactFolderOptions" placeholder="No folder" clearable class="w-full" />
         </SFormField>
         <SFormField v-slot="{ id }" label="Content" required>
           <textarea :id="id" v-model="artifactContent" class="min-h-48 w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] p-3 font-mono text-sm" placeholder="# Start writing..." required />
@@ -73,42 +59,38 @@
       </form>
 
       <form v-else class="space-y-3" @submit.prevent="uploadArtifact">
-        <SFormField v-slot="{ id }" label="File" required hint="Markdown, HTML, JS, JSON, PDF, images, or a ZIP bundle.">
-          <input
-            :id="id"
-            type="file"
-            accept=".md,.markdown,.txt,.html,.htm,.js,.json,.pdf,.png,.jpg,.jpeg,.gif,.webp,.svg,.zip"
-            class="block w-full cursor-pointer rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm file:me-3 file:cursor-pointer file:rounded file:border-0 file:bg-[var(--selaras-resolved-surface-elevated)] file:px-2.5 file:py-1 file:text-sm file:font-medium"
-            @change="selectUploadFile"
+        <div>
+          <p class="text-sm font-medium">File <span class="text-[var(--selaras-resolved-color-danger-text)]">*</span></p>
+          <p class="mt-0.5 text-sm text-[var(--selaras-resolved-text-muted)]">Markdown, HTML, JS, JSON, PDF, images, or a ZIP bundle. Up to 25 MiB.</p>
+          <SFileUpload
+            v-model="uploadFiles"
+            :accept="acceptTypes"
+            :max-size="MAX_UPLOAD_BYTES"
+            class="mt-2"
+            @error="onUploadError"
           />
-        </SFormField>
+        </div>
         <div class="grid gap-3 sm:grid-cols-3">
           <SFormField label="Title">
             <SInput v-model="uploadTitle" placeholder="Optional" class="w-full" />
           </SFormField>
           <SFormField v-slot="{ id }" label="Visibility">
-            <select :id="id" v-model="uploadVisibility" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
-              <option value="private">Private</option>
-              <option value="unlisted">Unlisted</option>
-              <option value="public">Public</option>
-            </select>
+            <SSelect :id="id" v-model="uploadVisibility" :items="visibilityOptions" class="w-full" />
           </SFormField>
           <SFormField v-slot="{ id }" label="Folder">
-            <select :id="id" v-model="uploadFolderId" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
-              <option value="">No folder</option>
-              <option v-for="row in folderRows" :key="row.id" :value="row.id">{{ folderIndent(row.depth) }}{{ row.name }}</option>
-            </select>
+            <SSelect :id="id" v-model="uploadFolderId" :items="artifactFolderOptions" placeholder="No folder" clearable class="w-full" />
           </SFormField>
         </div>
-        <p v-if="uploadFile" class="text-sm text-[var(--selaras-resolved-text-muted)]">
-          {{ uploadFile.name }} · {{ formatBytes(uploadFile.size) }}
+        <p v-if="uploadFiles.length" class="text-sm text-[var(--selaras-resolved-text-muted)]">
+          {{ uploadFiles[0].name }} · {{ formatBytes(uploadFiles[0].size) }}
         </p>
         <div class="flex gap-2">
-          <SButton type="submit" :loading="uploading" :disabled="uploading || !uploadFile">Upload artifact</SButton>
+          <SButton type="submit" :loading="uploading" :disabled="uploading || !uploadFiles.length">Upload artifact</SButton>
           <SButton type="button" variant="ghost" @click="showUpload = false">Cancel</SButton>
         </div>
       </form>
 
+      <SAlert v-if="uploadError" class="mt-4" color="warning" variant="subtle" :title="uploadError" />
       <SAlert v-if="error" class="mt-4" color="danger" variant="subtle" :title="error" />
     </div>
 
@@ -157,23 +139,13 @@
 
             <SFormField v-slot="{ id }" label="Move under">
               <div class="flex gap-2">
-                <select :id="id" v-model="moveParentId" class="min-w-0 flex-1 rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
-                  <option value="">Top level</option>
-                  <option v-for="row in moveTargets" :key="row.id" :value="row.id">{{ folderIndent(row.depth) }}{{ row.name }}</option>
-                </select>
+                <SSelect :id="id" v-model="moveParentId" :items="moveTargetOptions" placeholder="Top level" class="min-w-0 flex-1" />
                 <SButton variant="outline" :loading="savingFolder" :disabled="savingFolder" @click="moveFolder">Move</SButton>
               </div>
             </SFormField>
 
             <div class="border-t border-[var(--selaras-resolved-border-muted)] pt-3">
-              <template v-if="confirmDeleteFolder">
-                <p class="text-sm text-[var(--selaras-resolved-text-muted)]">Delete “{{ selectedFolder.name }}”? Only empty folders can be deleted.</p>
-                <div class="mt-2 flex gap-2">
-                  <SButton variant="outline" color="danger" :loading="savingFolder" :disabled="savingFolder" @click="deleteFolder">Confirm delete</SButton>
-                  <SButton variant="ghost" @click="confirmDeleteFolder = false">Cancel</SButton>
-                </div>
-              </template>
-              <SButton v-else variant="ghost" color="danger" @click="confirmDeleteFolder = true">Delete folder</SButton>
+              <SButton variant="ghost" color="danger" :loading="savingFolder" :disabled="savingFolder" @click="deleteFolder">Delete folder</SButton>
             </div>
 
             <p v-if="folderMessage" class="text-sm text-[var(--selaras-resolved-text-muted)]">{{ folderMessage }}</p>
@@ -285,14 +257,19 @@ const renameValue = ref('')
 const moveParentId = ref('')
 const saving = ref(false)
 const savingFolder = ref(false)
-const confirmDeleteFolder = ref(false)
 const folderMessage = ref('')
 const error = ref('')
+
+const { confirm } = useConfirm()
+const { add: toast } = useToast()
 
 const showNewFolder = ref(false)
 const showNewArtifact = ref(false)
 const showUpload = ref(false)
-const uploadFile = ref<File | null>(null)
+const uploadFiles = ref<File[]>([])
+const uploadError = ref('')
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+const acceptTypes = '.md,.markdown,.txt,.html,.htm,.js,.json,.pdf,.png,.jpg,.jpeg,.gif,.webp,.svg,.zip' 
 const uploadTitle = ref('')
 const uploadVisibility = ref('private')
 const uploadFolderId = ref('')
@@ -323,6 +300,30 @@ const folderRows = computed(() => {
   return rows
 })
 
+const typeOptions = [
+  { label: 'Markdown', value: 'markdown' },
+  { label: 'HTML', value: 'html' },
+  { label: 'JSON', value: 'json' },
+]
+
+const visibilityOptions = [
+  { label: 'Private', value: 'private' },
+  { label: 'Unlisted', value: 'unlisted' },
+  { label: 'Public', value: 'public' },
+]
+
+const folderOption = (row: Folder & { depth: number }) => ({ label: `${'— '.repeat(row.depth)}${row.name}`, value: row.id })
+
+const moveTargets = computed(() => {
+  if (!selectedFolderId.value) return folderRows.value
+  const blocked = descendantIds(selectedFolderId.value)
+  return folderRows.value.filter(row => !blocked.has(row.id))
+})
+
+const parentOptions = computed(() => [{ label: 'Top level', value: '' }, ...folderRows.value.map(folderOption)])
+const artifactFolderOptions = computed(() => [{ label: 'No folder', value: '' }, ...folderRows.value.map(folderOption)])
+const moveTargetOptions = computed(() => [{ label: 'Top level', value: '' }, ...moveTargets.value.map(folderOption)])
+
 const selectedFolder = computed(() => selectedFolderId.value ? folderMap.value.get(selectedFolderId.value) || null : null)
 
 const descendantIds = (folderId: string) => {
@@ -340,11 +341,7 @@ const descendantIds = (folderId: string) => {
   return ids
 }
 
-const moveTargets = computed(() => {
-  if (!selectedFolderId.value) return folderRows.value
-  const blocked = descendantIds(selectedFolderId.value)
-  return folderRows.value.filter(row => !blocked.has(row.id))
-})
+
 
 const visibleArtifacts = computed(() => {
   if (searchQuery.value.trim()) return artifacts.value
@@ -395,23 +392,25 @@ const openNewArtifact = () => {
 const openUpload = () => {
   closePanels()
   uploadFolderId.value = selectedFolderId.value || ''
-  uploadFile.value = null
+  uploadFiles.value = []
+  uploadError.value = ''
   uploadTitle.value = ''
   showUpload.value = true
   error.value = ''
 }
 
-const selectUploadFile = (event: Event) => {
-  const file = (event.target as HTMLInputElement).files?.[0] || null
-  uploadFile.value = file
-  if (file && !uploadTitle.value) uploadTitle.value = file.name.replace(/\.[^.]+$/, '')
+const onUploadError = (rejected: Array<{ file: File; reason: string }>) => {
+  uploadError.value = rejected.map(item => `${item.file.name}: ${item.reason}`).join(', ')
 }
+
+watch(uploadFiles, (files) => {
+  if (files.length && !uploadTitle.value) uploadTitle.value = files[0].name.replace(/\.[^.]+$/, '')
+})
 
 const selectFolder = (folderId: string | null) => {
   selectedFolderId.value = folderId
   renameValue.value = folderId ? folderMap.value.get(folderId)?.name || '' : ''
   moveParentId.value = folderId ? folderMap.value.get(folderId)?.parentId || '' : ''
-  confirmDeleteFolder.value = false
   folderMessage.value = ''
   closePanels()
   if (searchQuery.value.trim()) search()
@@ -452,6 +451,7 @@ const createFolder = async () => {
     showNewFolder.value = false
     await loadWorkspace()
     selectFolder(res.folder.id)
+    toast({ title: 'Folder created', color: 'success' })
   } catch (e: any) {
     error.value = e.data?.message || 'Could not create folder'
   } finally {
@@ -475,6 +475,7 @@ const createArtifact = async () => {
     artifactTitle.value = ''
     showNewArtifact.value = false
     await loadWorkspace()
+    toast({ title: 'Artifact created', color: 'success' })
   } catch (e: any) {
     error.value = e.data?.message || 'Could not create artifact'
   } finally {
@@ -483,22 +484,24 @@ const createArtifact = async () => {
 }
 
 const uploadArtifact = async () => {
-  if (!uploadFile.value) {
+  if (!uploadFiles.value.length) {
     error.value = 'Choose a file to upload'
     return
   }
   uploading.value = true; error.value = ''
   try {
     const form = new FormData()
-    form.append('file', uploadFile.value)
+    form.append('file', uploadFiles.value[0])
     if (uploadTitle.value.trim()) form.append('title', uploadTitle.value.trim())
     form.append('visibility', uploadVisibility.value)
     if (uploadFolderId.value) form.append('folderId', uploadFolderId.value)
     await $fetch('/api/artifacts/upload', { method: 'POST', body: form })
     showUpload.value = false
-    uploadFile.value = null
+    uploadFiles.value = []
+    uploadError.value = ''
     uploadTitle.value = ''
     await loadWorkspace()
+    toast({ title: 'Artifact uploaded', color: 'success' })
   } catch (e: any) {
     error.value = e.data?.message || 'Could not upload artifact'
   } finally {
@@ -538,14 +541,23 @@ const moveFolder = async () => {
 }
 
 const deleteFolder = async () => {
-  if (!selectedFolderId.value) return
+  if (!selectedFolder.value) return
+  const accepted = await confirm({
+    title: `Delete “${selectedFolder.value.name}”?`,
+    description: 'Only empty folders can be deleted. Move or remove its contents first.',
+    confirmLabel: 'Delete folder',
+    confirmColor: 'danger',
+    icon: 'lucide:folder-minus',
+  })
+  if (!accepted) return
+
   savingFolder.value = true; folderMessage.value = ''
   try {
     await $fetch(`/api/folders/${selectedFolderId.value}`, { method: 'DELETE' })
+    toast({ title: 'Folder deleted', color: 'success' })
     selectedFolderId.value = null
     renameValue.value = ''
-    confirmDeleteFolder.value = false
-    await loadWorkspace()
+      await loadWorkspace()
   } catch (e: any) {
     folderMessage.value = e.data?.message || 'Could not delete folder'
   } finally {

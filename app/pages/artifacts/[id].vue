@@ -22,11 +22,7 @@
         <SButton variant="outline" :loading="duplicating" :disabled="duplicating" @click="duplicateArtifact">Duplicate</SButton>
         <SButton v-if="artifact.type === 'bundle'" variant="outline" :to="`/api/share/${artifact.slug}/index.html`" target="_blank" rel="noopener">Open bundle</SButton>
         <SButton v-if="shareUrl" variant="outline" :to="shareUrl" target="_blank" rel="noopener">Open share link</SButton>
-        <template v-if="confirmDelete">
-          <SButton color="danger" :loading="deleting" :disabled="deleting" @click="removeArtifact">Confirm delete</SButton>
-          <SButton variant="ghost" @click="confirmDelete = false">Cancel</SButton>
-        </template>
-        <SButton v-else variant="ghost" color="danger" @click="confirmDelete = true">Delete</SButton>
+        <SButton variant="ghost" color="danger" :loading="deleting" :disabled="deleting" @click="removeArtifact">Delete</SButton>
       </div>
     </div>
 
@@ -88,11 +84,7 @@
 
           <div class="mt-3 space-y-3">
             <SFormField v-slot="{ id }" label="Visibility">
-              <select :id="id" v-model="draftVisibility" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
-                <option value="private">Private — only you</option>
-                <option value="unlisted">Unlisted — signed link required</option>
-                <option value="public">Public — anyone with the link</option>
-              </select>
+              <SSelect :id="id" v-model="draftVisibility" :items="visibilityOptions" class="w-full" />
             </SFormField>
 
             <div class="flex flex-wrap gap-2">
@@ -117,10 +109,7 @@
           <h2 id="folder-heading" class="text-sm font-semibold">Folder</h2>
           <div class="mt-3 space-y-2">
             <SFormField v-slot="{ id }" label="Move to">
-              <select :id="id" v-model="draftFolderId" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm">
-                <option value="">No folder</option>
-                <option v-for="folder in folders" :key="folder.id" :value="folder.id">{{ folder.path || folder.name }}</option>
-              </select>
+              <SSelect :id="id" v-model="draftFolderId" :items="folderOptions" placeholder="No folder" clearable class="w-full" />
             </SFormField>
             <SButton :loading="savingFolder" :disabled="savingFolder" @click="saveFolder">Move artifact</SButton>
             <p v-if="folderMessage" class="text-sm text-[var(--selaras-resolved-text-muted)]">{{ folderMessage }}</p>
@@ -194,13 +183,26 @@ const folders = ref<any[]>([])
 const draftFolderId = ref('')
 const savingFolder = ref(false)
 const folderMessage = ref('')
-const confirmDelete = ref(false)
 const deleting = ref(false)
 const deleteMessage = ref('')
 const viewing = ref<{ version: number; content: string } | null>(null)
 const restoring = ref<number | null>(null)
 const versionMessage = ref('')
 const duplicating = ref(false)
+
+const { confirm } = useConfirm()
+const { add: toast } = useToast()
+
+const visibilityOptions = [
+  { label: 'Private — only you', value: 'private' },
+  { label: 'Unlisted — signed link required', value: 'unlisted' },
+  { label: 'Public — anyone with the link', value: 'public' },
+]
+
+const folderOptions = computed(() => [
+  { label: 'No folder', value: '' },
+  ...folders.value.map((folder: any) => ({ label: folder.path || folder.name, value: folder.id })),
+])
 
 watch(artifact, (value) => {
   if (value) useHead({ title: `${value.title} · Serangkai` })
@@ -293,13 +295,23 @@ const duplicateArtifact = async () => {
 }
 
 const removeArtifact = async () => {
-  deleting.value = true; deleteMessage.value = ''
+  deleteMessage.value = ''
+  const accepted = await confirm({
+    title: `Delete “${artifact.value?.title}”?`,
+    description: 'This removes the artifact, every version, and its stored files. It cannot be undone.',
+    confirmLabel: 'Delete artifact',
+    confirmColor: 'danger',
+    icon: 'lucide:trash-2',
+  })
+  if (!accepted) return
+
+  deleting.value = true
   try {
     await $fetch(`/api/artifacts/${route.params.id}`, { method: 'DELETE' })
+    toast({ title: 'Artifact deleted', color: 'success' })
     await navigateTo('/workspace')
   } catch (e: any) {
     deleteMessage.value = e.data?.message || 'Could not delete artifact'
-    confirmDelete.value = false
   } finally {
     deleting.value = false
   }
