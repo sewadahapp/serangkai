@@ -181,10 +181,11 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   back to escaped text; Mermaid and `chart` fences keep their own renderers.
   Copying is delegated by `app/plugins/code-copy.client.ts`.
 - Markdown headings get stable, unique ids after sanitization (`setup`,
-  `setup-2`, ...). `SContentToc` uses them directly: the artifact sidebar and
-  the share reader both build their contents tree with `extractToc`, which only
-  reads the rendered HTML. The chart and Mermaid containers share the same
-  border and surface tokens.
+  `setup-2`, ...) so headings can be deep-linked. The share reader builds an
+  `SContentToc` rail with `extractToc`, which only reads the rendered HTML; the
+  in-app preview deliberately has no contents panel, keeping the focus on the
+  document and the sharing controls. The chart and Mermaid containers share the
+  same border and surface tokens.
 - Markdown `chart` fences accept JSON — `type` (`bar`, `line`, `area`), `data`,
   optional `x`/`y` keys, `title`, axis labels, `horizontal`, `color`, and
   `height`. `DataChart.client.vue` maps that onto fixed TanStack Charts marks and

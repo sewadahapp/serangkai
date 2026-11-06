@@ -76,10 +76,6 @@
       </section>
 
       <div class="space-y-4">
-        <section v-if="toc.length" class="serangkai-panel p-4 lg:sticky lg:top-20 lg:z-10" aria-label="Contents">
-          <SContentToc :links="toc" title="Contents" />
-        </section>
-
         <section class="serangkai-panel p-4" aria-labelledby="sharing-heading">
           <h2 id="sharing-heading" class="text-sm font-semibold">Sharing</h2>
 
@@ -170,25 +166,11 @@
 </template>
 
 <script setup lang="ts">
-import { extractToc, type TocLink } from '~/utils/markdown-toc'
-
 const route = useRoute()
 const artifact = ref<any>(null)
 const content = ref('')
 const renderedContent = ref('')
 
-// Only Markdown has headings to navigate; a short document does not need a
-// contents panel, so require at least two entries.
-const toc = ref<TocLink[]>([])
-
-watch(renderedContent, () => {
-  if (artifact.value?.type === 'markdown') {
-    const links = extractToc(renderedContent.value)
-    toc.value = links.length >= 2 ? links : []
-  } else {
-    toc.value = []
-  }
-}, { immediate: true })
 const editing = ref(false)
 const draftTitle = ref('')
 const draftContent = ref('')

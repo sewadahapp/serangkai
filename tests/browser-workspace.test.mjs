@@ -163,10 +163,41 @@ test('Markdown renders Mermaid diagrams and JSON charts', async () => {
   assert.equal(await page.locator('.ts-chart-host svg').count(), 1)
   assert.equal(await page.locator('.serangkai-chart pre').count(), 0)
 
-  // Headings get ids, so the contents panel can link to them.
-  const tocLinks = page.locator('section[aria-label="Contents"] a')
-  await assert.doesNotReject(() => tocLinks.first().waitFor())
-  assert.deepEqual(await tocLinks.allInnerTexts(), ['Diagram', 'Chart'])
+  // Headings get ids for deep links...
   const headingId = await page.locator('h2', { hasText: 'Diagram' }).getAttribute('id')
   assert.equal(headingId, 'diagram')
+  // ...but the in-app preview stays focused on the document itself.
+  await assert.rejects(() => page.locator('section[aria-label="Contents"]').waitFor({ timeout: 500 }))
+})
+
+test('the share reader shows a table of contents', async () => {
+  const shareUrl = await page.evaluate(async () => {
+    const content = [
+      '# Shared doc',
+      '',
+      '## Diagram',
+      '',
+      'Text.',
+      '',
+      '## Chart',
+      '',
+      'More text.',
+    ].join('\n')
+    const created = await fetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Shared doc', type: 'markdown', content, visibility: 'unlisted' }),
+    })
+    const { artifact } = await created.json()
+    const link = await fetch(`/api/artifacts/${artifact.id}/share`, { method: 'POST' })
+    return (await link.json()).url
+  })
+
+  await page.goto(shareUrl)
+  const tocLinks = page.locator('aside[aria-label="Table of contents"] a')
+  await assert.doesNotReject(() => tocLinks.first().waitFor())
+  assert.deepEqual(await tocLinks.allInnerTexts(), ['Diagram', 'Chart'])
+  // The rail links to real headings, so SContentToc can track them.
+  const href = await tocLinks.first().getAttribute('href')
+  assert.equal(await page.locator(href).count(), 1)
 })
