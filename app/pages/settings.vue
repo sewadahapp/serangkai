@@ -19,7 +19,7 @@
               <SInput v-model="tokenName" placeholder="Token name" required class="w-full" />
             </SFormField>
             <SFormField v-slot="{ id }" label="Expires" hint="Leave empty for a token that does not expire.">
-              <SDatePicker :id="id" v-model="expiresAt" class="w-full" />
+              <SDatePicker :id="id" v-model="expiresAt" trigger-mode="button" class="w-full" />
             </SFormField>
           </div>
 
