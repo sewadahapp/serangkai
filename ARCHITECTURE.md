@@ -134,7 +134,11 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `list_artifacts` - List user's artifacts
 - `get_artifact` - Read artifact content
 - `create_artifact` - Create new artifact, optionally inside a folder
-- `update_artifact` - Update content, visibility, or folder
+- `update_artifact` - Publish content, visibility, or folder changes. Accepts an
+  optional `baseVersion` from `get_artifact`; if the artifact changed since that
+  read, the publish is refused with the current version so the agent can re-read
+  and merge (the same stale-write guard Claude Code applies). Unchanged content
+  creates no version. Mutating tools declare `destructiveHint`.
 
 ### Frontend Routes
 - `/` - Landing page with capability, agent-setup, and CTA sections

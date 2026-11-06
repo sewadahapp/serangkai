@@ -73,6 +73,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
     title: 'Create folder',
     description: 'Create a folder, optionally nested under an existing folder.',
     inputSchema: { name: z.string().min(1).max(120), parentId: z.string().optional() },
+    annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
   }, async ({ name, parentId }) => {
     if (!canWrite) return { isError: true, content: [{ type: 'text', text: 'This API token requires write scope.' }] }
     let path = `/${name}`
@@ -122,6 +123,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
       folderId: z.string().optional(),
       visibility: visibility.default('private'),
     },
+    annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
   }, async ({ title, type, content, folderId, visibility: artifactVisibility }) => {
     if (!canWrite) return { isError: true, content: [{ type: 'text', text: 'This API token requires write scope.' }] }
     if (folderId && !(await findFolder(folderId))) return { isError: true, content: [{ type: 'text', text: 'Folder not found.' }] }
@@ -136,15 +138,38 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
 
   server.registerTool('update_artifact', {
     title: 'Update artifact',
-    description: 'Update an artifact and create a new immutable version when content changes.',
+    description: 'Publish a new version of an artifact. Pass baseVersion (from get_artifact) to reject stale writes: if the artifact changed since you read it, this fails with the current version so you can re-read and merge. Unchanged content creates no version.',
     inputSchema: {
-      id: z.string(), title: z.string().min(1).max(200).optional(), content: z.string().max(10_000_000).optional(), visibility: visibility.optional(), folderId: z.string().nullable().optional(),
+      id: z.string(),
+      title: z.string().min(1).max(200).optional(),
+      content: z.string().max(10_000_000).optional(),
+      visibility: visibility.optional(),
+      folderId: z.string().nullable().optional(),
+      baseVersion: z.number().int().positive().optional(),
     },
-  }, async ({ id, title, content, visibility: artifactVisibility, folderId }) => {
+    annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  }, async ({ id, title, content, visibility: artifactVisibility, folderId, baseVersion }) => {
     if (!canWrite) return { isError: true, content: [{ type: 'text', text: 'This API token requires write scope.' }] }
     const row = await db.select().from(artifacts).where(and(eq(artifacts.id, id), eq(artifacts.userId, userId))).get()
     if (!row) return { isError: true, content: [{ type: 'text', text: 'Artifact not found.' }] }
     if (folderId && !(await findFolder(folderId))) return { isError: true, content: [{ type: 'text', text: 'Folder not found.' }] }
+
+    const versionRows = await db.select({ version: artifactVersions.version }).from(artifactVersions).where(eq(artifactVersions.artifactId, id))
+    const currentVersion = Math.max(0, ...versionRows.map(item => item.version))
+
+    // Publish-time staleness check, mirroring Claude Code's behaviour: refuse a
+    // write built on an older copy and hand back the current version so the
+    // caller can re-read and merge instead of silently overwriting.
+    if (baseVersion !== undefined && baseVersion !== currentVersion) {
+      return {
+        isError: true,
+        content: [{
+          type: 'text',
+          text: `Stale write refused: baseVersion ${baseVersion} but the current version is ${currentVersion}. Re-read the artifact with get_artifact, merge your changes, then publish again with baseVersion ${currentVersion}.`,
+        }],
+      }
+    }
+
     let contentPath = row.contentPath
     if (content !== undefined) {
       // Only record a version when the bytes actually change. Agents commonly
@@ -152,15 +177,24 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
       // duplicate history entries.
       const currentContent = (await storage.read(row.contentPath)).toString()
       if (currentContent !== content) {
-        const versions = await db.select({ version: artifactVersions.version }).from(artifactVersions).where(eq(artifactVersions.artifactId, id))
-        const version = Math.max(0, ...versions.map(item => item.version)) + 1
+        const version = currentVersion + 1
         contentPath = `${userId}/${id}/versions/${version}`
         await storage.save(contentPath, content)
         await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version, contentPath, metadata: row.metadata || {}, createdAt: new Date() })
       }
     }
     await db.update(artifacts).set({ ...(title === undefined ? {} : { title }), ...(artifactVisibility === undefined ? {} : { visibility: artifactVisibility }), ...(folderId === undefined ? {} : { folderId }), ...(content === undefined ? {} : { contentPath }), updatedAt: new Date() }).where(eq(artifacts.id, id))
-    return textResult({ id, title: title || row.title, visibility: artifactVisibility || row.visibility, folderId: folderId === undefined ? row.folderId : folderId, contentPath, versionCreated: contentPath !== row.contentPath })
+
+    const versionCreated = contentPath !== row.contentPath
+    return textResult({
+      id,
+      title: title || row.title,
+      visibility: artifactVisibility || row.visibility,
+      folderId: folderId === undefined ? row.folderId : folderId,
+      contentPath,
+      versionCreated,
+      version: versionCreated ? currentVersion + 1 : currentVersion,
+    })
   })
 
   return server

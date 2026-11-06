@@ -139,6 +139,51 @@ test('searches artifacts and folders through MCP, scoped to a folder', async () 
   assert.equal(missing.result.isError, true)
 })
 
+test('refuses a stale publish and names the current version', async () => {
+  const created = await mcp({ jsonrpc: '2.0', id: 20, method: 'tools/call', params: { name: 'create_artifact', arguments: { title: 'Stale guard', type: 'markdown', content: '# One' } } })
+  const artifact = JSON.parse(created.result.content[0].text)
+
+  // Read at version 1, then publish a real change at that base.
+  const first = await mcp({ jsonrpc: '2.0', id: 21, method: 'tools/call', params: { name: 'update_artifact', arguments: { id: artifact.id, content: '# Two', baseVersion: 1 } } })
+  const firstBody = JSON.parse(first.result.content[0].text)
+  assert.equal(firstBody.versionCreated, true)
+  assert.equal(firstBody.version, 2)
+
+  // A second publisher still holding version 1 must be refused.
+  const stale = await mcp({ jsonrpc: '2.0', id: 22, method: 'tools/call', params: { name: 'update_artifact', arguments: { id: artifact.id, content: '# Stale', baseVersion: 1 } } })
+  assert.equal(stale.result.isError, true)
+  assert.match(stale.result.content[0].text, /Stale write refused/)
+  assert.match(stale.result.content[0].text, /current version is 2/)
+
+  // The stale content must not have been applied.
+  const read = await mcp({ jsonrpc: '2.0', id: 23, method: 'tools/call', params: { name: 'get_artifact', arguments: { id: artifact.id } } })
+  assert.equal(JSON.parse(read.result.content[0].text).content, '# Two')
+
+  // Retrying with the current base version succeeds.
+  const retry = await mcp({ jsonrpc: '2.0', id: 24, method: 'tools/call', params: { name: 'update_artifact', arguments: { id: artifact.id, content: '# Three', baseVersion: 2 } } })
+  assert.equal(JSON.parse(retry.result.content[0].text).version, 3)
+
+  // A no-op publish at the current version reports no new version.
+  const noop = await mcp({ jsonrpc: '2.0', id: 25, method: 'tools/call', params: { name: 'update_artifact', arguments: { id: artifact.id, content: '# Three', baseVersion: 3 } } })
+  const noopBody = JSON.parse(noop.result.content[0].text)
+  assert.equal(noopBody.versionCreated, false)
+  assert.equal(noopBody.version, 3)
+
+  // Omitting baseVersion keeps the previous last-write-wins behaviour.
+  const unchecked = await mcp({ jsonrpc: '2.0', id: 26, method: 'tools/call', params: { name: 'update_artifact', arguments: { id: artifact.id, content: '# Four' } } })
+  assert.equal(JSON.parse(unchecked.result.content[0].text).version, 4)
+})
+
+test('declares destructive hints on mutating tools only', async () => {
+  const tools = await mcp({ jsonrpc: '2.0', id: 30, method: 'tools/list', params: {} })
+  const byName = Object.fromEntries(tools.result.tools.map(tool => [tool.name, tool]))
+  assert.equal(byName.update_artifact.annotations?.destructiveHint, true)
+  assert.equal(byName.create_artifact.annotations?.destructiveHint, false)
+  for (const readOnly of ['list_folders', 'search', 'list_artifacts', 'get_artifact']) {
+    assert.equal(byName[readOnly].annotations?.readOnlyHint, true, `${readOnly} should be readOnlyHint`)
+  }
+})
+
 test('rejects MCP requests without authentication', async () => {
   const response = await fetch(`${baseUrl}/api/mcp`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 5, method: 'tools/list', params: {} }) })
   assert.equal(response.status, 401)

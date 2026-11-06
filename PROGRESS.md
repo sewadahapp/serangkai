@@ -65,6 +65,8 @@ documented as unverified rather than claimed as supported.
 - [x] Removed the last native form elements: STextarea for content editing, SDatePicker for token expiry, SInput for read-only share links and endpoints
 - [x] Fixed the doubled focus ring by excluding form controls from the global outline
 - [x] Replaced the hand-rolled header nav with SNavigationMenu and added icons across actions, folders, and the mobile tab bar
+- [x] Stop no-op writes from appending versions (REST + MCP)
+- [x] Publish-time stale-write guard via `baseVersion`, returning the current version on refusal, plus `destructiveHint` annotations on mutating MCP tools
 
 ## Verification
 - `npm run build` passes
