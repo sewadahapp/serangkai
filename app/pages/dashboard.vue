@@ -42,9 +42,7 @@
           <ul v-if="typeRows.length" class="mt-3 space-y-2">
             <li v-for="row in typeRows" :key="row.type" class="flex items-center gap-3">
               <span class="w-20 shrink-0 text-sm">{{ row.type }}</span>
-              <span class="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--selaras-resolved-surface-elevated)]" aria-hidden="true">
-                <span class="block h-full rounded-full bg-[var(--selaras-resolved-color-primary-indicator)]" :style="{ width: `${row.percent}%` }" />
-              </span>
+              <SProgress :model-value="row.percent" size="sm" class="flex-1" :aria-label="`${row.type} share of artifacts`" />
               <span class="serangkai-tabular w-8 text-end text-sm text-[var(--selaras-resolved-text-muted)]">{{ row.count }}</span>
             </li>
           </ul>

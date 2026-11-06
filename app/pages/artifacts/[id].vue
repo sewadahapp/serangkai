@@ -122,28 +122,31 @@
             <span class="serangkai-tabular text-xs text-[var(--selaras-resolved-text-muted)]">{{ versions.length }} versions</span>
           </div>
 
-          <ol class="mt-3 space-y-1.5">
-            <li v-for="version in versions" :key="version.id" class="rounded-md border border-[var(--selaras-resolved-border-muted)] px-2.5 py-2">
+          <STimeline :items="versionItems" size="sm" class="mt-3">
+            <template #title="{ item }">
+              <span class="text-sm font-medium">v{{ item.version }}</span>
+            </template>
+            <template #content="{ item }">
               <div class="flex items-center justify-between gap-2">
-                <span class="text-sm font-medium">v{{ version.version }}</span>
-                <time class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ formatDate(version.createdAt) }}</time>
+                <span class="text-sm font-medium">v{{ item.version }}</span>
+                <time class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ formatDate(item.createdAt) }}</time>
               </div>
               <div class="mt-1.5 flex gap-1.5">
-                <SButton variant="text" size="sm" icon="lucide:eye" @click="viewVersion(version.version)">View</SButton>
+                <SButton variant="text" size="sm" icon="lucide:eye" @click="viewVersion(item.version)">View</SButton>
                 <SButton
-                  v-if="version.version !== latestVersion"
+                  v-if="item.version !== latestVersion"
                   variant="text"
                   size="sm"
                   icon="lucide:history"
-                  :loading="restoring === version.version"
-                  :disabled="restoring === version.version"
-                  @click="restoreVersion(version.version)"
+                  :loading="restoring === item.version"
+                  :disabled="restoring === item.version"
+                  @click="restoreVersion(item.version)"
                 >
                   Restore
                 </SButton>
               </div>
-            </li>
-          </ol>
+            </template>
+          </STimeline>
 
           <div v-if="viewing" class="mt-3 border-t border-[var(--selaras-resolved-border-muted)] pt-3">
             <div class="flex items-center justify-between gap-2">
@@ -210,6 +213,17 @@ watch(artifact, (value) => {
 }, { immediate: true })
 
 const latestVersion = computed(() => versions.value[0]?.version ?? null)
+
+// STimeline wants a flat item list; carry the raw version so the #content
+// slot can render the View/Restore actions for each entry.
+const versionItems = computed(() => versions.value.map(version => ({
+  id: version.id,
+  version: version.version,
+  createdAt: version.createdAt,
+  title: `v${version.version}`,
+  date: formatDate(version.createdAt),
+  icon: version.version === latestVersion.value ? 'lucide:circle-dot' : 'lucide:git-commit-horizontal',
+})))
 const folderPath = computed(() => folders.value.find(folder => folder.id === artifact.value?.folderId)?.path || '')
 
 const formatDate = (value: string) => new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
