@@ -78,7 +78,43 @@ export async function renderMarkdownAsync(source: string, options: RenderMarkdow
     html = html.replace(`\u0000SERANGKAI_FENCE_${i}\u0000`, renderCodeBlock(inner, fence.lang))
   }
 
-  return sanitize(html)
+  return withHeadingIds(sanitize(html))
+}
+
+/** Decodes the entities marked emits inside heading text, for slugging. */
+function headingText(html: string) {
+  return decodeHtmlEntities(html.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
+}
+
+function slugifyHeading(text: string) {
+  return text
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^\p{Letter}\p{Number}\s-]/gu, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 80) || 'section'
+}
+
+/**
+ * Adds stable, unique `id`s to headings.
+ *
+ * Marked no longer emits heading ids, and `SContentToc` links to `#id`. Doing
+ * this after sanitization keeps the generated attribute out of the author's
+ * input entirely; the slug is derived from text, so it cannot introduce markup.
+ * Duplicate titles get `-2`, `-3`, ... suffixes rather than colliding.
+ */
+function withHeadingIds(html: string) {
+  const used = new Map<string, number>()
+  return html.replace(/<h([1-6])([^>]*)>([\s\S]*?)<\/h\1>/gi, (match, level: string, attributes: string, inner: string) => {
+    if (/\sid\s*=/.test(attributes)) return match
+    const base = slugifyHeading(headingText(inner))
+    const seen = used.get(base) || 0
+    used.set(base, seen + 1)
+    const id = seen ? `${base}-${seen + 1}` : base
+    return `<h${level}${attributes} id="${id}">${inner}</h${level}>`
+  })
 }
 
 function decodeHtmlEntities(value: string) {
@@ -121,5 +157,5 @@ export function renderMarkdown(source: string) {
     return renderCodeBlock(`<code>${escapeHtml(text)}</code>`, lang || '')
   }
   const html = marked.parse(source, { async: false, gfm: true, breaks: true, renderer }) as string
-  return sanitize(html)
+  return withHeadingIds(sanitize(html))
 }

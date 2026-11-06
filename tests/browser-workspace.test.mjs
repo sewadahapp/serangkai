@@ -135,10 +135,14 @@ test('Markdown renders Mermaid diagrams and JSON charts', async () => {
     const content = [
       '# Render check',
       '',
+      '## Diagram',
+      '',
       '```mermaid',
       'graph LR',
       '  A[Client] --> B[Server]',
       '```',
+      '',
+      '## Chart',
       '',
       '```chart',
       '{"type":"bar","title":"Routes","data":[{"label":"auth","value":4},{"label":"artifacts","value":13}]}',
@@ -158,4 +162,11 @@ test('Markdown renders Mermaid diagrams and JSON charts', async () => {
   assert.equal(await page.locator('.serangkai-mermaid svg').count(), 1)
   assert.equal(await page.locator('.ts-chart-host svg').count(), 1)
   assert.equal(await page.locator('.serangkai-chart pre').count(), 0)
+
+  // Headings get ids, so the contents panel can link to them.
+  const tocLinks = page.locator('section[aria-label="Contents"] a')
+  await assert.doesNotReject(() => tocLinks.first().waitFor())
+  assert.deepEqual(await tocLinks.allInnerTexts(), ['Diagram', 'Chart'])
+  const headingId = await page.locator('h2', { hasText: 'Diagram' }).getAttribute('id')
+  assert.equal(headingId, 'diagram')
 })

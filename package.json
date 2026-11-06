@@ -18,7 +18,7 @@
     "test:lifecycle": "npm run build && node --test tests/artifacts-lifecycle.test.mjs",
     "test:security": "npm run build && node --test tests/security-api.test.mjs",
     "test:browser": "npm run build && node --test tests/browser-workspace.test.mjs",
-    "test:markdown": "node --import tsx --test tests/markdown-render.test.mjs",
+    "test:markdown": "node --import tsx --test tests/markdown-render.test.mjs tests/toc-extract.test.mjs",
     "test:bundle": "npm run build && node --test tests/bundle-api.test.mjs",
     "test:deployment-config": "node --test tests/deployment-config.test.mjs",
     "test:deployment-files": "node --test tests/deployment-files.test.mjs",

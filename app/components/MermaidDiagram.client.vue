@@ -1,5 +1,5 @@
 <template>
-  <div ref="root" class="min-h-24 overflow-auto rounded-lg border bg-muted/20 p-4" role="img" :aria-label="label" />
+  <div ref="root" class="min-h-24 overflow-auto rounded-lg border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-elevated)] p-4" role="img" :aria-label="label" />
 </template>
 
 <script setup lang="ts">

@@ -81,3 +81,18 @@ test('supports raw HTTP request snippets', async () => {
   assert.match(html, /\/api\/artifacts/)
   assert.doesNotMatch(html, /<script/i)
 })
+
+test('gives headings stable, unique ids for anchors and the table of contents', async () => {
+  const html = await renderMarkdownAsync('# Top\n\n## Setup\n\n### Setup\n\n## Setup\n')
+  assert.match(html, /<h2 id="setup">Setup<\/h2>/)
+  // Duplicate titles get suffixed instead of colliding.
+  assert.match(html, /<h3 id="setup-2">Setup<\/h3>/)
+  assert.match(html, /<h2 id="setup-3">Setup<\/h2>/)
+})
+
+test('heading ids cannot be injected through heading text', async () => {
+  const html = await renderMarkdownAsync('## <img src=x onerror=alert(1)> Hello "quoted"')
+  assert.doesNotMatch(html, /<img/i)
+  assert.match(html, /<h2 id="[a-z0-9-]+">/)
+  assert.doesNotMatch(html, /onerror/i)
+})

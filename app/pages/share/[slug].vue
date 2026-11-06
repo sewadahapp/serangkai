@@ -20,13 +20,21 @@
         {{ error }}
       </p>
 
-      <article v-else-if="artifact" class="mx-auto max-w-[46rem]">
-        <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
-        <h1 v-if="!startsWithHeading" class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
-        <div :class="startsWithHeading ? 'mt-4' : 'mt-8'">
-          <MarkdownDocument :html="artifact.renderedContent" />
-        </div>
-      </article>
+      <div v-else-if="artifact" class="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,46rem)_13rem] lg:items-start">
+        <article>
+          <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
+          <h1 v-if="!startsWithHeading" class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
+          <div :class="startsWithHeading ? 'mt-4' : 'mt-8'">
+            <MarkdownDocument :html="artifact.renderedContent" />
+          </div>
+        </article>
+
+        <aside v-if="toc.length" class="hidden lg:block" aria-label="Table of contents">
+          <div class="sticky top-10">
+            <SContentToc :links="toc" />
+          </div>
+        </aside>
+      </div>
 
       <p v-else class="text-sm text-[var(--selaras-resolved-text-muted)]">Loading shared artifact…</p>
     </main>
@@ -41,6 +49,8 @@
 </template>
 
 <script setup lang="ts">
+import { extractToc } from '~/utils/markdown-toc'
+
 /**
  * Read-only reader for a shared Markdown artifact.
  *
@@ -72,6 +82,11 @@ const { data: artifact, error: fetchError } = await useAsyncData(
 // heading too would show the title twice, so defer to the document when it
 // already starts with one.
 const startsWithHeading = computed(() => /^\s*<h1[\s>]/i.test(artifact.value?.renderedContent || ''))
+
+const toc = computed(() => {
+  const links = extractToc(artifact.value?.renderedContent || '')
+  return links.length >= 2 ? links : []
+})
 
 const visibilityLabel = computed(() => (
   artifact.value?.visibility === 'public' ? 'Public artifact'
