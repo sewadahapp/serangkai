@@ -3,6 +3,7 @@ import { getRequestDatabase } from '../../../db/adapter'
 import { getRequestStorage } from '#serangkai-storage-runtime'
 import { eq } from 'drizzle-orm'
 import { renderMarkdown } from '../../../utils/markdown'
+import { normalizeColorMode, withColorMode } from '../../../utils/artifact-color-mode'
 import { isValidShareKey } from '../../../utils/share'
 
 function escapeHtml(value: string) {
@@ -36,9 +37,13 @@ export default defineEventHandler(async (event) => {
   
   if (artifact.type === 'html') {
     setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
-    setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'unsafe-inline'; img-src 'self' https: data:; font-src https: data:; connect-src 'none'; frame-ancestors 'none'; form-action 'none'")
+    setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' https: data:; font-src https: data:; connect-src 'none'; frame-ancestors 'none'; form-action 'none'")
     setHeader(event, 'X-Content-Type-Options', 'nosniff')
-    return content.toString()
+    // No parent frame to message, so bake the requested mode in and let the
+    // client's prefers-color-scheme take over afterwards.
+    setHeader(event, 'Vary', 'Sec-CH-Prefers-Color-Scheme')
+    setHeader(event, 'Accept-CH', 'Sec-CH-Prefers-Color-Scheme')
+    return withColorMode(content.toString(), normalizeColorMode(getHeader(event, 'sec-ch-prefers-color-scheme')))
   } else if (artifact.type === 'markdown') {
     setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
     setHeader(event, 'Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; font-src https: data:; base-uri 'none'; frame-ancestors 'none'")

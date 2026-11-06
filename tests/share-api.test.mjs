@@ -33,5 +33,10 @@ test('unlisted artifacts require signed links', async () => {
   const publicResponse = await fetch(share.url)
   assert.equal(publicResponse.status, 200)
   assert.match(await publicResponse.text(), /Secret link/)
-  assert.equal((await fetch(`${share.url.slice(0, -1)}0`)).status, 404)
+  // Flip the last hex digit to a guaranteed-different value. Blindly setting it
+  // to "0" is a no-op when the signature already ends in 0, which made this
+  // assertion flaky.
+  const lastDigit = share.url.at(-1)
+  const tampered = share.url.slice(0, -1) + (lastDigit === '0' ? '1' : '0')
+  assert.equal((await fetch(tampered)).status, 404)
 })

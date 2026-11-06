@@ -34,6 +34,11 @@ export default defineNuxtConfig({
       openAPI: true
     }
   },
+  routeRules: {
+    // Ask supporting browsers to send their color preference so shared HTML
+    // artifacts render in the right mode without a flash.
+    '/api/share/**': { headers: { 'Accept-CH': 'Sec-CH-Prefers-Color-Scheme' } },
+  },
   content: {
     highlight: {
       theme: {

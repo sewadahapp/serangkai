@@ -68,6 +68,9 @@ documented as unverified rather than claimed as supported.
 - [x] Stop no-op writes from appending versions (REST + MCP)
 - [x] Publish-time stale-write guard via `baseVersion`, now enforced (400 when missing, 409 when stale) on both MCP and REST content writes, plus `destructiveHint` annotations on mutating MCP tools
 - [x] Artifact editor sends its loaded version and preserves edits after a 409 conflict
+- [x] HTML artifacts follow the viewer's light/dark mode (in-app live sync + standalone via client hint), with `<meta name="color-scheme" content="only light">` opt-out
+- [x] Agent guide documents the `baseVersion` publish workflow and the color-mode contract
+- [x] Fixed a flaky signed-link tamper assertion (setting the last digit to `0` was a no-op 1/16 of the time)
 
 ## Verification
 - `npm run build` passes

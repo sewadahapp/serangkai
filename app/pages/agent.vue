@@ -33,6 +33,27 @@
           </div>
         </section>
 
+        <section class="serangkai-panel p-5" aria-labelledby="publishing">
+          <h2 id="publishing" class="text-sm font-semibold">Publishing safely</h2>
+          <ul class="mt-3 space-y-2 text-sm text-[var(--selaras-resolved-text-muted)]">
+            <li>
+              <strong class="text-[var(--selaras-resolved-text-default)]">Read before you write.</strong>
+              Call <code>get_artifact</code>, keep the content, then publish with
+              <code>baseVersion</code> set to the version you read.
+            </li>
+            <li>
+              <strong class="text-[var(--selaras-resolved-text-default)]">Stale writes are refused.</strong>
+              If someone else published in the meantime, the call fails and names the
+              current version. Re-read, merge, and publish again — nothing is overwritten.
+            </li>
+            <li>
+              <strong class="text-[var(--selaras-resolved-text-default)]">No-op writes create nothing.</strong>
+              Publishing identical content reports <code>versionCreated: false</code>.
+            </li>
+          </ul>
+          <pre class="mt-3 overflow-x-auto rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-4 font-mono text-xs leading-relaxed">{{ publishExample }}</pre>
+        </section>
+
         <section class="serangkai-panel overflow-hidden" aria-labelledby="rest-examples">
           <div class="border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
             <h2 id="rest-examples" class="text-sm font-semibold">REST examples</h2>
@@ -47,6 +68,18 @@
       </div>
 
       <aside class="space-y-4">
+        <section class="serangkai-panel p-5" aria-labelledby="color-mode">
+          <h2 id="color-mode" class="text-sm font-semibold">Color mode</h2>
+          <p class="mt-2 text-sm text-[var(--selaras-resolved-text-muted)]">
+            HTML artifacts follow the viewer's light or dark preference automatically.
+            Write standard CSS — the host injects a small bridge.
+          </p>
+          <pre class="mt-2 overflow-x-auto rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-3 font-mono text-xs leading-relaxed">{{ colorModeExample }}</pre>
+          <p class="mt-2 text-sm text-[var(--selaras-resolved-text-muted)]">
+            To pin one scheme, declare
+            <code>&lt;meta name="color-scheme" content="only light"&gt;</code>.
+          </p>
+        </section>
         <section class="serangkai-panel p-5" aria-labelledby="tools">
           <h2 id="tools" class="text-sm font-semibold">MCP tools</h2>
           <ul class="mt-3 space-y-1.5">
@@ -87,7 +120,7 @@ const toolList = [
   { name: 'list_artifacts', hint: 'Owned artifacts' },
   { name: 'get_artifact', hint: 'Read source' },
   { name: 'create_artifact', hint: 'Private by default' },
-  { name: 'update_artifact', hint: 'Content, visibility, folder' },
+  { name: 'update_artifact', hint: 'Publish a version — needs baseVersion for content' },
 ]
 
 const scopeList = [
@@ -105,6 +138,21 @@ const mcpConfig = computed(() => JSON.stringify({
     },
   },
 }, null, 2))
+
+const publishExample = `# 1. read
+get_artifact({ id: "abc" })          → { content: "...", version: 3 }
+
+# 2. publish what you read
+update_artifact({ id: "abc", content: "...", baseVersion: 3 })
+  → { version: 4, versionCreated: true }
+
+# stale baseVersion comes back as an error naming the current version`
+
+const colorModeExample = `:root { color-scheme: light dark; }
+body {
+  background: light-dark(#ffffff, #101014);
+  color: light-dark(#111111, #f5f5f5);
+}`
 
 const restExample = computed(() => `curl -H "Authorization: Bearer $SERANGKAI_TOKEN" \\
   ${restUrl.value}

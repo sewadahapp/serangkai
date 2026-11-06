@@ -3,6 +3,7 @@ import { artifacts } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
 import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireUser } from '../../../utils/require-auth'
+import { withColorMode } from '../../../utils/artifact-color-mode'
 
 const imageTypes: Record<string, string> = {
   png: 'image/png',
@@ -48,7 +49,9 @@ export default defineEventHandler(async (event) => {
     // Owner-only preview of untrusted HTML: same sandbox boundary as public
     // delivery, so the frame cannot reach the app origin, forms, or the network.
     setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
-    setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'unsafe-inline'; img-src 'self' https: data:; font-src https: data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
+    setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' https: data:; font-src https: data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
+    setHeader(event, 'Vary', 'Sec-CH-Prefers-Color-Scheme')
+    return withColorMode(content.toString())
   } else {
     setHeader(event, 'Content-Type', resolveImageType(metadata))
     setHeader(event, 'Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'")

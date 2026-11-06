@@ -151,7 +151,8 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `/workspace` - Artifact workspace with folder tree, scoped search, create/upload panels
 - `/artifacts/[id]` - Artifact preview/edit, sharing, folder, and version panels
 - `/settings` - API token creation, listing, and revocation
-- `/agent` - MCP/REST connection guide with endpoint, client config, and scope reference
+- `/agent` - MCP/REST connection guide with endpoint, client config, scope reference,
+  publishing workflow (`baseVersion`), and the HTML color-mode contract
 - Share delivery happens through `/api/share/:slug` (signed `?k=` link for unlisted artifacts)
 
 ### Design system notes
@@ -161,6 +162,13 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   link, and a global `prefers-reduced-motion` override.
 - All form controls live inside `SFormField` so labels, hints, and errors are
   programmatically associated. `SLabel` does not exist in Selaras.
+- HTML artifacts follow the viewer's color mode. `server/utils/artifact-color-mode.ts`
+  injects a small `color-scheme` + postMessage bridge; the in-app preview posts the
+  live mode so artifacts re-theme without a reload, while public share links bake the
+  mode in from `Sec-CH-Prefers-Color-Scheme` and then follow `prefers-color-scheme`.
+  Artifacts can opt out with `<meta name="color-scheme" content="only light">`.
+  The CSP gains `script-src 'unsafe-inline'` for that bridge; `sandbox allow-scripts`
+  still denies same-origin access, forms, popups, framing, and network calls.
 - There are no native form elements left: text inputs use `SInput`, multi-line
   content uses `STextarea`, choices use `SSelect`, booleans use `SCheckbox`,
   files use `SFileUpload`, and dates use `SDatePicker` with
