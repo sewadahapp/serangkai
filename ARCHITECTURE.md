@@ -177,7 +177,10 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   `SerangkaiCode`, which wraps the real `SProsePre` so the header and copy
   button are the component's, and fetches only the highlighted body from
   `POST /api/highlight`. That endpoint returns Shiki spans sanitized down to
-  `pre`/`code`/`span`, or escaped text for unknown languages.
+  `pre`/`code`/`span`, or escaped text for unknown languages, and rejects
+  snippets above 50,000 characters so the public route cannot be used to burn
+  unbounded CPU. The landing page's hero request and MCP config use it too,
+  with `language="http"` and `language="json"` respectively.
 - `#selaras/tailwind.css` is imported in the Tailwind entry as the installation
   guide requires; it defines `--selaras-adaptive-breakpoint`, without which
   adaptive presentation warns and silently disables.

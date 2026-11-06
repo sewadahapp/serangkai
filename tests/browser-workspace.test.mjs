@@ -24,6 +24,8 @@ after(async () => { await browser?.close(); child?.kill('SIGTERM'); await rm(dat
 test('human browser workflow registers and creates an artifact', async () => {
   await page.goto(`${base}/`)
   await assert.doesNotReject(() => page.getByText('Serangkai').first().waitFor())
+  // The landing page's own snippets are highlighted, not only artifact Markdown.
+  await assert.doesNotReject(() => page.locator('.serangkai-shiki span[style*="--shiki-light"]').first().waitFor())
   await page.getByRole('link', { name: 'Register' }).click()
   await page.getByLabel('Email').fill(`browser-${randomBytes(3).toString('hex')}@example.com`)
   await page.getByLabel('Password').fill('correct horse battery')

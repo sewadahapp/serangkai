@@ -7,7 +7,7 @@ export const COMMON_LANGS = [
   'json', 'jsonc', 'yaml', 'yml', 'toml', 'ini', 'dotenv',
   'html', 'vue', 'svelte', 'css', 'scss', 'markdown', 'md',
   'sql', 'python', 'py', 'go', 'rust', 'rs', 'java', 'kotlin', 'swift', 'ruby', 'php',
-  'dockerfile', 'nginx', 'diff', 'xml',
+  'dockerfile', 'nginx', 'diff', 'xml', 'http',
 ]
 
 let highlighterPromise: Promise<Highlighter> | null = null

@@ -22,6 +22,12 @@ export default defineEventHandler(async (event) => {
   const language = normalizeLanguage(typeof body?.lang === 'string' ? body.lang : '')
   if (!code) return { html: '', language, highlighted: false }
 
+  // Public endpoint: bound the work a single request can request. App-owned
+  // snippets are tiny; anything larger degrades to plain text client-side.
+  if (code.length > 50_000) {
+    throw createError({ statusCode: 413, statusMessage: 'Code snippet is too large to highlight.' })
+  }
+
   const highlighted = await highlightCode(code, language)
   return {
     html: highlighted ? sanitizeCodeHtml(stripShikiPre(highlighted)) : `<code>${escapeHtml(code)}</code>`,

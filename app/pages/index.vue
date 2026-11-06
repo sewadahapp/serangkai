@@ -35,12 +35,7 @@
         <div class="space-y-4 p-6">
           <div class="space-y-2">
             <p class="text-xs font-semibold uppercase tracking-wider text-[var(--selaras-resolved-text-muted)]">Agent → workspace</p>
-            <pre class="overflow-x-auto rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-3 font-mono text-xs leading-relaxed">POST /api/artifacts
-Authorization: Bearer &lt;scoped-token&gt;
-
-{ "title": "Weekly report",
-  "type": "markdown",
-  "content": "# Ship log\n…" }</pre>
+            <SerangkaiCode :code="agentExample" language="http" :show-header="false" />
           </div>
           <div class="flex flex-wrap items-center gap-2 border-t border-[var(--selaras-resolved-border-muted)] pt-4 text-xs">
             <SBadge label="private" variant="subtle" color="neutral" size="sm" />
@@ -86,7 +81,7 @@ Authorization: Bearer &lt;scoped-token&gt;
 
         <div class="rounded-lg border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-elevated)] p-4">
           <p class="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--selaras-resolved-text-muted)]">MCP client</p>
-          <pre class="overflow-x-auto font-mono text-xs leading-relaxed">{{ mcpSnippet }}</pre>
+          <SerangkaiCode :code="mcpSnippet" language="json" filename="mcp.json" />
           <div class="mt-4 border-t border-[var(--selaras-resolved-border-muted)] pt-3 text-xs text-[var(--selaras-resolved-text-muted)]">
             Read, write, and full scopes keep a leaked token from escalating.
           </div>
@@ -135,4 +130,11 @@ const mcpSnippet = `{
     }
   }
 }`
+
+const agentExample = `POST /api/artifacts
+Authorization: Bearer <scoped-token>
+
+{ "title": "Weekly report",
+  "type": "markdown",
+  "content": "# Ship log\\n…" }`
 </script>

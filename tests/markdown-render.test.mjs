@@ -73,3 +73,11 @@ test('normalizes common language aliases', () => {
   assert.equal(normalizeLanguage('TS'), 'ts')
   assert.equal(normalizeLanguage(''), '')
 })
+
+test('supports raw HTTP request snippets', async () => {
+  assert.ok(isSupportedLanguage('http'))
+  const html = await renderMarkdownAsync('```http\nPOST /api/artifacts\nAuthorization: Bearer <token>\n```')
+  assert.match(html, /--shiki-light:/)
+  assert.match(html, /\/api\/artifacts/)
+  assert.doesNotMatch(html, /<script/i)
+})
