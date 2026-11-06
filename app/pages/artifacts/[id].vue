@@ -76,7 +76,7 @@
       </section>
 
       <div class="space-y-4">
-        <section v-if="toc.length" class="serangkai-panel p-4" aria-label="Contents">
+        <section v-if="toc.length" class="serangkai-panel p-4 lg:sticky lg:top-20 lg:z-10" aria-label="Contents">
           <SContentToc :links="toc" title="Contents" />
         </section>
 

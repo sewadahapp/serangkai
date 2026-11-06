@@ -20,7 +20,7 @@
         {{ error }}
       </p>
 
-      <div v-else-if="artifact" class="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,46rem)_13rem] lg:items-start">
+      <div v-else-if="artifact" class="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,46rem)_13rem]">
         <article>
           <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
           <h1 v-if="!startsWithHeading" class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
