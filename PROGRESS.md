@@ -81,6 +81,7 @@ documented as unverified rather than claimed as supported.
 - [x] Markdown headings get stable ids, and the share reader shows an `SContentToc` contents rail (the in-app preview keeps its sidebar to sharing, folder, and history)
 - [x] Mermaid containers use the same border and surface tokens as charts
 - [x] JSON and JavaScript artifact previews are syntax highlighted with the file header and copy button
+- [x] Copy buttons on read-only values: MCP/REST endpoints, share links, and new API tokens, with an insecure-context fallback
 - [x] Fixed a flaky signed-link tamper assertion (setting the last digit to `0` was a no-op 1/16 of the time)
 
 ## Verification

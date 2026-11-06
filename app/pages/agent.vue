@@ -15,10 +15,18 @@
           <p class="mt-1 text-sm text-[var(--selaras-resolved-text-muted)]">Send the token as a bearer credential. Never commit tokens to a repository.</p>
           <div class="mt-3 space-y-2">
             <SFormField label="MCP">
-              <SInput :model-value="mcpUrl" readonly aria-label="MCP endpoint" icon="lucide:plug" class="w-full font-mono text-xs" />
+              <SInput :model-value="mcpUrl" readonly aria-label="MCP endpoint" icon="lucide:plug" class="w-full font-mono text-xs">
+                <template #trailing="{ buttonSize }">
+                  <SerangkaiCopyButton :value="mcpUrl" label="MCP endpoint" :size="buttonSize" />
+                </template>
+              </SInput>
             </SFormField>
             <SFormField label="REST">
-              <SInput :model-value="restUrl" readonly aria-label="REST endpoint" icon="lucide:code" class="w-full font-mono text-xs" />
+              <SInput :model-value="restUrl" readonly aria-label="REST endpoint" icon="lucide:code" class="w-full font-mono text-xs">
+                <template #trailing="{ buttonSize }">
+                  <SerangkaiCopyButton :value="restUrl" label="REST endpoint" :size="buttonSize" />
+                </template>
+              </SInput>
             </SFormField>
           </div>
         </section>

@@ -98,7 +98,11 @@
             <p v-if="draftVisibility === 'private'" class="text-sm text-[var(--selaras-resolved-text-muted)]">Only you can open this artifact.</p>
             <template v-else-if="shareUrl">
               <SFormField label="Share link">
-                <SInput :model-value="shareUrl" readonly aria-label="Share link" class="w-full font-mono text-xs" />
+                <SInput :model-value="shareUrl" readonly aria-label="Share link" class="w-full font-mono text-xs">
+                  <template #trailing="{ buttonSize }">
+                    <SerangkaiCopyButton :value="shareUrl" label="share link" :size="buttonSize" />
+                  </template>
+                </SInput>
               </SFormField>
               <p class="text-sm text-[var(--selaras-resolved-text-muted)]">
                 {{ draftVisibility === 'unlisted' ? 'The signed link is required. Anyone with it can read this artifact.' : 'Anyone with the link can read this artifact.' }}

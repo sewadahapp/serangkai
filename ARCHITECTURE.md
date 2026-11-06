@@ -216,6 +216,11 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   Artifacts can opt out with `<meta name="color-scheme" content="only light">`.
   The CSP gains `script-src 'unsafe-inline'` for that bridge; `sandbox allow-scripts`
   still denies same-origin access, forms, popups, framing, and network calls.
+- Read-only values people copy (MCP/REST endpoints, signed share links, a
+  freshly minted API token) put `SerangkaiCopyButton` in `SInput`'s `trailing`
+  slot. It uses `copyText`, which falls back to a temporary textarea when the
+  instance is served over plain HTTP and `navigator.clipboard` is unavailable,
+  and swaps to a check mark for 1.5s instead of raising a toast.
 - There are no native form elements left: text inputs use `SInput`, multi-line
   content uses `STextarea`, choices use `SSelect`, booleans use `SCheckbox`,
   files use `SFileUpload`, and dates use `SDatePicker` with

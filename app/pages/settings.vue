@@ -52,7 +52,11 @@
 
         <div v-if="newToken" class="mt-4 rounded-md border border-[var(--selaras-resolved-color-primary-border)] bg-[var(--selaras-resolved-color-primary-subtle)] p-4">
           <p class="text-sm font-medium text-[var(--selaras-resolved-color-primary-on-subtle)]">Copy this token now — it will not be shown again.</p>
-          <SInput :model-value="newToken" readonly aria-label="New API token" icon="lucide:key-round" class="mt-2 w-full font-mono text-xs" />
+          <SInput :model-value="newToken" readonly aria-label="New API token" icon="lucide:key-round" class="mt-2 w-full font-mono text-xs">
+            <template #trailing="{ buttonSize }">
+              <SerangkaiCopyButton :value="newToken" label="API token" :size="buttonSize" />
+            </template>
+          </SInput>
         </div>
 
         <SAlert v-if="tokenMessage" class="mt-4" color="info" variant="subtle" :title="tokenMessage" />

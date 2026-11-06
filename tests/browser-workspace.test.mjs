@@ -66,10 +66,14 @@ test('human browser workflow registers and creates an artifact', async () => {
   await page.getByRole('combobox', { name: 'Visibility' }).click()
   await page.getByRole('option', { name: /Unlisted/ }).click()
   await page.getByRole('button', { name: 'Save visibility' }).click()
-  const shareLink = page.getByLabel('Share link')
+  const shareLink = page.getByRole('textbox', { name: 'Share link', exact: true })
   await assert.doesNotReject(() => shareLink.waitFor())
   assert.match(await shareLink.inputValue(), /\/share\/[^?]+\?k=[a-f0-9]{64}$/)
   assert.equal((await fetch(await shareLink.inputValue())).status, 200)
+
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base })
+  await page.getByRole('button', { name: 'Copy share link' }).click()
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await shareLink.inputValue())
 
   await page.getByRole('button', { name: 'Edit' }).click()
   await page.locator('textarea').fill('# Browser flow revised')
@@ -92,9 +96,9 @@ test('human browser workflow registers and creates an artifact', async () => {
 
   await page.getByRole('link', { name: 'Agents' }).first().click()
   await page.waitForURL('**/agent')
-  await assert.doesNotReject(() => page.getByLabel('MCP endpoint').waitFor())
-  assert.match(await page.getByLabel('MCP endpoint').inputValue(), /\/api\/mcp$/)
-  assert.match(await page.getByLabel('REST endpoint').inputValue(), /\/api\/artifacts$/)
+  await assert.doesNotReject(() => page.getByRole('textbox', { name: 'MCP endpoint', exact: true }).waitFor())
+  assert.match(await page.getByRole('textbox', { name: 'MCP endpoint', exact: true }).inputValue(), /\/api\/mcp$/)
+  assert.match(await page.getByRole('textbox', { name: 'REST endpoint', exact: true }).inputValue(), /\/api\/artifacts$/)
   await assert.doesNotReject(() => page.getByText('list_folders').first().waitFor())
   await assert.doesNotReject(() => page.getByText(/Bearer YOUR_TOKEN/).waitFor())
 
@@ -215,4 +219,17 @@ test('JSON artifacts are syntax highlighted in the preview', async () => {
   await assert.doesNotReject(() => page.locator('.serangkai-shiki span[style*="--shiki-light"]').first().waitFor())
   assert.ok(await page.locator('.serangkai-shiki span[style*="--shiki-light"]').count() > 0)
   assert.match(await page.locator('.serangkai-prose, main').innerText(), /presentation-spec\.json/)
+})
+
+test('read-only values offer a working copy button', async () => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base })
+
+  await page.goto(`${base}/agent`)
+  const mcpCopy = page.getByRole('button', { name: 'Copy MCP endpoint' })
+  await assert.doesNotReject(() => mcpCopy.waitFor())
+  await assert.doesNotReject(() => page.getByRole('button', { name: 'Copy REST endpoint' }).waitFor())
+  await mcpCopy.click()
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /\/api\/mcp$/)
+  // The control acknowledges the copy instead of staying silent.
+  assert.equal(await page.getByRole('button', { name: 'Copied' }).count(), 1)
 })
