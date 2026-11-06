@@ -66,7 +66,8 @@ documented as unverified rather than claimed as supported.
 - [x] Fixed the doubled focus ring by excluding form controls from the global outline
 - [x] Replaced the hand-rolled header nav with SNavigationMenu and added icons across actions, folders, and the mobile tab bar
 - [x] Stop no-op writes from appending versions (REST + MCP)
-- [x] Publish-time stale-write guard via `baseVersion`, returning the current version on refusal, plus `destructiveHint` annotations on mutating MCP tools
+- [x] Publish-time stale-write guard via `baseVersion`, now enforced (400 when missing, 409 when stale) on both MCP and REST content writes, plus `destructiveHint` annotations on mutating MCP tools
+- [x] Artifact editor sends its loaded version and preserves edits after a 409 conflict
 
 ## Verification
 - `npm run build` passes

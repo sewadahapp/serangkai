@@ -169,9 +169,14 @@ test('refuses a stale publish and names the current version', async () => {
   assert.equal(noopBody.versionCreated, false)
   assert.equal(noopBody.version, 3)
 
-  // Omitting baseVersion keeps the previous last-write-wins behaviour.
+  // Omitting baseVersion on a content change is now rejected.
   const unchecked = await mcp({ jsonrpc: '2.0', id: 26, method: 'tools/call', params: { name: 'update_artifact', arguments: { id: artifact.id, content: '# Four' } } })
-  assert.equal(JSON.parse(unchecked.result.content[0].text).version, 4)
+  assert.equal(unchecked.result.isError, true)
+  assert.match(unchecked.result.content[0].text, /baseVersion is required/)
+
+  // Metadata-only updates stay exempt.
+  const meta = await mcp({ jsonrpc: '2.0', id: 27, method: 'tools/call', params: { name: 'update_artifact', arguments: { id: artifact.id, visibility: 'unlisted' } } })
+  assert.equal(JSON.parse(meta.result.content[0].text).visibility, 'unlisted')
 })
 
 test('declares destructive hints on mutating tools only', async () => {

@@ -12,6 +12,7 @@ const schema = z.object({
   visibility: z.enum(['private', 'public', 'unlisted']).optional(),
   folderId: z.string().nullable().optional(),
   metadata: z.record(z.any()).optional(),
+  baseVersion: z.number().int().nonnegative().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -32,14 +33,33 @@ export default defineEventHandler(async (event) => {
   let contentPath = artifact.contentPath
   let version: number | undefined
 
+  const latestRow = await db.select({ latest: max(artifactVersions.version) })
+    .from(artifactVersions).where(eq(artifactVersions.artifactId, artifact.id)).get()
+  const currentVersion = Number(latestRow?.latest || 0)
+
   if (changes.content !== undefined) {
+    // Every content write must declare which version it was based on, so two
+    // concurrent writers cannot silently overwrite each other.
+    if (changes.baseVersion === undefined) {
+      throw createError({
+        statusCode: 400,
+        message: `baseVersion is required when updating content. The current version is ${currentVersion}.`,
+        data: { currentVersion },
+      })
+    }
+    if (changes.baseVersion !== currentVersion) {
+      throw createError({
+        statusCode: 409,
+        message: `Stale write refused: baseVersion ${changes.baseVersion} but the current version is ${currentVersion}. Re-read the artifact, merge your changes, then save again with baseVersion ${currentVersion}.`,
+        data: { currentVersion },
+      })
+    }
+
     // Only record a version when the bytes actually change; a no-op save
     // must not append duplicate history.
     const currentContent = (await storage.read(artifact.contentPath)).toString()
     if (currentContent !== changes.content) {
-      const current = await db.select({ latest: max(artifactVersions.version) })
-        .from(artifactVersions).where(eq(artifactVersions.artifactId, artifact.id)).get()
-      version = Number(current?.latest || 0) + 1
+      version = currentVersion + 1
       contentPath = `${user.id}/${artifact.id}/versions/${version}`
       await storage.save(contentPath, changes.content)
       await db.insert(artifactVersions).values({

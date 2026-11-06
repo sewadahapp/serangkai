@@ -262,6 +262,7 @@ const reloadArtifact = async () => {
   draftContent.value = res.content
   draftVisibility.value = res.artifact.visibility
   draftFolderId.value = res.artifact.folderId || ''
+  shareMessage.value = ''
   versions.value = (await $fetch<any>(`/api/artifacts/${route.params.id}/versions`)).versions || []
 }
 
@@ -357,13 +358,29 @@ onMounted(async () => {
 const save = async () => {
   saving.value = true; message.value = ''
   try {
-    const res = await $fetch<any>(`/api/artifacts/${route.params.id}`, { method: 'PUT', body: { title: draftTitle.value, content: draftContent.value } })
+    const res = await $fetch<any>(`/api/artifacts/${route.params.id}`, {
+      method: 'PUT',
+      body: { title: draftTitle.value, content: draftContent.value, baseVersion: latestVersion.value },
+    })
     artifact.value = res.artifact
     content.value = draftContent.value
     renderedContent.value = res.artifact.type === 'markdown' ? (await $fetch<any>(`/api/artifacts/${route.params.id}`)).renderedContent : ''
     versions.value = (await $fetch<any>(`/api/artifacts/${route.params.id}/versions`)).versions || []
-    editing.value = false; message.value = `Saved version ${res.version}`
-  } catch (e: any) { message.value = e.data?.message || 'Could not save' }
+    editing.value = false
+    message.value = res.versionCreated ? `Saved version ${res.version}` : 'No changes to save'
+  } catch (e: any) {
+    const status = e.statusCode || e.response?.status
+    if (status === 409) {
+      // Someone else published while this editor was open. Reload so the form
+      // reflects the new content, and keep the user's draft in the textarea.
+      const draft = draftContent.value
+      await reloadArtifact()
+      draftContent.value = draft
+      message.value = 'This artifact changed since you opened it. Your edits are preserved below — review and save again to publish them on top of the latest version.'
+    } else {
+      message.value = e.data?.message || 'Could not save'
+    }
+  }
   finally { saving.value = false }
 }
 </script>

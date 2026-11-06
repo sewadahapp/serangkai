@@ -111,7 +111,10 @@ Implementations: LocalStorageAdapter (default), S3StorageAdapter (future), etc.
 - `POST /api/artifacts` - Create artifact
 - `POST /api/artifacts/upload` - Multipart upload (Markdown, HTML, JSON, PDF, images, ZIP bundles)
 - `GET /api/artifacts/:id` - Get artifact
-- `PUT /api/artifacts/:id` - Update artifact, including visibility and folder
+- `PUT /api/artifacts/:id` - Update artifact, including visibility and folder.
+  Content changes require `baseVersion`; a missing value is `400` and a stale
+  one is `409` with `data.currentVersion`. The web editor sends the loaded
+  version and reloads on conflict.
 - `DELETE /api/artifacts/:id` - Delete artifact
 - `GET /api/artifacts/:id/versions` - Version history
 - `GET /api/artifacts/:id/versions/:version` - Read a historical version
@@ -134,11 +137,12 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `list_artifacts` - List user's artifacts
 - `get_artifact` - Read artifact content
 - `create_artifact` - Create new artifact, optionally inside a folder
-- `update_artifact` - Publish content, visibility, or folder changes. Accepts an
-  optional `baseVersion` from `get_artifact`; if the artifact changed since that
-  read, the publish is refused with the current version so the agent can re-read
-  and merge (the same stale-write guard Claude Code applies). Unchanged content
-  creates no version. Mutating tools declare `destructiveHint`.
+- `update_artifact` - Publish content, visibility, or folder changes.
+  `baseVersion` (the version read with `get_artifact`) is **required whenever
+  content changes**; a mismatch is refused with the current version so the agent
+  can re-read and merge, the same stale-write guard Claude Code applies.
+  Metadata-only updates are exempt, and unchanged content creates no version.
+  Mutating tools declare `destructiveHint`.
 
 ### Frontend Routes
 - `/` - Landing page with capability, agent-setup, and CTA sections

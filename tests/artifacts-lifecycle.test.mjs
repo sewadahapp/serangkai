@@ -32,6 +32,12 @@ const register = async (prefix) => {
   return { cookie: response.headers.get('set-cookie'), user: (await response.json()).user }
 }
 
+const latestVersionOf = async (id, cookie = cookieA) => {
+  const res = await fetch(`${base}/api/artifacts/${id}/versions`, { headers: { cookie } })
+  const body = await res.json()
+  return body.versions?.[0]?.version ?? 0
+}
+
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-lifecycle-test-'))
   child = spawn('node', ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
@@ -49,7 +55,7 @@ after(async () => { child?.kill('SIGTERM'); await rm(dataDir, { recursive: true,
 test('deletes an artifact, its versions, and its stored files', async () => {
   const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Disposable', type: 'markdown', content: '# One' }) })
   const artifact = (await created.json()).artifact
-  const updated = await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ content: '# Two' }) })
+  const updated = await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ baseVersion: await latestVersionOf(artifact.id), content: '# Two' }) })
   assert.equal(updated.status, 200)
 
   const stored = await filesUnder(join(dataDir, 'files', userIdA, artifact.id))
@@ -144,7 +150,7 @@ test('previews HTML artifacts in a sandboxed frame for the owner only', async ()
 test('reads and restores historical versions without rewriting history', async () => {
   const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Versioned', type: 'markdown', content: '# One' }) })
   const artifact = (await created.json()).artifact
-  await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ content: '# Two' }) })
+  await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ baseVersion: await latestVersionOf(artifact.id), content: '# Two' }) })
 
   const first = await fetch(`${base}/api/artifacts/${artifact.id}/versions/1`, { headers: { cookie: cookieA } })
   assert.equal(first.status, 200)
@@ -182,6 +188,39 @@ test('reads and restores historical versions without rewriting history', async (
   assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}/versions/1/restore`, { method: 'POST', headers: { authorization: `Bearer ${readOnly}` } })).status, 403)
 })
 
+test('requires baseVersion for content writes and refuses stale ones', async () => {
+  const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Guard', type: 'markdown', content: '# One' }) })
+  const artifact = (await created.json()).artifact
+
+  // Missing baseVersion is rejected outright.
+  const missing = await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ content: '# No base' }) })
+  assert.equal(missing.status, 400)
+  assert.match((await missing.json()).message, /baseVersion is required/)
+  assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}`, { headers: { cookie: cookieA } })).ok, true)
+
+  // Correct baseVersion publishes.
+  const ok = await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ baseVersion: 1, content: '# Two' }) })
+  assert.equal(ok.status, 200)
+  assert.equal((await ok.json()).version, 2)
+
+  // A writer still on version 1 is refused with 409 and nothing is written.
+  const stale = await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ baseVersion: 1, content: '# Stale' }) })
+  assert.equal(stale.status, 409)
+  const staleBody = await stale.json()
+  assert.match(staleBody.message, /Stale write refused/)
+  assert.equal(staleBody.data.currentVersion, 2)
+  const afterStale = await (await fetch(`${base}/api/artifacts/${artifact.id}`, { headers: { cookie: cookieA } })).json()
+  assert.equal(afterStale.content, '# Two')
+
+  // Metadata-only edits stay exempt so the UI can rename without a version.
+  assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Renamed' }) })).status, 200)
+
+  // Restoring a specific version stays exempt: it names its target explicitly.
+  assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}/versions/1/restore`, { method: 'POST', headers: { cookie: cookieA } })).status, 200)
+  const restored = await (await fetch(`${base}/api/artifacts/${artifact.id}`, { headers: { cookie: cookieA } })).json()
+  assert.equal(restored.content, '# One')
+})
+
 test('does not record a version when content is unchanged', async () => {
   const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'No-op writes', type: 'markdown', content: '# Stable' }) })
   const artifact = (await created.json()).artifact
@@ -189,7 +228,7 @@ test('does not record a version when content is unchanged', async () => {
   const versions = async () => (await (await fetch(`${base}/api/artifacts/${artifact.id}/versions`, { headers: { cookie: cookieA } })).json()).versions
 
   // Rewriting the identical content must not append history.
-  const noop = await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ content: '# Stable' }) })
+  const noop = await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ baseVersion: await latestVersionOf(artifact.id), content: '# Stable' }) })
   assert.equal(noop.status, 200)
   const noopBody = await noop.json()
   assert.equal(noopBody.versionCreated, false)
@@ -200,19 +239,19 @@ test('does not record a version when content is unchanged', async () => {
   assert.deepEqual((await versions()).map(v => v.version), [1])
 
   // A real change still appends exactly one version.
-  const changed = await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ content: '# Changed' }) })
+  const changed = await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ baseVersion: await latestVersionOf(artifact.id), content: '# Changed' }) })
   assert.equal((await changed.json()).versionCreated, true)
   assert.deepEqual((await versions()).map(v => v.version), [2, 1])
 
   // Restoring the previous bytes is a real change, so it appends too.
-  await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ content: '# Stable' }) })
+  await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ baseVersion: await latestVersionOf(artifact.id), content: '# Stable' }) })
   assert.deepEqual((await versions()).map(v => v.version), [3, 2, 1])
 })
 
 test('duplicates artifacts as private copies with the current content', async () => {
   const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Original', type: 'markdown', content: '# Original', visibility: 'public' }) })
   const artifact = (await created.json()).artifact
-  await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ content: '# Revised' }) })
+  await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ baseVersion: await latestVersionOf(artifact.id), content: '# Revised' }) })
 
   const duplicate = await fetch(`${base}/api/artifacts/${artifact.id}/duplicate`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Copy of original' }) })
   assert.equal(duplicate.status, 200)

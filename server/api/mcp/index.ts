@@ -138,7 +138,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
 
   server.registerTool('update_artifact', {
     title: 'Update artifact',
-    description: 'Publish a new version of an artifact. Pass baseVersion (from get_artifact) to reject stale writes: if the artifact changed since you read it, this fails with the current version so you can re-read and merge. Unchanged content creates no version.',
+    description: 'Publish a new version of an artifact. baseVersion (the version you read with get_artifact) is required whenever content changes; a mismatch is refused with the current version so you can re-read and merge. Unchanged content creates no version.',
     inputSchema: {
       id: z.string(),
       title: z.string().min(1).max(200).optional(),
@@ -160,6 +160,15 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
     // Publish-time staleness check, mirroring Claude Code's behaviour: refuse a
     // write built on an older copy and hand back the current version so the
     // caller can re-read and merge instead of silently overwriting.
+    if (content !== undefined && baseVersion === undefined) {
+      return {
+        isError: true,
+        content: [{
+          type: 'text',
+          text: `baseVersion is required when publishing content. The current version is ${currentVersion}. Call get_artifact, then publish with baseVersion ${currentVersion}.`,
+        }],
+      }
+    }
     if (baseVersion !== undefined && baseVersion !== currentVersion) {
       return {
         isError: true,
