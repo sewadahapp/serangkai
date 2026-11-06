@@ -166,6 +166,13 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   link, and a global `prefers-reduced-motion` override.
 - All form controls live inside `SFormField` so labels, hints, and errors are
   programmatically associated. `SLabel` does not exist in Selaras.
+- Markdown fenced code is highlighted with Shiki using `github-light` /
+  `github-dark` dual themes emitted as `--shiki-light` / `--shiki-dark` custom
+  properties, so one CSS rule switches with the color mode. Blocks mirror
+  `SProsePre`'s chrome (language header + copy button) with plain markup, since
+  sanitized Markdown output cannot carry Vue components. Unknown languages fall
+  back to escaped text; Mermaid and `chart` fences keep their own renderers.
+  Copying is delegated by `app/plugins/code-copy.client.ts`.
 - HTML artifacts follow the viewer's color mode. `server/utils/artifact-color-mode.ts`
   injects a small `color-scheme` + postMessage bridge; the in-app preview posts the
   live mode so artifacts re-theme without a reload, while public share links bake the

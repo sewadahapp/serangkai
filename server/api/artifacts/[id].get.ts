@@ -2,7 +2,7 @@ import { artifacts } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { getRequestStorage } from '#serangkai-storage-runtime'
 import { eq } from 'drizzle-orm'
-import { renderMarkdown } from '../../utils/markdown'
+import { renderMarkdownAsync } from '../../utils/markdown'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
@@ -40,6 +40,6 @@ export default defineEventHandler(async (event) => {
       updatedAt: artifact.updatedAt
     },
     content: content.toString(),
-    renderedContent: artifact.type === 'markdown' ? renderMarkdown(content.toString()) : null
+    renderedContent: artifact.type === 'markdown' ? await renderMarkdownAsync(content.toString()) : null
   }
 })
