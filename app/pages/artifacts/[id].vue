@@ -66,6 +66,14 @@
               :title="`${artifact.title} PDF`"
               class="h-[70vh] w-full rounded-md border border-[var(--selaras-resolved-border-default)]"
             />
+            <iframe
+              v-else-if="artifact.type === 'html'"
+              :src="`/api/artifacts/${artifact.id}/preview`"
+              :title="`${artifact.title} HTML preview`"
+              sandbox="allow-scripts"
+              referrerpolicy="no-referrer"
+              class="h-[70vh] w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-white"
+            />
             <div v-else-if="artifact.type === 'markdown'" class="serangkai-prose">
               <MarkdownDocument :html="renderedContent" />
             </div>

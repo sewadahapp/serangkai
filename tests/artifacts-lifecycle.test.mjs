@@ -121,6 +121,26 @@ test('previews images and PDFs inline for the owner only', async () => {
   assert.equal((await fetch(`${base}/api/artifacts/${textArtifact.id}/preview`, { headers: { cookie: cookieA } })).status, 400)
 })
 
+test('previews HTML artifacts in a sandboxed frame for the owner only', async () => {
+  const document = '<!DOCTYPE html><html><head><style>body{background:#2563eb}</style></head><body><h1>Preview me</h1></body></html>'
+  const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'HTML doc', type: 'html', content: document }) })
+  const artifact = (await created.json()).artifact
+
+  const preview = await fetch(`${base}/api/artifacts/${artifact.id}/preview`, { headers: { cookie: cookieA } })
+  assert.equal(preview.status, 200)
+  assert.match(preview.headers.get('content-type'), /text\/html/)
+  const csp = preview.headers.get('content-security-policy')
+  assert.match(csp, /sandbox allow-scripts/)
+  assert.match(csp, /connect-src 'none'/)
+  assert.match(csp, /form-action 'none'/)
+  assert.match(csp, /style-src 'unsafe-inline'/)
+  assert.doesNotMatch(csp, /allow-same-origin/)
+  assert.match(await preview.text(), /Preview me/)
+
+  assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}/preview`)).status, 401)
+  assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}/preview`, { headers: { cookie: cookieB } })).status, 404)
+})
+
 test('reads and restores historical versions without rewriting history', async () => {
   const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Versioned', type: 'markdown', content: '# One' }) })
   const artifact = (await created.json()).artifact

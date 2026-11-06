@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
   
   if (artifact.type === 'html') {
     setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
-    setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; connect-src 'none'; frame-ancestors 'none'; form-action 'none'")
+    setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'unsafe-inline'; img-src 'self' https: data:; font-src https: data:; connect-src 'none'; frame-ancestors 'none'; form-action 'none'")
     setHeader(event, 'X-Content-Type-Options', 'nosniff')
     return content.toString()
   } else if (artifact.type === 'markdown') {

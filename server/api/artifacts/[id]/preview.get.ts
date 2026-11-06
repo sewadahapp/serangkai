@@ -33,8 +33,8 @@ export default defineEventHandler(async (event) => {
   const artifact = await db.select().from(artifacts)
     .where(and(eq(artifacts.id, id), eq(artifacts.userId, user.id))).get()
   if (!artifact) throw createError({ statusCode: 404, message: 'Artifact not found' })
-  if (artifact.type !== 'image' && artifact.type !== 'pdf') {
-    throw createError({ statusCode: 400, message: 'Only image and PDF artifacts can be previewed inline' })
+  if (!['image', 'pdf', 'html'].includes(artifact.type)) {
+    throw createError({ statusCode: 400, message: 'Only image, PDF, and HTML artifacts can be previewed inline' })
   }
 
   const content = await storage.read(artifact.contentPath)
@@ -44,6 +44,11 @@ export default defineEventHandler(async (event) => {
   if (artifact.type === 'pdf') {
     setHeader(event, 'Content-Type', 'application/pdf')
     setHeader(event, 'X-Frame-Options', 'SAMEORIGIN')
+  } else if (artifact.type === 'html') {
+    // Owner-only preview of untrusted HTML: same sandbox boundary as public
+    // delivery, so the frame cannot reach the app origin, forms, or the network.
+    setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
+    setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'unsafe-inline'; img-src 'self' https: data:; font-src https: data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
   } else {
     setHeader(event, 'Content-Type', resolveImageType(metadata))
     setHeader(event, 'Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'")

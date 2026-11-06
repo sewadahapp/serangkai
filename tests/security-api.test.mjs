@@ -29,7 +29,17 @@ test('HTML artifacts receive a restrictive sandbox CSP', async () => {
   assert.match(csp, /sandbox allow-scripts/)
   assert.match(csp, /connect-src 'none'/)
   assert.match(csp, /frame-ancestors 'none'/)
+  assert.match(csp, /form-action 'none'/)
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
+
+  // Styling is allowed for documents; script injection from other origins,
+  // framing, and network exfiltration are not.
+  assert.match(csp, /style-src 'unsafe-inline'/)
+  assert.doesNotMatch(csp, /script-src[^;]*https:/)
+  assert.doesNotMatch(csp, /connect-src (?!'none')/)
+  assert.doesNotMatch(csp, /allow-same-origin/)
+  assert.doesNotMatch(csp, /allow-forms/)
+  assert.doesNotMatch(csp, /allow-popups/)
 })
 
 test('Markdown output strips executable links and escapes document metadata', async () => {
