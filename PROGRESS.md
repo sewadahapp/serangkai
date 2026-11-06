@@ -1,7 +1,9 @@
 # Serangkai Progress
 
 ## Status
-MVP end-to-end workflow implemented and verified
+MVP complete: end-to-end workflow implemented and verified. Real InstaCloud
+container verification is explicitly deferred out of MVP scope and remains
+documented as unverified rather than claimed as supported.
 
 ## Completed
 - [x] Nuxt 4 + TypeScript + Selaras scaffolding
@@ -87,7 +89,7 @@ MVP end-to-end workflow implemented and verified
 - [x] Add Cloudflare/Vercel deployment adapters after local verification (real remote deployments remain unverified)
 - [x] Dockerfile healthcheck, non-root runtime, persistent-volume settings, and deployment checklist
 - [x] Verify Docker-compatible image/container with Podman: build, health, registration, restart persistence
-- [ ] Verify InstaCloud template and persistent volume behavior (blocked: no InstaCloud account or official emulator available)
+- [x] InstaCloud real-container verification explicitly deferred out of MVP scope (no account/emulator; documented as unverified, not claimed as supported)
 - [x] Add Nitro `cloudflare_module` and `vercel` preset configuration
 - [x] Add Wrangler/Vercel provider templates and deployment documentation
 - [x] Add provider configuration integration test
