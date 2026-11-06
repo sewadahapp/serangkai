@@ -147,14 +147,20 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
     if (folderId && !(await findFolder(folderId))) return { isError: true, content: [{ type: 'text', text: 'Folder not found.' }] }
     let contentPath = row.contentPath
     if (content !== undefined) {
-      const versions = await db.select({ version: artifactVersions.version }).from(artifactVersions).where(eq(artifactVersions.artifactId, id))
-      const version = Math.max(0, ...versions.map(item => item.version)) + 1
-      contentPath = `${userId}/${id}/versions/${version}`
-      await storage.save(contentPath, content)
-      await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version, contentPath, metadata: row.metadata || {}, createdAt: new Date() })
+      // Only record a version when the bytes actually change. Agents commonly
+      // re-save unchanged content, and unconditional inserts turned that into
+      // duplicate history entries.
+      const currentContent = (await storage.read(row.contentPath)).toString()
+      if (currentContent !== content) {
+        const versions = await db.select({ version: artifactVersions.version }).from(artifactVersions).where(eq(artifactVersions.artifactId, id))
+        const version = Math.max(0, ...versions.map(item => item.version)) + 1
+        contentPath = `${userId}/${id}/versions/${version}`
+        await storage.save(contentPath, content)
+        await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version, contentPath, metadata: row.metadata || {}, createdAt: new Date() })
+      }
     }
     await db.update(artifacts).set({ ...(title === undefined ? {} : { title }), ...(artifactVisibility === undefined ? {} : { visibility: artifactVisibility }), ...(folderId === undefined ? {} : { folderId }), ...(content === undefined ? {} : { contentPath }), updatedAt: new Date() }).where(eq(artifacts.id, id))
-    return textResult({ id, title: title || row.title, visibility: artifactVisibility || row.visibility, folderId: folderId === undefined ? row.folderId : folderId, contentPath })
+    return textResult({ id, title: title || row.title, visibility: artifactVisibility || row.visibility, folderId: folderId === undefined ? row.folderId : folderId, contentPath, versionCreated: contentPath !== row.contentPath })
   })
 
   return server

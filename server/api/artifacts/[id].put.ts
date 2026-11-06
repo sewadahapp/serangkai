@@ -33,15 +33,20 @@ export default defineEventHandler(async (event) => {
   let version: number | undefined
 
   if (changes.content !== undefined) {
-    const current = await db.select({ latest: max(artifactVersions.version) })
-      .from(artifactVersions).where(eq(artifactVersions.artifactId, artifact.id)).get()
-    version = Number(current?.latest || 0) + 1
-    contentPath = `${user.id}/${artifact.id}/versions/${version}`
-    await storage.save(contentPath, changes.content)
-    await db.insert(artifactVersions).values({
-      id: nanoid(), artifactId: artifact.id, version, contentPath,
-      metadata: changes.metadata || artifact.metadata || {}, createdAt: now,
-    })
+    // Only record a version when the bytes actually change; a no-op save
+    // must not append duplicate history.
+    const currentContent = (await storage.read(artifact.contentPath)).toString()
+    if (currentContent !== changes.content) {
+      const current = await db.select({ latest: max(artifactVersions.version) })
+        .from(artifactVersions).where(eq(artifactVersions.artifactId, artifact.id)).get()
+      version = Number(current?.latest || 0) + 1
+      contentPath = `${user.id}/${artifact.id}/versions/${version}`
+      await storage.save(contentPath, changes.content)
+      await db.insert(artifactVersions).values({
+        id: nanoid(), artifactId: artifact.id, version, contentPath,
+        metadata: changes.metadata || artifact.metadata || {}, createdAt: now,
+      })
+    }
   }
 
   if (changes.folderId) {
@@ -61,5 +66,5 @@ export default defineEventHandler(async (event) => {
     updatedAt: now,
   }).where(and(eq(artifacts.id, artifact.id), eq(artifacts.userId, user.id)))
 
-  return { artifact: { ...artifact, ...changes, contentPath, updatedAt: now }, version }
+  return { artifact: { ...artifact, ...changes, contentPath, updatedAt: now }, version, versionCreated: version !== undefined }
 })

@@ -182,6 +182,33 @@ test('reads and restores historical versions without rewriting history', async (
   assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}/versions/1/restore`, { method: 'POST', headers: { authorization: `Bearer ${readOnly}` } })).status, 403)
 })
 
+test('does not record a version when content is unchanged', async () => {
+  const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'No-op writes', type: 'markdown', content: '# Stable' }) })
+  const artifact = (await created.json()).artifact
+
+  const versions = async () => (await (await fetch(`${base}/api/artifacts/${artifact.id}/versions`, { headers: { cookie: cookieA } })).json()).versions
+
+  // Rewriting the identical content must not append history.
+  const noop = await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ content: '# Stable' }) })
+  assert.equal(noop.status, 200)
+  const noopBody = await noop.json()
+  assert.equal(noopBody.versionCreated, false)
+  assert.deepEqual((await versions()).map(v => v.version), [1])
+
+  // Title-only changes also create no version.
+  await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Renamed only' }) })
+  assert.deepEqual((await versions()).map(v => v.version), [1])
+
+  // A real change still appends exactly one version.
+  const changed = await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ content: '# Changed' }) })
+  assert.equal((await changed.json()).versionCreated, true)
+  assert.deepEqual((await versions()).map(v => v.version), [2, 1])
+
+  // Restoring the previous bytes is a real change, so it appends too.
+  await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ content: '# Stable' }) })
+  assert.deepEqual((await versions()).map(v => v.version), [3, 2, 1])
+})
+
 test('duplicates artifacts as private copies with the current content', async () => {
   const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Original', type: 'markdown', content: '# Original', visibility: 'public' }) })
   const artifact = (await created.json()).artifact
