@@ -60,6 +60,9 @@ MVP end-to-end workflow implemented and verified
 - [x] Loaded `@sewadah/selaras/prose.css` so Markdown headings, lists, and code actually render styled
 - [x] Installed the Selaras agent skill and local MCP server; replaced every native select, checkbox, and file input with SSelect, SCheckbox, and SFileUpload
 - [x] Mounted SApp at the root and replaced hand-rolled two-step confirms with useConfirm + SAlertDialog, plus success toasts via useToast
+- [x] Removed the last native form elements: STextarea for content editing, SDatePicker for token expiry, SInput for read-only share links and endpoints
+- [x] Fixed the doubled focus ring by excluding form controls from the global outline
+- [x] Replaced the hand-rolled header nav with SNavigationMenu and added icons across actions, folders, and the mobile tab bar
 
 ## Verification
 - `npm run build` passes

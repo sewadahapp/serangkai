@@ -2,7 +2,7 @@
   <div class="space-y-6">
     <SerangkaiPageHeader title="Overview" description="Your workspace at a glance.">
       <template #actions>
-        <SButton to="/workspace" variant="outline">Open workspace</SButton>
+        <SButton to="/workspace" variant="outline" trailing-icon="lucide:arrow-right">Open workspace</SButton>
       </template>
     </SerangkaiPageHeader>
 

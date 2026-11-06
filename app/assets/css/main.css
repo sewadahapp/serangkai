@@ -45,8 +45,11 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
-/* One consistent, always-visible focus treatment for keyboard users. */
-:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+/* One consistent, always-visible focus treatment for keyboard users.
+   Exclude form controls: Selaras components draw their own focus ring, so an
+   outline here would stack a second ring on top of it. Links, buttons, and
+   custom tabbables still get one. */
+:where(a, summary, [tabindex]):not([tabindex='-1']):focus-visible {
   outline: 2px solid var(--selaras-resolved-color-primary-border);
   outline-offset: 2px;
   border-radius: var(--selaras-resolved-radius-sm);

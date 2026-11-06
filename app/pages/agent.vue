@@ -2,7 +2,7 @@
   <div class="space-y-6">
     <SerangkaiPageHeader title="Connect an agent" description="Agents use scoped API tokens against the REST API or the MCP endpoint.">
       <template #actions>
-        <SButton v-if="user" to="/settings" variant="outline">Manage tokens</SButton>
+        <SButton v-if="user" to="/settings" variant="outline" icon="lucide:key-round">Manage tokens</SButton>
       </template>
     </SerangkaiPageHeader>
 
@@ -15,10 +15,10 @@
           <p class="mt-1 text-sm text-[var(--selaras-resolved-text-muted)]">Send the token as a bearer credential. Never commit tokens to a repository.</p>
           <div class="mt-3 space-y-2">
             <SFormField label="MCP">
-              <input :value="mcpUrl" readonly aria-label="MCP endpoint" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-elevated)] px-3 py-2 font-mono text-xs" />
+              <SInput :model-value="mcpUrl" readonly aria-label="MCP endpoint" icon="lucide:plug" class="w-full font-mono text-xs" />
             </SFormField>
             <SFormField label="REST">
-              <input :value="restUrl" readonly aria-label="REST endpoint" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-elevated)] px-3 py-2 font-mono text-xs" />
+              <SInput :model-value="restUrl" readonly aria-label="REST endpoint" icon="lucide:code" class="w-full font-mono text-xs" />
             </SFormField>
           </div>
         </section>

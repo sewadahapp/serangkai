@@ -153,6 +153,13 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   link, and a global `prefers-reduced-motion` override.
 - All form controls live inside `SFormField` so labels, hints, and errors are
   programmatically associated. `SLabel` does not exist in Selaras.
+- There are no native form elements left: text inputs use `SInput`, multi-line
+  content uses `STextarea`, choices use `SSelect`, booleans use `SCheckbox`,
+  files use `SFileUpload`, and dates use `SDatePicker` with
+  `@internationalized/date` `DateValue`s.
+- The global `:focus-visible` outline targets links and custom tabbables only.
+  Form controls are excluded because Selaras draws its own focus ring, and an
+  extra outline stacked a second ring on every focused field.
 
 ### Security Considerations
 - **Auth**: Secure password hashing (argon2/bcrypt), HttpOnly secure cookies for sessions

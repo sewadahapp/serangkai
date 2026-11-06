@@ -10,32 +10,24 @@
             <span class="truncate text-base font-semibold tracking-tight">Serangkai</span>
           </NuxtLink>
 
-          <nav v-if="user" aria-label="Workspace" class="hidden items-center gap-1 lg:flex">
-            <NuxtLink
-              v-for="link in workspaceLinks"
-              :key="link.to"
-              :to="link.to"
-              class="rounded-md px-2.5 py-1.5 text-sm font-medium text-[var(--selaras-resolved-text-muted)] transition-colors hover:bg-[var(--selaras-resolved-surface-elevated)] hover:text-[var(--selaras-resolved-text-default)]"
-              active-class="!text-[var(--selaras-resolved-text-default)] !bg-[var(--selaras-resolved-surface-elevated)]"
-            >
-              {{ link.label }}
-            </NuxtLink>
-          </nav>
+          <div v-if="user" class="hidden lg:block">
+            <SNavigationMenu :items="workspaceLinks" variant="link" />
+          </div>
         </div>
 
         <div class="flex items-center gap-1.5">
           <SColorModeToggle />
 
           <template v-if="!user">
-            <SButton to="/agent" variant="ghost" size="sm" class="hidden sm:inline-flex">Agents</SButton>
-            <SButton to="/auth/login" variant="ghost" size="sm">Login</SButton>
-            <SButton to="/auth/register" size="sm">Register</SButton>
+            <SButton to="/agent" variant="ghost" size="sm" icon="lucide:bot" class="hidden sm:inline-flex">Agents</SButton>
+            <SButton to="/auth/login" variant="ghost" size="sm">Log in</SButton>
+            <SButton to="/auth/register" size="sm" trailing-icon="lucide:arrow-right">Register</SButton>
           </template>
 
           <template v-else>
             <SDropdown :items="accountItems">
               <template #default>
-                <SButton variant="ghost" size="sm" aria-haspopup="menu" class="gap-1.5">
+                <SButton variant="ghost" size="sm" icon="lucide:user-round" aria-haspopup="menu" class="gap-1.5">
                   <span class="hidden max-w-40 truncate sm:inline">{{ user.email }}</span>
                   <span class="sm:hidden">Menu</span>
                 </SButton>
@@ -51,9 +43,10 @@
             v-for="link in workspaceLinks"
             :key="link.to"
             :to="link.to"
-            class="shrink-0 rounded-md px-2.5 py-1.5 text-sm font-medium text-[var(--selaras-resolved-text-muted)] hover:bg-[var(--selaras-resolved-surface-elevated)]"
+            class="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-[var(--selaras-resolved-text-muted)] hover:bg-[var(--selaras-resolved-surface-elevated)]"
             active-class="!text-[var(--selaras-resolved-text-default)] !bg-[var(--selaras-resolved-surface-elevated)]"
           >
+            <SIcon :name="link.icon" class="size-4 shrink-0" aria-hidden="true" />
             {{ link.label }}
           </NuxtLink>
         </div>
@@ -79,15 +72,15 @@
 const user = useState<any>('user')
 
 const workspaceLinks = [
-  { to: '/dashboard', label: 'Overview' },
-  { to: '/workspace', label: 'Workspace' },
-  { to: '/agent', label: 'Agents' },
-  { to: '/settings', label: 'Settings' },
+  { to: '/dashboard', label: 'Overview', icon: 'lucide:layout-dashboard' },
+  { to: '/workspace', label: 'Workspace', icon: 'lucide:folder-tree' },
+  { to: '/agent', label: 'Agents', icon: 'lucide:bot' },
+  { to: '/settings', label: 'Settings', icon: 'lucide:settings' },
 ]
 
 const accountItems = computed(() => [
-  workspaceLinks.map(link => ({ label: link.label, to: link.to })),
-  [{ label: 'Log out', onSelect: logout }],
+  workspaceLinks.map(link => ({ label: link.label, to: link.to, icon: link.icon })),
+  [{ label: 'Log out', icon: 'lucide:log-out', onSelect: logout }],
 ])
 
 const logout = async () => {

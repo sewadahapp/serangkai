@@ -2,9 +2,9 @@
   <div class="space-y-6">
     <SerangkaiPageHeader title="Workspace" description="Create, upload, and organize artifacts. Private until you share them.">
       <template #actions>
-        <SButton variant="outline" @click="openNewFolder">New folder</SButton>
-        <SButton variant="outline" @click="openUpload">Upload</SButton>
-        <SButton @click="openNewArtifact">New artifact</SButton>
+        <SButton variant="outline" icon="lucide:folder-plus" @click="openNewFolder">New folder</SButton>
+        <SButton variant="outline" icon="lucide:upload" @click="openUpload">Upload</SButton>
+        <SButton icon="lucide:file-plus" @click="openNewArtifact">New artifact</SButton>
       </template>
     </SerangkaiPageHeader>
 
@@ -50,7 +50,7 @@
           <SSelect :id="id" v-model="artifactFolderId" :items="artifactFolderOptions" placeholder="No folder" clearable class="w-full" />
         </SFormField>
         <SFormField v-slot="{ id }" label="Content" required>
-          <textarea :id="id" v-model="artifactContent" class="min-h-48 w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] p-3 font-mono text-sm" placeholder="# Start writing..." required />
+          <STextarea :id="id" v-model="artifactContent" :rows="12" autoresize :maxrows="40" placeholder="# Start writing…" required class="font-mono text-sm" />
         </SFormField>
         <div class="flex gap-2">
           <SButton type="submit" :loading="saving" :disabled="saving">Create artifact</SButton>
@@ -107,7 +107,10 @@
               :class="{ 'bg-[var(--selaras-resolved-surface-elevated)] font-medium': selectedFolderId === null }"
               @click="selectFolder(null)"
             >
-              <span>All artifacts</span>
+              <span class="flex items-center gap-1.5">
+                <SIcon name="lucide:layers" class="size-4 shrink-0" aria-hidden="true" />
+                All artifacts
+              </span>
               <span class="serangkai-tabular text-xs text-[var(--selaras-resolved-text-muted)]">{{ artifacts.length }}</span>
             </button>
             <button
@@ -119,7 +122,10 @@
               :style="{ paddingInlineStart: `${0.5 + row.depth * 0.85}rem` }"
               @click="selectFolder(row.id)"
             >
-              <span class="truncate">{{ row.name }}</span>
+              <span class="flex min-w-0 items-center gap-1.5">
+                <SIcon :name="selectedFolderId === row.id ? 'lucide:folder-open' : 'lucide:folder'" class="size-4 shrink-0" aria-hidden="true" />
+                <span class="truncate">{{ row.name }}</span>
+              </span>
               <span class="serangkai-tabular text-xs text-[var(--selaras-resolved-text-muted)]">{{ folderArtifactCount(row.id) }}</span>
             </button>
             <p v-if="folderRows.length === 0" class="px-2 py-2 text-sm text-[var(--selaras-resolved-text-muted)]">No folders yet.</p>
@@ -133,19 +139,19 @@
             <SFormField label="Rename">
               <div class="flex gap-2">
                 <SInput v-model="renameValue" placeholder="Folder name" class="min-w-0 flex-1" />
-                <SButton variant="outline" :loading="savingFolder" :disabled="savingFolder" @click="renameFolder">Rename</SButton>
+                <SButton variant="outline" icon="lucide:pencil" :loading="savingFolder" :disabled="savingFolder" @click="renameFolder">Rename</SButton>
               </div>
             </SFormField>
 
             <SFormField v-slot="{ id }" label="Move under">
               <div class="flex gap-2">
                 <SSelect :id="id" v-model="moveParentId" :items="moveTargetOptions" placeholder="Top level" class="min-w-0 flex-1" />
-                <SButton variant="outline" :loading="savingFolder" :disabled="savingFolder" @click="moveFolder">Move</SButton>
+                <SButton variant="outline" icon="lucide:corner-down-right" :loading="savingFolder" :disabled="savingFolder" @click="moveFolder">Move</SButton>
               </div>
             </SFormField>
 
             <div class="border-t border-[var(--selaras-resolved-border-muted)] pt-3">
-              <SButton variant="ghost" color="danger" :loading="savingFolder" :disabled="savingFolder" @click="deleteFolder">Delete folder</SButton>
+              <SButton variant="ghost" color="danger" icon="lucide:folder-minus" :loading="savingFolder" :disabled="savingFolder" @click="deleteFolder">Delete folder</SButton>
             </div>
 
             <p v-if="folderMessage" class="text-sm text-[var(--selaras-resolved-text-muted)]">{{ folderMessage }}</p>
@@ -214,8 +220,8 @@
           :description="searchQuery.trim() ? 'Try another phrase, or clear the search to see everything.' : 'Create an artifact or upload a file to get started.'"
         >
           <template #actions>
-            <SButton v-if="searchQuery.trim()" variant="outline" @click="clearSearch">Clear search</SButton>
-            <SButton v-else @click="openNewArtifact">New artifact</SButton>
+            <SButton v-if="searchQuery.trim()" variant="outline" icon="lucide:x" @click="clearSearch">Clear search</SButton>
+            <SButton v-else icon="lucide:file-plus" @click="openNewArtifact">New artifact</SButton>
           </template>
         </SEmptyState>
       </section>

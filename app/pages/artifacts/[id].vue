@@ -17,12 +17,12 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2">
-        <SButton variant="outline" @click="editing = !editing">{{ editing ? 'Preview' : 'Edit' }}</SButton>
+        <SButton variant="outline" :icon="editing ? 'lucide:eye' : 'lucide:pencil'" @click="editing = !editing">{{ editing ? 'Preview' : 'Edit' }}</SButton>
         <SButton variant="outline" :to="`/api/artifacts/${route.params.id}/download`" icon="lucide:download">Download</SButton>
-        <SButton variant="outline" :loading="duplicating" :disabled="duplicating" @click="duplicateArtifact">Duplicate</SButton>
+        <SButton variant="outline" icon="lucide:copy" :loading="duplicating" :disabled="duplicating" @click="duplicateArtifact">Duplicate</SButton>
         <SButton v-if="artifact.type === 'bundle'" variant="outline" :to="`/api/share/${artifact.slug}/index.html`" target="_blank" rel="noopener">Open bundle</SButton>
-        <SButton v-if="shareUrl" variant="outline" :to="shareUrl" target="_blank" rel="noopener">Open share link</SButton>
-        <SButton variant="ghost" color="danger" :loading="deleting" :disabled="deleting" @click="removeArtifact">Delete</SButton>
+        <SButton v-if="shareUrl" variant="outline" icon="lucide:external-link" :to="shareUrl" target="_blank" rel="noopener">Open share link</SButton>
+        <SButton variant="ghost" color="danger" icon="lucide:trash-2" :loading="deleting" :disabled="deleting" @click="removeArtifact">Delete</SButton>
       </div>
     </div>
 
@@ -41,10 +41,10 @@
               <SInput v-model="draftTitle" required class="w-full" />
             </SFormField>
             <SFormField v-slot="{ id }" label="Content" required>
-              <textarea :id="id" v-model="draftContent" class="min-h-96 w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] p-4 font-mono text-sm" required />
+              <STextarea :id="id" v-model="draftContent" :rows="20" autoresize :maxrows="60" required class="font-mono text-sm" />
             </SFormField>
             <div class="flex flex-wrap items-center gap-2">
-              <SButton type="submit" :loading="saving" :disabled="saving">Save version</SButton>
+              <SButton type="submit" icon="lucide:save" :loading="saving" :disabled="saving">Save version</SButton>
               <SButton type="button" variant="ghost" @click="editing = false">Cancel</SButton>
             </div>
           </form>
@@ -88,14 +88,14 @@
             </SFormField>
 
             <div class="flex flex-wrap gap-2">
-              <SButton :loading="savingVisibility" :disabled="savingVisibility" @click="saveVisibility">Save visibility</SButton>
+              <SButton icon="lucide:eye" :loading="savingVisibility" :disabled="savingVisibility" @click="saveVisibility">Save visibility</SButton>
               <SButton v-if="draftVisibility !== 'private'" variant="outline" :to="shareUrl || undefined" target="_blank" rel="noopener" :disabled="!shareUrl">Open link</SButton>
             </div>
 
             <p v-if="draftVisibility === 'private'" class="text-sm text-[var(--selaras-resolved-text-muted)]">Only you can open this artifact.</p>
             <template v-else-if="shareUrl">
               <SFormField label="Share link">
-                <input :value="shareUrl" readonly aria-label="Share link" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-elevated)] px-3 py-2 font-mono text-xs" />
+                <SInput :model-value="shareUrl" readonly aria-label="Share link" class="w-full font-mono text-xs" />
               </SFormField>
               <p class="text-sm text-[var(--selaras-resolved-text-muted)]">
                 {{ draftVisibility === 'unlisted' ? 'The signed link is required. Anyone with it can read this artifact.' : 'Anyone with the link can read this artifact.' }}
@@ -111,7 +111,7 @@
             <SFormField v-slot="{ id }" label="Move to">
               <SSelect :id="id" v-model="draftFolderId" :items="folderOptions" placeholder="No folder" clearable class="w-full" />
             </SFormField>
-            <SButton :loading="savingFolder" :disabled="savingFolder" @click="saveFolder">Move artifact</SButton>
+            <SButton icon="lucide:folder-input" :loading="savingFolder" :disabled="savingFolder" @click="saveFolder">Move artifact</SButton>
             <p v-if="folderMessage" class="text-sm text-[var(--selaras-resolved-text-muted)]">{{ folderMessage }}</p>
           </div>
         </section>
@@ -129,11 +129,12 @@
                 <time class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ formatDate(version.createdAt) }}</time>
               </div>
               <div class="mt-1.5 flex gap-1.5">
-                <SButton variant="text" size="sm" @click="viewVersion(version.version)">View</SButton>
+                <SButton variant="text" size="sm" icon="lucide:eye" @click="viewVersion(version.version)">View</SButton>
                 <SButton
                   v-if="version.version !== latestVersion"
                   variant="text"
                   size="sm"
+                  icon="lucide:history"
                   :loading="restoring === version.version"
                   :disabled="restoring === version.version"
                   @click="restoreVersion(version.version)"

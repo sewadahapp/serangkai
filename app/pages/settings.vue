@@ -17,7 +17,7 @@
               <SInput v-model="tokenName" placeholder="Token name" required class="w-full" />
             </SFormField>
             <SFormField v-slot="{ id }" label="Expires" hint="Leave empty for a token that does not expire.">
-              <input :id="id" v-model="expiresAt" type="date" class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 text-sm" />
+              <SDatePicker :id="id" v-model="expiresAt" class="w-full" />
             </SFormField>
           </div>
 
@@ -36,12 +36,12 @@
             </div>
           </fieldset>
 
-          <SButton type="submit" :loading="creatingToken" :disabled="creatingToken">Create token</SButton>
+          <SButton type="submit" icon="lucide:key-round" :loading="creatingToken" :disabled="creatingToken">Create token</SButton>
         </form>
 
         <div v-if="newToken" class="mt-4 rounded-md border border-[var(--selaras-resolved-color-primary-border)] bg-[var(--selaras-resolved-color-primary-subtle)] p-4">
           <p class="text-sm font-medium text-[var(--selaras-resolved-color-primary-on-subtle)]">Copy this token now — it will not be shown again.</p>
-          <input :value="newToken" readonly aria-label="New API token" class="mt-2 w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] px-3 py-2 font-mono text-xs" />
+          <SInput :model-value="newToken" readonly aria-label="New API token" icon="lucide:key-round" class="mt-2 w-full font-mono text-xs" />
         </div>
 
         <SAlert v-if="tokenMessage" class="mt-4" color="info" variant="subtle" :title="tokenMessage" />
@@ -69,12 +69,12 @@
                 </template>
               </p>
             </div>
-            <SButton variant="ghost" color="danger" size="sm" @click="revokeToken(token)">Revoke</SButton>
+            <SButton variant="ghost" color="danger" size="sm" icon="lucide:ban" @click="revokeToken(token)">Revoke</SButton>
           </li>
         </ul>
         <div v-else class="px-5 py-8 text-center">
           <p class="text-sm text-[var(--selaras-resolved-text-muted)]">No tokens yet. Create one to connect an agent.</p>
-          <SButton to="/agent" variant="outline" class="mt-3">Connection guide</SButton>
+          <SButton to="/agent" variant="outline" icon="lucide:book-open" class="mt-3">Connection guide</SButton>
         </div>
       </section>
     </template>
@@ -82,13 +82,16 @@
 </template>
 
 <script setup lang="ts">
+import type { DateValue } from '@internationalized/date'
+import { getLocalTimeZone } from '@internationalized/date'
+
 useHead({ title: 'Settings · Serangkai' })
 
 const user = useState<any>('user')
 const tokens = ref<any[]>([])
 const tokenName = ref('')
 const scopes = ref<string[]>(['read', 'write'])
-const expiresAt = ref('')
+const expiresAt = shallowRef<DateValue | undefined>()
 const creatingToken = ref(false)
 const tokenMessage = ref('')
 const newToken = ref('')
@@ -125,12 +128,12 @@ const createToken = async () => {
       body: {
         name: tokenName.value,
         scopes: scopes.value,
-        ...(expiresAt.value ? { expiresAt: new Date(`${expiresAt.value}T00:00:00Z`).toISOString() } : {}),
+        ...(expiresAt.value ? { expiresAt: expiresAt.value.toDate(getLocalTimeZone()).toISOString() } : {}),
       },
     })
     newToken.value = res.token
     tokenName.value = ''
-    expiresAt.value = ''
+    expiresAt.value = undefined
     await loadTokens()
   } catch (e: any) {
     tokenMessage.value = e.data?.message || 'Could not create token'
