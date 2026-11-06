@@ -8,7 +8,9 @@
       <section class="serangkai-panel p-5" aria-labelledby="new-token">
         <h2 id="new-token" class="text-sm font-semibold">Create a token</h2>
         <p class="mt-1 text-sm text-[var(--selaras-resolved-text-muted)]">
-          Give each agent the smallest scope that works. Only a full-scope token can create or revoke tokens.
+          Give each agent the smallest scope that works. Scopes combine: a token gets the union of
+          everything you tick, and <strong class="text-[var(--selaras-resolved-text-default)]">only Full</strong>
+          can create or revoke API tokens.
         </p>
 
         <form class="mt-4 space-y-4" @submit.prevent="createToken">
@@ -23,6 +25,9 @@
 
           <fieldset>
             <legend class="text-sm font-medium">Scopes</legend>
+            <p class="mt-0.5 text-xs text-[var(--selaras-resolved-text-muted)]">
+              Tick any combination. Full already includes read and write.
+            </p>
             <div class="mt-3 grid gap-2 sm:grid-cols-3">
               <SCheckbox
                 v-for="scope in scopeOptions"
@@ -34,6 +39,12 @@
                 @update:model-value="(checked) => toggleScope(scope.value, checked)"
               />
             </div>
+            <SAlert
+              class="mt-3"
+              :color="scopes.includes('full') ? 'warning' : 'info'"
+              variant="subtle"
+              :title="scopeSummary"
+            />
           </fieldset>
 
           <SButton type="submit" icon="lucide:key-round" :loading="creatingToken" :disabled="creatingToken">Create token</SButton>
@@ -97,10 +108,23 @@ const tokenMessage = ref('')
 const newToken = ref('')
 
 const scopeOptions = [
-  { value: 'read', label: 'Read', hint: 'List and read artifacts, folders, and versions.' },
-  { value: 'write', label: 'Write', hint: 'Create, update, move, restore, and delete.' },
-  { value: 'full', label: 'Full', hint: 'Everything, plus token management.' },
+  { value: 'read', label: 'Read', hint: 'List and read artifacts, folders, and versions. Read-only.' },
+  { value: 'write', label: 'Write', hint: 'Create, update, move, restore, and delete artifacts and folders.' },
+  { value: 'full', label: 'Full', hint: 'Everything, including creating and revoking API tokens. Treat as admin.' },
 ]
+
+// Scopes are stored as a set the API checks membership against, so ticking
+// several boxes grants their union rather than a ranked level.
+const scopeSummary = computed(() => {
+  if (!scopes.value.length) return 'No access — this token will not work until you pick at least one scope.'
+  const includes = (value: string) => scopes.value.includes(value)
+  if (includes('full')) return 'Grants full access, plus the ability to create and revoke API tokens — including this one.'
+  const parts: string[] = []
+  if (includes('read')) parts.push('read')
+  if (includes('write')) parts.push('write')
+  if (!parts.length) return 'Token management only. A token without read or write cannot call the artifact API.'
+  return `Grants ${parts.join(' and ')} access. Cannot create or revoke tokens.`
+})
 
 const toggleScope = (value: string, checked: boolean | 'indeterminate') => {
   const next = new Set(scopes.value)
