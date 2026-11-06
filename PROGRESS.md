@@ -72,6 +72,8 @@ documented as unverified rather than claimed as supported.
 - [x] Agent guide documents the `baseVersion` publish workflow and the color-mode contract
 - [x] Pinned the dev server to 127.0.0.1:6969 and dogfooded the app's own MCP server through `opencode.json` (token kept in a gitignored file, never in a tracked config)
 - [x] Shiki syntax highlighting for Markdown code blocks with light/dark themes, language header, and a delegated copy button
+- [x] `SerangkaiCode` highlights app-owned snippets through the real `SProsePre` component and `POST /api/highlight`
+- [x] Imported `#selaras/tailwind.css` so adaptive presentation resolves its breakpoint instead of warning and disabling
 - [x] Fixed a flaky signed-link tamper assertion (setting the last digit to `0` was a no-op 1/16 of the time)
 
 ## Verification

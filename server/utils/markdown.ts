@@ -1,49 +1,9 @@
 import { marked } from 'marked'
 import sanitizeHtml from 'sanitize-html'
-import { createHighlighter, type Highlighter } from 'shiki'
+import { highlightCode, normalizeLanguage, stripShikiPre } from './highlight'
 
 function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
-}
-
-/** Languages pre-registered so common fences highlight without a cold load. */
-const COMMON_LANGS = [
-  'bash', 'shell', 'sh', 'console',
-  'js', 'jsx', 'ts', 'tsx', 'javascript', 'typescript',
-  'json', 'jsonc', 'yaml', 'yml', 'toml', 'ini', 'dotenv',
-  'html', 'vue', 'svelte', 'css', 'scss', 'markdown', 'md',
-  'sql', 'python', 'py', 'go', 'rust', 'rs', 'java', 'kotlin', 'swift', 'ruby', 'php',
-  'dockerfile', 'nginx', 'diff', 'xml',
-]
-
-let highlighterPromise: Promise<Highlighter> | null = null
-
-function getHighlighter() {
-  highlighterPromise ||= createHighlighter({
-    themes: ['github-light', 'github-dark'],
-    langs: COMMON_LANGS,
-  })
-  return highlighterPromise
-}
-
-const SUPPORTED = new Set(COMMON_LANGS)
-
-/** Fence languages Shiki may still load lazily beyond the pre-registered set. */
-const ALIASES: Record<string, string> = {
-  sh: 'bash', shell: 'bash', console: 'bash', zsh: 'bash',
-  yml: 'yaml', py: 'python', rs: 'rust', md: 'markdown',
-  text: '', plaintext: '', txt: '',
-}
-
-export function normalizeLanguage(lang = '') {
-  const raw = lang.trim().toLowerCase().split(/\s+/)[0] || ''
-  if (raw in ALIASES) return ALIASES[raw]
-  return raw
-}
-
-export function isSupportedLanguage(lang = '') {
-  const normalized = normalizeLanguage(lang)
-  return normalized === '' || SUPPORTED.has(normalized)
 }
 
 /**
@@ -52,7 +12,7 @@ export function isSupportedLanguage(lang = '') {
  * a copy button, plus the shared pre surface.
  *
  * The copy button is progressive enhancement — it only works once hydrated, so
- * it is wired by `useCodeCopy()` rather than rendered inert.
+ * it is wired by `code-copy.client.ts` rather than rendered inert.
  */
 function renderCodeBlock(inner: string, lang: string) {
   const language = normalizeLanguage(lang)
@@ -82,30 +42,6 @@ function renderInteractiveFence(code: string, language = '') {
   return ''
 }
 
-/**
- * Highlights fenced code with Shiki. Returns `null` when the language is unknown
- * or highlighting fails, so the caller falls back to escaped plain text rather
- * than emitting broken markup.
- */
-async function highlightFence(code: string, language: string): Promise<string | null> {
-  const lang = normalizeLanguage(language)
-  if (!lang) return null
-  try {
-    const highlighter = await getHighlighter()
-    if (!highlighter.getLoadedLanguages().includes(lang)) {
-      if (!SUPPORTED.has(lang)) return null
-      await highlighter.loadLanguage(lang as any)
-    }
-    return highlighter.codeToHtml(code, {
-      lang,
-      themes: { light: 'github-light', dark: 'github-dark' },
-      defaultColor: false,
-    })
-  } catch {
-    return null
-  }
-}
-
 export interface RenderMarkdownOptions {
   /** Set false to skip Shiki (used where a sync result is required). */
   highlight?: boolean
@@ -132,7 +68,7 @@ export async function renderMarkdownAsync(source: string, options: RenderMarkdow
     const fence = fences[i]
     let inner = fence.inner
     if (useHighlight) {
-      const highlighted = await highlightFence(
+      const highlighted = await highlightCode(
         // the placeholder table stored the escaped form; highlight the raw text
         decodeHtmlEntities(fence.inner),
         fence.lang,
@@ -143,12 +79,6 @@ export async function renderMarkdownAsync(source: string, options: RenderMarkdow
   }
 
   return sanitize(html)
-}
-
-/** Extracts the inner markup Shiki emits, dropping its own <pre> wrapper. */
-function stripShikiPre(html: string) {
-  const match = html.match(/<pre[^>]*>([\s\S]*)<\/pre>/)
-  return match ? match[1] : html
 }
 
 function decodeHtmlEntities(value: string) {

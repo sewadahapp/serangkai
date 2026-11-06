@@ -29,7 +29,7 @@
           </div>
           <div class="p-5">
             <p class="text-sm text-[var(--selaras-resolved-text-muted)]">For clients that support Streamable HTTP MCP servers. Replace the token with one you just created.</p>
-            <pre class="mt-3 overflow-x-auto rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-4 font-mono text-xs leading-relaxed">{{ mcpConfig }}</pre>
+            <SerangkaiCode class="mt-3" :code="mcpConfig" language="json" filename="mcp.json" />
           </div>
         </section>
 
@@ -51,7 +51,7 @@
               Publishing identical content reports <code>versionCreated: false</code>.
             </li>
           </ul>
-          <pre class="mt-3 overflow-x-auto rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-4 font-mono text-xs leading-relaxed">{{ publishExample }}</pre>
+          <SerangkaiCode class="mt-3" :code="publishExample" language="bash" />
         </section>
 
         <section class="serangkai-panel overflow-hidden" aria-labelledby="rest-examples">
@@ -59,7 +59,7 @@
             <h2 id="rest-examples" class="text-sm font-semibold">REST examples</h2>
           </div>
           <div class="p-5">
-            <pre class="overflow-x-auto rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-4 font-mono text-xs leading-relaxed">{{ restExample }}</pre>
+            <SerangkaiCode :code="restExample" language="bash" />
             <p class="mt-3 text-sm text-[var(--selaras-resolved-text-muted)]">
               Artifacts are private by default. Set <code class="rounded bg-[var(--selaras-resolved-surface-elevated)] px-1 py-0.5 font-mono text-xs">visibility</code> deliberately — unlisted links also require the signed key.
             </p>
@@ -74,7 +74,7 @@
             HTML artifacts follow the viewer's light or dark preference automatically.
             Write standard CSS — the host injects a small bridge.
           </p>
-          <pre class="mt-2 overflow-x-auto rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-3 font-mono text-xs leading-relaxed">{{ colorModeExample }}</pre>
+          <SerangkaiCode class="mt-2" :code="colorModeExample" language="css" :show-header="false" />
           <p class="mt-2 text-sm text-[var(--selaras-resolved-text-muted)]">
             To pin one scheme, declare
             <code>&lt;meta name="color-scheme" content="only light"&gt;</code>.
@@ -148,10 +148,14 @@ update_artifact({ id: "abc", content: "...", baseVersion: 3 })
 
 # stale baseVersion comes back as an error naming the current version`
 
-const colorModeExample = `:root { color-scheme: light dark; }
+const colorModeExample = `:root {
+  color-scheme: light dark;
+}
 body {
-  background: light-dark(#ffffff, #101014);
-  color: light-dark(#111111, #f5f5f5);
+  background:
+    light-dark(#fff, #101014);
+  color:
+    light-dark(#111, #f5f5f5);
 }`
 
 const restExample = computed(() => `curl -H "Authorization: Bearer $SERANGKAI_TOKEN" \\

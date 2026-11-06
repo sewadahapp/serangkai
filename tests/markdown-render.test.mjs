@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { renderMarkdown, renderMarkdownAsync, normalizeLanguage } from '../server/utils/markdown.ts'
+import { renderMarkdown, renderMarkdownAsync } from '../server/utils/markdown.ts'
+import { normalizeLanguage, isSupportedLanguage } from '../server/utils/highlight.ts'
 
 test('renders Mermaid fences as safe interactive markers', () => {
   const html = renderMarkdown('```mermaid\ngraph TD\n  A --> B\n```')

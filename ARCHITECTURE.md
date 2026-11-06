@@ -173,6 +173,14 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   sanitized Markdown output cannot carry Vue components. Unknown languages fall
   back to escaped text; Mermaid and `chart` fences keep their own renderers.
   Copying is delegated by `app/plugins/code-copy.client.ts`.
+- App-owned snippets (MCP config, curl examples, shell workflows) use
+  `SerangkaiCode`, which wraps the real `SProsePre` so the header and copy
+  button are the component's, and fetches only the highlighted body from
+  `POST /api/highlight`. That endpoint returns Shiki spans sanitized down to
+  `pre`/`code`/`span`, or escaped text for unknown languages.
+- `#selaras/tailwind.css` is imported in the Tailwind entry as the installation
+  guide requires; it defines `--selaras-adaptive-breakpoint`, without which
+  adaptive presentation warns and silently disables.
 - HTML artifacts follow the viewer's color mode. `server/utils/artifact-color-mode.ts`
   injects a small `color-scheme` + postMessage bridge; the in-app preview posts the
   live mode so artifacts re-theme without a reload, while public share links bake the

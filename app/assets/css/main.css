@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@sewadah/selaras";
+@import "#selaras/tailwind.css";
 @import "@sewadah/selaras/prose.css";
 
 /* Declare the intended order when this file loads first (production). Dev mode
@@ -218,11 +219,13 @@ html {
   display: block;
 }
 
-.serangkai-code-pre span[style*="--shiki-light"] {
+.serangkai-code-pre span[style*="--shiki-light"],
+.serangkai-shiki span[style*="--shiki-light"] {
   color: var(--shiki-light);
 }
 
-.dark .serangkai-code-pre span[style*="--shiki-light"] {
+.dark .serangkai-code-pre span[style*="--shiki-light"],
+.dark .serangkai-shiki span[style*="--shiki-light"] {
   color: var(--shiki-dark);
   background-color: var(--shiki-dark-bg);
 }
