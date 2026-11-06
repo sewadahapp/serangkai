@@ -2,6 +2,11 @@
 @import "@sewadah/selaras";
 @import "@sewadah/selaras/prose.css";
 
+/* Declare the intended order when this file loads first (production). Dev mode
+   injects Nuxt module CSS before this file, which can create `components`
+   earlier and invert the order, so nothing below relies on layer position. */
+@layer theme, base, selaras-prose, components, utilities;
+
 @font-face {
   font-family: "Plus Jakarta Sans";
   font-style: normal;
@@ -18,126 +23,120 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-@layer base {
-  :root {
-    --serangkai-shell-max: 84rem;
-    --serangkai-prose-max: 46rem;
-    --serangkai-ease: cubic-bezier(0.2, 0, 0, 1);
-  }
+/* ---------------------------------------------------------------------------
+   Project styles are intentionally UNLAYERED.
 
-  html {
-    font-family: var(--font-sans);
-    -webkit-text-size-adjust: 100%;
-  }
+   Tailwind and Selaras both ship layered resets (e.g. `* { margin: 0 }` in
+   `base`). Cascade-layer order depends on which stylesheet is parsed first,
+   and Nuxt's dev server injects module CSS before the app stylesheet - so a
+   layered `.serangkai-shell { margin-inline: auto }` lost to the reset in dev
+   while working in a production build. Unlayered rules sit above every layer
+   in both, which keeps dev and production identical.
+--------------------------------------------------------------------------- */
 
-  body {
-    background-color: var(--color-selaras-gray-50);
-    color: var(--color-selaras-gray-950);
-    text-rendering: optimizeLegibility;
-  }
+:root {
+  --serangkai-shell-max: 84rem;
+  --serangkai-prose-max: 46rem;
+  --serangkai-ease: cubic-bezier(0.2, 0, 0, 1);
+}
 
-  .dark body {
-    background-color: #090a0d;
-    color: var(--color-selaras-gray-50);
-  }
+html {
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+}
 
-  /* One consistent, always-visible focus treatment for keyboard users. */
-  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-    outline: 2px solid var(--selaras-resolved-color-primary-border);
-    outline-offset: 2px;
-    border-radius: var(--selaras-resolved-radius-sm);
-  }
+/* One consistent, always-visible focus treatment for keyboard users. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--selaras-resolved-color-primary-border);
+  outline-offset: 2px;
+  border-radius: var(--selaras-resolved-radius-sm);
+}
 
-  ::selection {
-    background-color: var(--selaras-resolved-color-primary-subtle);
-    color: var(--selaras-resolved-color-primary-on-subtle);
-  }
+::selection {
+  background-color: var(--selaras-resolved-color-primary-subtle);
+  color: var(--selaras-resolved-color-primary-on-subtle);
+}
 
-  /* Respect the OS motion preference for every transition and animation. */
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
+/* Respect the OS motion preference for every transition and animation. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
-@layer components {
-  /* Shared page frame: consistent gutters, readable measure, no edge-to-edge text. */
+/* Shared page frame: consistent gutters, centered, readable measure. */
+.serangkai-shell {
+  margin-inline: auto;
+  width: 100%;
+  max-width: var(--serangkai-shell-max);
+  padding-inline: 1rem;
+}
+
+@media (min-width: 768px) {
   .serangkai-shell {
-    margin-inline: auto;
-    width: 100%;
-    max-width: var(--serangkai-shell-max);
-    padding-inline: 1rem;
-  }
-
-  @media (min-width: 768px) {
-    .serangkai-shell {
-      padding-inline: 2rem;
-    }
-  }
-
-  .serangkai-prose {
-    --selaras-prose-font-body: var(--font-sans);
-    --selaras-prose-font-heading: var(--font-sans);
-    max-width: var(--serangkai-prose-max);
-  }
-
-  /* Section heading rhythm used across workspace, dashboard, and settings. */
-  .serangkai-eyebrow {
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--selaras-resolved-text-muted);
-  }
-
-  .serangkai-panel {
-    background-color: var(--selaras-resolved-surface-default);
-    border: 1px solid var(--selaras-resolved-border-default);
-    border-radius: var(--selaras-resolved-radius-lg);
-  }
-
-  .serangkai-hairline {
-    border-color: var(--selaras-resolved-border-muted);
-  }
-
-  /* Skip link for keyboard users. */
-  .serangkai-skip {
-    position: absolute;
-    inset-inline-start: 0.75rem;
-    top: 0.75rem;
-    z-index: var(--selaras-resolved-z-toast);
-    transform: translateY(-200%);
-    border-radius: var(--selaras-resolved-radius-md);
-    background-color: var(--selaras-resolved-surface-inverted);
-    color: var(--selaras-resolved-text-inverted);
-    padding: 0.5rem 0.875rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    transition: transform 150ms var(--serangkai-ease);
-  }
-
-  .serangkai-skip:focus-visible {
-    transform: translateY(0);
+    padding-inline: 2rem;
   }
 }
 
-@layer utilities {
-  .serangkai-tabular {
-    font-variant-numeric: tabular-nums;
-  }
+.serangkai-prose {
+  --selaras-prose-font-body: var(--font-sans);
+  --selaras-prose-font-heading: var(--font-sans);
+  max-width: var(--serangkai-prose-max);
+}
 
-  /* Balanced headings; progressive enhancement only. */
-  .serangkai-balance {
-    text-wrap: balance;
-  }
+/* Section heading rhythm used across workspace, dashboard, and settings. */
+.serangkai-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--selaras-resolved-text-muted);
+}
 
-  .serangkai-pretty {
-    text-wrap: pretty;
-  }
+.serangkai-panel {
+  background-color: var(--selaras-resolved-surface-default);
+  border: 1px solid var(--selaras-resolved-border-default);
+  border-radius: var(--selaras-resolved-radius-lg);
+}
+
+.serangkai-hairline {
+  border-color: var(--selaras-resolved-border-muted);
+}
+
+/* Skip link for keyboard users. */
+.serangkai-skip {
+  position: absolute;
+  inset-inline-start: 0.75rem;
+  top: 0.75rem;
+  z-index: var(--selaras-resolved-z-toast);
+  transform: translateY(-200%);
+  border-radius: var(--selaras-resolved-radius-md);
+  background-color: var(--selaras-resolved-surface-inverted);
+  color: var(--selaras-resolved-text-inverted);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: transform 150ms var(--serangkai-ease);
+}
+
+.serangkai-skip:focus-visible {
+  transform: translateY(0);
+}
+
+.serangkai-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Balanced headings; progressive enhancement only. */
+.serangkai-balance {
+  text-wrap: balance;
+}
+
+.serangkai-pretty {
+  text-wrap: pretty;
 }
