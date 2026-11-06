@@ -9,6 +9,10 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
   `SFormField`, `SFileUpload`, `SCheckbox`, `SAlertDialog` via `useConfirm`,
   `SToast` via `useToast`, and others). `app.vue` mounts `SApp` once, which is
   required for `useToast`/`useConfirm`/`useModal` renderers to exist.
+- **Local MCP dogfooding**: `npm run dev` is pinned to `127.0.0.1:6969`.
+  `opencode.json` registers a `serangkai` MCP server that runs
+  `scripts/serangkai-mcp.sh`, a stdio→HTTP bridge reading the bearer token from
+  the gitignored `.env.serangkai-mcp`. See `docs/development/mcp-dogfood.md`.
 - **Agent support**: the `selaras` skill (copied from the installed package into
   `.opencode/skills/`) and the local `@sewadah/selaras-mcp` stdio server, wired in
   `opencode.json`, serving the offline catalog that ships inside

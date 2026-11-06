@@ -5,6 +5,11 @@
       "type": "local",
       "command": ["npx", "--no-install", "selaras-mcp", "--project", "."],
       "enabled": true
+    },
+    "serangkai": {
+      "type": "local",
+      "command": ["bash", "scripts/serangkai-mcp.sh"],
+      "enabled": true
     }
   }
 }

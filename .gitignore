@@ -31,3 +31,6 @@ logs
 data/
 .wrangler/
 .vercel/
+
+# Local MCP token for dogfooding the app from an agent (never commit)
+.env.serangkai-mcp
