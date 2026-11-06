@@ -67,7 +67,7 @@
               :src="`/api/artifacts/${artifact.id}/preview`"
               :title="`${artifact.title} HTML preview`"
             />
-            <div v-else-if="artifact.type === 'markdown'" class="serangkai-prose">
+            <div v-else-if="artifact.type === 'markdown'" class="serangkai-prose mx-auto">
               <MarkdownDocument :html="renderedContent" />
             </div>
             <pre v-else class="overflow-auto whitespace-pre-wrap rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-4 font-mono text-sm">{{ content }}</pre>
