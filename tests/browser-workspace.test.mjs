@@ -68,7 +68,7 @@ test('human browser workflow registers and creates an artifact', async () => {
   await page.getByRole('button', { name: 'Save visibility' }).click()
   const shareLink = page.getByLabel('Share link')
   await assert.doesNotReject(() => shareLink.waitFor())
-  assert.match(await shareLink.inputValue(), /\/api\/share\/[^?]+\?k=[a-f0-9]{64}$/)
+  assert.match(await shareLink.inputValue(), /\/share\/[^?]+\?k=[a-f0-9]{64}$/)
   assert.equal((await fetch(await shareLink.inputValue())).status, 200)
 
   await page.getByRole('button', { name: 'Edit' }).click()

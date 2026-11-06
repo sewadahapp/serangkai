@@ -32,7 +32,11 @@ async function render() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // Wait for hydration to settle. Rendering during the mount hook can race
+  // with the parent's patch on server-rendered pages, which left the diagram
+  // at its fallback until some later re-render.
+  await nextTick()
   render()
   observer = new MutationObserver(render)
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })

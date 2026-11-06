@@ -1,40 +1,16 @@
-import { artifacts } from '../../../db/schema'
-import { getRequestDatabase } from '../../../db/adapter'
 import { getRequestStorage } from '#serangkai-storage-runtime'
-import { eq } from 'drizzle-orm'
 import { renderMarkdownAsync } from '../../../utils/markdown'
 import { normalizeColorMode, withColorMode } from '../../../utils/artifact-color-mode'
-import { isValidShareKey } from '../../../utils/share'
-
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
-}
+import { loadSharedArtifact } from '../../../utils/share-access'
 
 export default defineEventHandler(async (event) => {
-  const db = await getRequestDatabase(event)
   const storage = getRequestStorage(event)
   const slug = getRouterParam(event, 'slug')
-  if (!slug) {
-    throw createError({ statusCode: 400, message: 'Slug required' })
-  }
-  
-  const artifact = await db.select().from(artifacts).where(eq(artifacts.slug, slug)).get()
-  if (!artifact) {
-    throw createError({ statusCode: 404, message: 'Artifact not found' })
-  }
-  
-  const key = String(getQuery(event).k || '')
-  if (artifact.visibility === 'private') {
-    const user = event.context.user
-    if (!user || user.id !== artifact.userId) {
-      throw createError({ statusCode: 403, message: 'Forbidden' })
-    }
-  } else if (artifact.visibility === 'unlisted' && !isValidShareKey(artifact.id, key)) {
-    throw createError({ statusCode: 404, message: 'Artifact not found' })
-  }
-  
+  if (!slug) throw createError({ statusCode: 400, message: 'Slug required' })
+
+  const artifact = await loadSharedArtifact(event, slug)
   const content = await storage.read(artifact.contentPath)
-  
+
   if (artifact.type === 'html') {
     setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
     setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' https: data:; font-src https: data:; connect-src 'none'; frame-ancestors 'none'; form-action 'none'")
@@ -44,21 +20,45 @@ export default defineEventHandler(async (event) => {
     setHeader(event, 'Vary', 'Sec-CH-Prefers-Color-Scheme')
     setHeader(event, 'Accept-CH', 'Sec-CH-Prefers-Color-Scheme')
     return withColorMode(content.toString(), normalizeColorMode(getHeader(event, 'sec-ch-prefers-color-scheme')))
-  } else if (artifact.type === 'markdown') {
-    setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
-    setHeader(event, 'Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; font-src https: data:; base-uri 'none'; frame-ancestors 'none'")
-    return `<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(artifact.title)}</title><style>body{font-family:system-ui;max-width:760px;margin:3rem auto;padding:0 1.25rem;line-height:1.7;color:#202124}pre{white-space:pre-wrap}h1,h2,h3{line-height:1.2}code{background:#f1f3f4;padding:.15rem .3rem;border-radius:.25rem}</style></head><body>${await renderMarkdownAsync(content.toString())}</body></html>`
-  } else if (artifact.type === 'json') {
+  }
+
+  if (artifact.type === 'markdown') {
+    const key = String(getQuery(event).k || '')
+    const suffix = key ? `?k=${encodeURIComponent(key)}` : ''
+
+    // The reader page is a real Nuxt page so shared Markdown uses the same
+    // prose styles, Shiki output, Mermaid renderer, and charts as the app.
+    // `format=json` is the data source for that page; plain requests redirect.
+    if (String(getQuery(event).format || '') !== 'json') {
+      setHeader(event, 'Cache-Control', 'no-store')
+      return sendRedirect(event, `/share/${encodeURIComponent(slug)}${suffix}`, 302)
+    }
+
+    setHeader(event, 'Cache-Control', 'no-store')
+    setHeader(event, 'X-Content-Type-Options', 'nosniff')
+    return {
+      slug: artifact.slug,
+      title: artifact.title,
+      type: artifact.type,
+      visibility: artifact.visibility,
+      updatedAt: artifact.updatedAt,
+      renderedContent: await renderMarkdownAsync(content.toString()),
+    }
+  }
+
+  if (artifact.type === 'json') {
     setHeader(event, 'Content-Type', 'application/json')
     return content.toString()
-  } else if (artifact.type === 'pdf') {
+  }
+  if (artifact.type === 'pdf') {
     setHeader(event, 'Content-Type', 'application/pdf')
     return content
-  } else if (artifact.type === 'image') {
+  }
+  if (artifact.type === 'image') {
     setHeader(event, 'Content-Type', artifact.metadata?.mimeType || 'image/png')
     return content
   }
-  
+
   setHeader(event, 'Content-Type', 'text/plain')
   return content.toString()
 })

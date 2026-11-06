@@ -77,6 +77,7 @@ documented as unverified rather than claimed as supported.
 - [x] `SerangkaiCode` highlights app-owned snippets through the real `SProsePre` component and `POST /api/highlight`
 - [x] Landing-page snippets highlight too, and `POST /api/highlight` caps snippet size at 50,000 characters
 - [x] Imported `#selaras/tailwind.css` so adaptive presentation resolves its breakpoint instead of warning and disabling
+- [x] Shared Markdown renders on a real `/share/[slug]` reader page with the app's prose, Mermaid, charts, and color mode; `/api/share/:slug` applies visibility and redirects
 - [x] Fixed a flaky signed-link tamper assertion (setting the last digit to `0` was a no-op 1/16 of the time)
 
 ## Verification

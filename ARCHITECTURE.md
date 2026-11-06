@@ -128,7 +128,8 @@ Implementations: LocalStorageAdapter (default), S3StorageAdapter (future), etc.
 - `GET /api/artifacts/:id/preview` - Owner-only inline image/PDF preview
 - `POST /api/artifacts/:id/duplicate` - Copy an artifact as a new private artifact
 - `POST /api/artifacts/:id/share` - Build a public or signed unlisted share URL
-- `GET /api/share/:slug` - Public/unlisted artifact delivery
+- `GET /api/share/:slug` - Public/unlisted artifact delivery. Markdown redirects
+  to the `/share/:slug` reader; `?format=json` returns its rendered data.
 - `GET /api/share/:slug/*` - Scoped static bundle asset delivery
 - `GET /api/search` - Search artifacts/folders, optionally scoped to a folder subtree
 - `GET /api/overview` - Workspace summary: counts, visibility, storage total, recent artifacts
@@ -158,7 +159,12 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `/settings` - API token creation, listing, and revocation
 - `/agent` - MCP/REST connection guide with endpoint, client config, scope reference,
   publishing workflow (`baseVersion`), and the HTML color-mode contract
-- Share delivery happens through `/api/share/:slug` (signed `?k=` link for unlisted artifacts)
+- `/share/[slug]` - Public reader for shared Markdown: same prose styles, Shiki
+  highlighting, Mermaid renderer, charts, and color mode as the workspace. It
+  has no workspace navigation and is `noindex`. Signed unlisted links pass `?k=`.
+- Share delivery happens through `/api/share/:slug`, which applies visibility
+  and redirects Markdown to `/share/:slug`. HTML, PDF, image, JSON, and bundle
+  content is still served raw.
 
 ### Design system notes
 - Semantic roles (`primary`, `accent`, plus Selaras builtins) are compiled at build
