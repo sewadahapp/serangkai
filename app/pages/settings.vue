@@ -26,7 +26,7 @@
           <fieldset>
             <legend class="text-sm font-medium">Scopes</legend>
             <p class="mt-0.5 text-xs text-[var(--selaras-resolved-text-muted)]">
-              Tick any combination. Full already includes read and write.
+              Tick any combination. Ticking Full ticks read and write too, since it covers them.
             </p>
             <div class="mt-3 grid gap-2 sm:grid-cols-3">
               <SCheckbox
@@ -126,11 +126,37 @@ const scopeSummary = computed(() => {
   return `Grants ${parts.join(' and ')} access. Cannot create or revoke tokens.`
 })
 
+/**
+ * Scopes are a set the API checks membership against, and `full` satisfies
+ * read and write checks. Rather than only describing that, keep the checkboxes
+ * truthful: ticking Full also ticks Read and Write, and unticking Read or Write
+ * while Full is on drops Full (since Full alone would just re-tick them).
+ */
 const toggleScope = (value: string, checked: boolean | 'indeterminate') => {
   const next = new Set(scopes.value)
-  if (checked === true) next.add(value)
-  else next.delete(value)
-  scopes.value = [...next]
+
+  if (checked === true) {
+    next.add(value)
+    if (value === 'full') {
+      next.add('read')
+      next.add('write')
+    }
+  } else {
+    next.delete(value)
+    if (value !== 'full') next.delete('full')
+  }
+
+  // Normalise: full implies read + write, so never store it alone.
+  if (next.has('full')) {
+    next.add('read')
+    next.add('write')
+  }
+
+  if (!next.size) {
+    scopes.value = []
+    return
+  }
+  scopes.value = ['read', 'write', 'full'].filter(scope => next.has(scope))
 }
 
 const loadTokens = async () => {
