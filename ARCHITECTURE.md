@@ -22,7 +22,8 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
   Generated with the `ui-ux-pro-max` skill (variance 3 / motion 3 / density 5) and
   wired through `selaras.theme.colors` in `nuxt.config.ts`.
 - **Content**: @nuxt/content with MDC for Markdown rendering
-- **Charts/Diagrams**: Mermaid, @tanstack/vue-charts (or similar)
+- **Charts/Diagrams**: Mermaid, rendered theme-aware, and TanStack Charts through
+  a JSON bar/line/area schema. Author-supplied JavaScript is never evaluated.
 - **Backend**: Nuxt Nitro server routes
 - **Database**: Drizzle ORM with better-sqlite3 by default and a request-scoped D1 adapter for Cloudflare
 - **Storage**: Local filesystem with adapter pattern; S3-compatible/R2 adapter for portable deployments
@@ -173,6 +174,17 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   sanitized Markdown output cannot carry Vue components. Unknown languages fall
   back to escaped text; Mermaid and `chart` fences keep their own renderers.
   Copying is delegated by `app/plugins/code-copy.client.ts`.
+- Markdown `chart` fences accept JSON — `type` (`bar`, `line`, `area`), `data`,
+  optional `x`/`y` keys, `title`, axis labels, `horizontal`, `color`, and
+  `height`. `DataChart.client.vue` maps that onto fixed TanStack Charts marks and
+  compact scales. The schema exists because chart definitions need functions,
+  which JSON cannot carry; evaluating author JavaScript instead would break the
+  artifact security model. Invalid or empty definitions fall back to the raw
+  JSON rather than a blank panel.
+- Mermaid diagrams re-render when the color mode changes: `MermaidDiagram` uses
+  `theme: 'neutral'` in light mode and `'dark'` in dark mode, observing the
+  `class` attribute on `<html>`. Both diagram types are mounted after the
+  sanitized Markdown is in the DOM.
 - App-owned snippets (MCP config, curl examples, shell workflows) use
   `SerangkaiCode`, which wraps the real `SProsePre` so the header and copy
   button are the component's, and fetches only the highlighted body from

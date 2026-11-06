@@ -72,6 +72,8 @@ documented as unverified rather than claimed as supported.
 - [x] Agent guide documents the `baseVersion` publish workflow and the color-mode contract
 - [x] Pinned the dev server to 127.0.0.1:6969 and dogfooded the app's own MCP server through `opencode.json` (token kept in a gitignored file, never in a tracked config)
 - [x] Shiki syntax highlighting for Markdown code blocks with light/dark themes, language header, and a delegated copy button
+- [x] Working Markdown charts: a JSON bar/line/area schema mapped to TanStack Charts, with fallback to raw JSON and browser coverage
+- [x] Mermaid diagrams follow the light/dark color mode and re-render on toggle
 - [x] `SerangkaiCode` highlights app-owned snippets through the real `SProsePre` component and `POST /api/highlight`
 - [x] Landing-page snippets highlight too, and `POST /api/highlight` caps snippet size at 50,000 characters
 - [x] Imported `#selaras/tailwind.css` so adaptive presentation resolves its breakpoint instead of warning and disabling

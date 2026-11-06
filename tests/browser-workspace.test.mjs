@@ -128,3 +128,34 @@ test('human browser workflow registers and creates an artifact', async () => {
   await page.getByRole('button', { name: 'Duplicate' }).click()
   await assert.doesNotReject(() => page.getByRole('heading', { name: 'pixel (copy)' }).waitFor())
 })
+
+test('Markdown renders Mermaid diagrams and JSON charts', async () => {
+  await page.goto(`${base}/workspace`)
+  const artifactId = await page.evaluate(async () => {
+    const content = [
+      '# Render check',
+      '',
+      '```mermaid',
+      'graph LR',
+      '  A[Client] --> B[Server]',
+      '```',
+      '',
+      '```chart',
+      '{"type":"bar","title":"Routes","data":[{"label":"auth","value":4},{"label":"artifacts","value":13}]}',
+      '```',
+    ].join('\n')
+    const res = await fetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Render check', type: 'markdown', content }),
+    })
+    return (await res.json()).artifact.id
+  })
+
+  await page.goto(`${base}/artifacts/${artifactId}`)
+  await assert.doesNotReject(() => page.locator('.serangkai-mermaid svg').first().waitFor())
+  await assert.doesNotReject(() => page.locator('.ts-chart-host svg').first().waitFor())
+  assert.equal(await page.locator('.serangkai-mermaid svg').count(), 1)
+  assert.equal(await page.locator('.ts-chart-host svg').count(), 1)
+  assert.equal(await page.locator('.serangkai-chart pre').count(), 0)
+})
