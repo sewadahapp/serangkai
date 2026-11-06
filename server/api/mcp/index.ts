@@ -110,7 +110,11 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
     )).get()
     if (!row) return { isError: true, content: [{ type: 'text', text: 'Artifact not found.' }] }
     const content = (await storage.read(row.contentPath)).toString()
-    return textResult({ id: row.id, slug: row.slug, title: row.title, type: row.type, visibility: row.visibility, folderId: row.folderId, content })
+    // An agent cannot publish without baseVersion, and this is where it learns
+    // the current one. Omitting it here made the documented workflow impossible.
+    const versionRows = await db.select({ version: artifactVersions.version }).from(artifactVersions).where(eq(artifactVersions.artifactId, row.id))
+    const currentVersion = Math.max(0, ...versionRows.map(item => item.version))
+    return textResult({ id: row.id, slug: row.slug, title: row.title, type: row.type, visibility: row.visibility, folderId: row.folderId, currentVersion, content })
   })
 
   server.registerTool('create_artifact', {

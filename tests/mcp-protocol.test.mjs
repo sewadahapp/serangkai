@@ -101,6 +101,16 @@ test('creates and reads an artifact through MCP tools', async () => {
   const read = await mcp({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'get_artifact', arguments: { id: artifact.id } } })
   const result = JSON.parse(read.result.content[0].text)
   assert.equal(result.content, '# MCP')
+  // Publishing requires baseVersion, so the read must report the current one.
+  assert.equal(result.currentVersion, 1)
+
+  const published = await mcp({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'update_artifact', arguments: { id: artifact.id, content: '# MCP v2', baseVersion: result.currentVersion } } })
+  const updated = JSON.parse(published.result.content[0].text)
+  assert.equal(updated.versionCreated, true)
+  assert.equal(updated.version, 2)
+
+  const reread = await mcp({ jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'get_artifact', arguments: { id: artifact.id } } })
+  assert.equal(JSON.parse(reread.result.content[0].text).currentVersion, 2)
 })
 
 test('creates folders and files artifacts inside them through MCP tools', async () => {
