@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
+import { request as httpRequest } from 'node:http'
 import { test, before, after } from 'node:test'
 import { chromium } from 'playwright-core'
 
@@ -232,4 +233,46 @@ test('read-only values offer a working copy button', async () => {
   assert.match(await page.evaluate(() => navigator.clipboard.readText()), /\/api\/mcp$/)
   // The control acknowledges the copy instead of staying silent.
   assert.equal(await page.getByRole('button', { name: 'Copied' }).count(), 1)
+})
+
+test('shared HTML artifacts open in the reader with the app chrome', async () => {
+  const shareUrl = await page.evaluate(async () => {
+    const html = '<!doctype html><html><head><title>Framed</title></head><body><h1>Frame content</h1></body></html>'
+    const form = new FormData()
+    form.append('file', new File([html], 'framed.html', { type: 'text/html' }), 'framed.html')
+    form.append('title', 'framed')
+    form.append('visibility', 'unlisted')
+    const created = await fetch('/api/artifacts/upload', { method: 'POST', body: form })
+    const { artifact } = await created.json()
+    const share = await fetch(`/api/artifacts/${artifact.id}/share`, { method: 'POST' })
+    return (await share.json()).url
+  })
+
+  // The generated link points at the reader; the raw delivery URL keeps its
+  // key and is what frames and fetches use.
+  assert.match(shareUrl, /\/share\//)
+  const rawUrl = shareUrl.replace('/share/', '/api/share/')
+
+  // Frames and fetches keep the raw document...
+  const raw = await fetch(rawUrl)
+  assert.equal(raw.status, 200)
+  assert.match(raw.headers.get('content-type'), /text\/html/)
+
+  // ...while a browser navigation lands on the reader. fetch() strips
+  // `Sec-` headers by spec, so send this one over a raw socket.
+  const nav = await new Promise((resolve, reject) => {
+    const req = httpRequest(rawUrl, { headers: { 'sec-fetch-dest': 'document' } }, (res) => {
+      res.resume()
+      resolve({ status: res.statusCode, location: res.headers.location || '' })
+    })
+    req.on('error', reject)
+    req.end()
+  })
+  assert.equal(nav.status, 302)
+  assert.match(nav.location, /\/share\//)
+
+  await page.goto(shareUrl)
+  await assert.doesNotReject(() => page.locator('iframe').first().waitFor())
+  assert.ok(await page.getByRole('link', { name: 'Serangkai home' }).isVisible())
+  await assert.doesNotReject(() => page.frameLocator('iframe').getByText('Frame content').waitFor())
 })

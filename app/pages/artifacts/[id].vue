@@ -20,7 +20,7 @@
         <SButton variant="outline" :icon="editing ? 'lucide:eye' : 'lucide:pencil'" @click="editing = !editing">{{ editing ? 'Preview' : 'Edit' }}</SButton>
         <SButton variant="outline" :to="`/api/artifacts/${route.params.id}/download`" icon="lucide:download">Download</SButton>
         <SButton variant="outline" icon="lucide:copy" :loading="duplicating" :disabled="duplicating" @click="duplicateArtifact">Duplicate</SButton>
-        <SButton v-if="artifact.type === 'bundle'" variant="outline" :to="`/api/share/${artifact.slug}/index.html`" target="_blank" rel="noopener">Open bundle</SButton>
+        <SButton v-if="artifact.type === 'bundle'" variant="outline" :to="`/share/${artifact.slug}`" target="_blank" rel="noopener">Open bundle</SButton>
         <SButton v-if="shareUrl" variant="outline" icon="lucide:external-link" :to="shareUrl" target="_blank" rel="noopener">Open share link</SButton>
         <SButton variant="ghost" color="danger" icon="lucide:trash-2" :loading="deleting" :disabled="deleting" @click="removeArtifact">Delete</SButton>
       </div>

@@ -20,21 +20,70 @@
         {{ error }}
       </p>
 
-      <div v-else-if="artifact" class="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,46rem)_13rem]">
-        <article>
-          <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
-          <h1 v-if="!startsWithHeading" class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
-          <div :class="startsWithHeading ? 'mt-4' : 'mt-8'">
-            <MarkdownDocument :html="artifact.renderedContent" />
-          </div>
-        </article>
+      <template v-else-if="artifact">
+        <!-- Markdown keeps its prose measure and contents rail. -->
+        <div v-if="artifact.type === 'markdown'" class="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,46rem)_13rem]">
+          <article>
+            <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
+            <h1 v-if="!startsWithHeading" class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
+            <div :class="startsWithHeading ? 'mt-4' : 'mt-8'">
+              <MarkdownDocument :html="artifact.renderedContent" />
+            </div>
+          </article>
 
-        <aside v-if="toc.length" class="hidden lg:block" aria-label="Table of contents">
-          <div class="sticky top-10">
-            <SContentToc :links="toc" />
-          </div>
-        </aside>
-      </div>
+          <aside v-if="toc.length" class="hidden lg:block" aria-label="Table of contents">
+            <div class="sticky top-10">
+              <SContentToc :links="toc" />
+            </div>
+          </aside>
+        </div>
+
+        <!-- Source files read like code, with highlighting and a copy button. -->
+        <div v-else-if="artifact.type === 'json' || artifact.type === 'javascript'" class="mx-auto max-w-4xl">
+          <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
+          <h1 class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
+          <SerangkaiCode
+            class="mt-8"
+            :code="artifact.content"
+            :language="artifact.type === 'json' ? 'json' : 'javascript'"
+            :filename="artifact.filename"
+          />
+        </div>
+
+        <div v-else-if="artifact.type === 'image'" class="mx-auto max-w-5xl">
+          <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
+          <h1 class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
+          <img
+            :src="artifact.rawUrl"
+            :alt="artifact.title"
+            class="mt-8 max-h-[80vh] w-auto rounded-lg border border-[var(--selaras-resolved-border-default)]"
+          >
+        </div>
+
+        <div v-else-if="artifact.type === 'pdf'" class="mx-auto max-w-5xl">
+          <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
+          <h1 class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
+          <iframe
+            :src="artifact.rawUrl"
+            :title="`${artifact.title} PDF`"
+            class="mt-8 h-[80vh] w-full rounded-lg border border-[var(--selaras-resolved-border-default)]"
+          />
+        </div>
+
+        <!-- HTML and static bundles run in a sandboxed frame, so they still
+             cannot reach the app origin, forms, popups, or the network. -->
+        <div v-else class="mx-auto max-w-6xl">
+          <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
+          <h1 class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
+          <SerangkaiHtmlPreview
+            v-if="artifact.rawUrl"
+            class="mt-8"
+            :src="artifact.rawUrl"
+            :title="`${artifact.title} preview`"
+            height="78vh"
+          />
+        </div>
+      </template>
 
       <p v-else class="text-sm text-[var(--selaras-resolved-text-muted)]">Loading shared artifact…</p>
     </main>
@@ -52,14 +101,13 @@
 import { extractToc } from '~/utils/markdown-toc'
 
 /**
- * Read-only reader for a shared Markdown artifact.
+ * Reader for a shared artifact.
  *
- * Delivery intentionally happens here rather than in a hand-built HTML string:
- * shared documents get the same prose styles, Shiki highlighting, Mermaid
- * renderer, and charts as the workspace. `/api/share/:slug` applies the
- * visibility rules and redirects here; this page reads through that same
- * endpoint with `?format=json`, forwarded during SSR so private owners and
- * signed links behave identically.
+ * Every type gets the same header, color-mode toggle, and footer. Markdown
+ * renders as prose; JSON and JavaScript are highlighted; images and PDFs are
+ * shown directly; HTML and bundles run in a sandboxed frame. Delivery stays at
+ * `/api/share/:slug` (which redirects browser navigations here) so a typed link
+ * and the reopened link in a frame end up in the same place.
  */
 const route = useRoute()
 
@@ -67,13 +115,25 @@ const route = useRoute()
 // otherwise appear above and below the page's own header and footer.
 definePageMeta({ layout: false })
 
+interface SharedArtifact {
+  slug: string
+  title: string
+  type: string
+  visibility: string
+  updatedAt: string
+  filename?: string
+  renderedContent?: string
+  content?: string
+  rawUrl?: string
+}
+
 const slug = String(route.params.slug)
 const key = typeof route.query.k === 'string' ? route.query.k : ''
 const requestFetch = useRequestFetch()
 
 const { data: artifact, error: fetchError } = await useAsyncData(
   `shared-artifact:${slug}`,
-  () => requestFetch(`/api/share/${slug}`, {
+  () => requestFetch<SharedArtifact>(`/api/share/${slug}`, {
     query: { ...(key ? { k: key } : {}), format: 'json' },
   }),
 )

@@ -12,7 +12,6 @@ export default defineEventHandler(async (event) => {
   if (!artifact) throw createError({ statusCode: 404, message: 'Artifact not found' })
   const key = signShareKey(artifact.id)
   const baseUrl = process.env.PUBLIC_BASE_URL || getRequestURL(event).origin
-  // Markdown gets a real reader page; other types are delivered raw.
-  const path = artifact.type === 'markdown' ? `/share/${artifact.slug}` : `/api/share/${artifact.slug}`
-  return { slug: artifact.slug, visibility: artifact.visibility, url: `${baseUrl}${path}${artifact.visibility === 'unlisted' ? `?k=${key}` : ''}` }
+  // Every type opens in the reader so shared links get the same chrome.
+  return { slug: artifact.slug, visibility: artifact.visibility, url: `${baseUrl}/share/${artifact.slug}${artifact.visibility === 'unlisted' ? `?k=${key}` : ''}` }
 })

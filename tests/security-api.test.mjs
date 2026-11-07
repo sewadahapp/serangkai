@@ -29,7 +29,8 @@ test('HTML artifacts receive a restrictive sandbox CSP', async () => {
   const csp = response.headers.get('content-security-policy')
   assert.match(csp, /sandbox allow-scripts/)
   assert.match(csp, /connect-src 'none'/)
-  assert.match(csp, /frame-ancestors 'none'/)
+  // The reader frames the artifact on the same origin; outside origins cannot.
+  assert.match(csp, /frame-ancestors 'self'/)
   assert.match(csp, /form-action 'none'/)
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
 

@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
     const content = await fs.readFile(filePath)
     setHeader(event, 'Content-Type', bundleMimeType(path))
     setHeader(event, 'X-Content-Type-Options', 'nosniff')
-    if (path.endsWith('.html') || path === 'index.html') setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self'; connect-src 'none'; frame-ancestors 'none'; form-action 'none'")
+    if (path.endsWith('.html') || path === 'index.html') setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self'; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
     return content
   } catch { throw createError({ statusCode: 404, message: 'File not found' }) }
 })
