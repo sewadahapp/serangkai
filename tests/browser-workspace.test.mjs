@@ -276,19 +276,21 @@ test('shared HTML artifacts open in the reader with the app chrome', async () =>
   assert.ok(await page.getByRole('link', { name: 'Serangkai home' }).isVisible())
   await assert.doesNotReject(() => page.frameLocator('iframe').getByText('Frame content').waitFor())
 
-  // The artifact is the page, not a card inside it: the sticky header is the
-  // only chrome, and the frame fills the rest of the viewport edge to edge.
+  // The artifact is the page, not a card inside it: header and footer are the
+  // only chrome, and the frame fills everything between them edge to edge.
   const layout = await page.evaluate(() => {
     const header = document.querySelector('header')
     const frame = document.querySelector('iframe')
+    const footer = document.querySelector('footer')
     const rect = frame.getBoundingClientRect()
+    const footerRect = footer.getBoundingClientRect()
     return {
       headerPosition: getComputedStyle(header).position,
       headerBottom: header.getBoundingClientRect().bottom,
       frame: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
       border: getComputedStyle(frame).borderTopWidth,
       title: document.querySelectorAll('main h1').length,
-      footer: !!document.querySelector('footer'),
+      footer: { text: footer.innerText, top: footerRect.top, bottom: footerRect.bottom },
       viewport: { width: innerWidth, height: innerHeight },
     }
   })
@@ -296,8 +298,55 @@ test('shared HTML artifacts open in the reader with the app chrome', async () =>
   assert.equal(layout.frame.x, 0)
   assert.equal(layout.frame.y, layout.headerBottom)
   assert.equal(Math.round(layout.frame.width), layout.viewport.width)
-  assert.equal(Math.round(layout.frame.y + layout.frame.height), layout.viewport.height)
+  assert.equal(Math.round(layout.frame.y + layout.frame.height), Math.round(layout.footer.top))
   assert.equal(layout.border, '0px')
   assert.equal(layout.title, 0)
-  assert.equal(layout.footer, false)
+  assert.match(layout.footer.text, /Shared from Serangkai/)
+  assert.equal(Math.round(layout.footer.bottom), layout.viewport.height)
+})
+
+test('shared source files use the full page between header and footer', async () => {
+  const shareUrl = await page.evaluate(async () => {
+    const content = JSON.stringify({
+      project: 'Serangkai',
+      items: Array.from({ length: 40 }, (_, index) => ({ id: index, name: `Item ${index}` })),
+    }, null, 2)
+    const created = await fetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'source-full', type: 'json', content, visibility: 'unlisted' }),
+    })
+    const { artifact } = await created.json()
+    const share = await fetch(`/api/artifacts/${artifact.id}/share`, { method: 'POST' })
+    return (await share.json()).url
+  })
+
+  await page.goto(shareUrl)
+  await page.locator('.serangkai-shiki span').first().waitFor()
+  const layout = await page.evaluate(() => {
+    const header = document.querySelector('header')
+    const footer = document.querySelector('footer')
+    const pre = document.querySelector('pre')
+    const main = document.querySelector('main')
+    const rect = pre.getBoundingClientRect()
+    return {
+      headerBottom: header.getBoundingClientRect().bottom,
+      footerTop: footer.getBoundingClientRect().top,
+      footerBottom: footer.getBoundingClientRect().bottom,
+      pre: { top: rect.top, width: rect.width },
+      title: document.querySelectorAll('main h1').length,
+      windowScrolls: document.documentElement.scrollHeight > innerHeight,
+      viewport: { width: innerWidth, height: innerHeight },
+      mainScrolls: main.scrollHeight > main.clientHeight,
+    }
+  })
+
+  // No title card, and the code spans the whole width instead of a 4xl column.
+  assert.equal(layout.title, 0)
+  assert.ok(layout.pre.width > layout.viewport.width * 0.9, `code width ${layout.pre.width} of ${layout.viewport.width}`)
+  assert.equal(Math.round(layout.footerBottom), layout.viewport.height)
+  assert.equal(layout.windowScrolls, false)
+  // Tall source scrolls inside the page, under a pinned footer.
+  assert.equal(layout.mainScrolls, true)
+  assert.ok(layout.pre.top >= layout.headerBottom)
 })

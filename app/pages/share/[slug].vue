@@ -1,7 +1,7 @@
 <template>
   <div
-    class="bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]"
-    :class="isEmbed ? 'flex h-dvh flex-col overflow-hidden' : 'min-h-dvh'"
+    class="flex flex-col bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]"
+    :class="isFill ? 'h-dvh overflow-hidden' : 'min-h-dvh'"
   >
     <header class="sticky top-0 z-40 shrink-0 border-b border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-canvas)]">
       <div class="serangkai-shell flex h-16 items-center justify-between gap-4">
@@ -18,88 +18,85 @@
       </div>
     </header>
 
-    <!-- HTML and static bundles are the document itself, not a preview inside
-         the page: they fill everything below the header, edge to edge. -->
-    <main v-if="isEmbed" class="min-h-0 flex-1">
-      <p v-if="error" role="alert" class="serangkai-shell py-10">
+    <!-- Framed, PDF, and source artifacts are the document itself rather than a
+         preview inside the page: they take all the space between the header and
+         footer, edge to edge, with no title card. -->
+    <main v-if="isFill" class="min-h-0 flex-1" :class="isSource ? 'overflow-auto' : 'overflow-hidden'">
+      <p v-if="error" role="alert" class="serangkai-shell p-6">
         <span class="serangkai-panel block p-5 text-sm text-[var(--selaras-resolved-color-danger-text)]">{{ error }}</span>
       </p>
-      <SerangkaiHtmlPreview
-        v-else-if="artifact?.rawUrl"
-        flush
-        :src="artifact.rawUrl"
-        :title="`${artifact.title} preview`"
-      />
-      <p v-else class="serangkai-shell py-10 text-sm text-[var(--selaras-resolved-text-muted)]">Loading shared artifact…</p>
+
+      <template v-else-if="artifact">
+        <SerangkaiHtmlPreview
+          v-if="isFramed && artifact.rawUrl"
+          flush
+          :src="artifact.rawUrl"
+          :title="`${artifact.title} preview`"
+        />
+        <iframe
+          v-else-if="artifact.type === 'pdf' && artifact.rawUrl"
+          :src="artifact.rawUrl"
+          :title="`${artifact.title} PDF`"
+          class="h-full w-full border-0 bg-[var(--selaras-resolved-surface-default)]"
+        />
+        <div v-else-if="isSource" class="p-4 sm:p-6">
+          <SerangkaiCode
+            :code="artifact.content"
+            :language="artifact.type === 'json' ? 'json' : 'javascript'"
+            :filename="artifact.filename"
+          />
+        </div>
+      </template>
+
+      <p v-else class="serangkai-shell p-6 text-sm text-[var(--selaras-resolved-text-muted)]">Loading shared artifact…</p>
     </main>
 
-    <template v-else>
-      <main class="serangkai-shell flex-1 py-10">
-        <p v-if="error" role="alert" class="serangkai-panel mx-auto max-w-[46rem] p-5 text-sm text-[var(--selaras-resolved-color-danger-text)]">
-          {{ error }}
-        </p>
+    <!-- Markdown and images scroll like a document. -->
+    <main v-else class="serangkai-shell flex-1 py-10">
+      <p v-if="error" role="alert" class="serangkai-panel mx-auto max-w-[46rem] p-5 text-sm text-[var(--selaras-resolved-color-danger-text)]">
+        {{ error }}
+      </p>
 
-        <template v-else-if="artifact">
-          <!-- Markdown keeps its prose measure and contents rail. -->
-          <div v-if="artifact.type === 'markdown'" class="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,46rem)_13rem]">
-            <article>
-              <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
-              <h1 v-if="!startsWithHeading" class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
-              <div :class="startsWithHeading ? 'mt-4' : 'mt-8'">
-                <MarkdownDocument :html="artifact.renderedContent" />
-              </div>
-            </article>
-
-            <aside v-if="toc.length" class="hidden lg:block" aria-label="Table of contents">
-              <div class="sticky top-24">
-                <SContentToc :links="toc" />
-              </div>
-            </aside>
-          </div>
-
-          <!-- Source files read like code, with highlighting and a copy button. -->
-          <div v-else-if="artifact.type === 'json' || artifact.type === 'javascript'" class="mx-auto max-w-4xl">
+      <template v-else-if="artifact">
+        <!-- Markdown keeps its prose measure and contents rail. -->
+        <div v-if="artifact.type === 'markdown'" class="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,46rem)_13rem]">
+          <article>
             <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
-            <h1 class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
-            <SerangkaiCode
-              class="mt-8"
-              :code="artifact.content"
-              :language="artifact.type === 'json' ? 'json' : 'javascript'"
-              :filename="artifact.filename"
-            />
-          </div>
+            <h1 v-if="!startsWithHeading" class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
+            <div :class="startsWithHeading ? 'mt-4' : 'mt-8'">
+              <MarkdownDocument :html="artifact.renderedContent" />
+            </div>
+          </article>
 
-          <div v-else-if="artifact.type === 'image'" class="mx-auto max-w-5xl">
-            <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
-            <h1 class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
-            <img
-              :src="artifact.rawUrl"
-              :alt="artifact.title"
-              class="mt-8 max-h-[80vh] w-auto rounded-lg border border-[var(--selaras-resolved-border-default)]"
-            >
-          </div>
-
-          <div v-else-if="artifact.type === 'pdf'" class="mx-auto max-w-5xl">
-            <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
-            <h1 class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
-            <iframe
-              :src="artifact.rawUrl"
-              :title="`${artifact.title} PDF`"
-              class="mt-8 h-[80vh] w-full rounded-lg border border-[var(--selaras-resolved-border-default)]"
-            />
-          </div>
-        </template>
-
-        <p v-else class="text-sm text-[var(--selaras-resolved-text-muted)]">Loading shared artifact…</p>
-      </main>
-
-      <footer class="border-t border-[var(--selaras-resolved-border-muted)] py-6">
-        <div class="serangkai-shell flex flex-col gap-2 text-sm text-[var(--selaras-resolved-text-muted)] sm:flex-row sm:items-center sm:justify-between">
-          <p>Shared from Serangkai — a private-by-default artifact workspace.</p>
-          <NuxtLink to="/" class="underline-offset-4 hover:underline">Open Serangkai</NuxtLink>
+          <aside v-if="toc.length" class="hidden lg:block" aria-label="Table of contents">
+            <div class="sticky top-24">
+              <SContentToc :links="toc" />
+            </div>
+          </aside>
         </div>
-      </footer>
-    </template>
+
+        <div v-else-if="artifact.type === 'image'" class="mx-auto max-w-5xl">
+          <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
+          <h1 class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
+          <img
+            :src="artifact.rawUrl"
+            :alt="artifact.title"
+            class="mt-8 max-h-[80vh] w-auto rounded-lg border border-[var(--selaras-resolved-border-default)]"
+          >
+        </div>
+      </template>
+
+      <p v-else class="text-sm text-[var(--selaras-resolved-text-muted)]">Loading shared artifact…</p>
+    </main>
+
+    <!-- Every shared type carries the same chrome, so a link always ends the
+         same way. On full-page types the footer stays pinned under the content. -->
+    <footer class="shrink-0 border-t border-[var(--selaras-resolved-border-muted)] py-6">
+      <div class="serangkai-shell flex flex-col gap-2 text-sm text-[var(--selaras-resolved-text-muted)] sm:flex-row sm:items-center sm:justify-between">
+        <p>Shared from Serangkai — a private-by-default artifact workspace.</p>
+        <NuxtLink to="/" class="underline-offset-4 hover:underline">Open Serangkai</NuxtLink>
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -109,13 +106,13 @@ import { extractToc } from '~/utils/markdown-toc'
 /**
  * Reader for a shared artifact.
  *
- * Every type gets the same sticky header, color-mode toggle, and reader
- * treatment. Markdown renders as prose; JSON and JavaScript are highlighted;
- * images and PDFs are shown directly; HTML and bundles fill the viewport below
- * the header in a sandboxed frame, so the artifact reads as the page rather
- * than as a preview inside it. Delivery stays at `/api/share/:slug` (which
- * redirects browser navigations here) so a typed link and the reopened link in
- * a frame end up in the same place.
+ * Every type gets the same sticky header, color-mode toggle, and footer.
+ * Markdown renders as prose with a contents rail, images sit in a document
+ * page, and HTML, bundles, PDFs, and source files use the full area between
+ * the header and footer. Framed types stay sandboxed, so they still cannot
+ * reach the app origin, forms, popups, or the network. Delivery stays at
+ * `/api/share/:slug` (which redirects browser navigations here) so a typed
+ * link and the reopened link in a frame end up in the same place.
  */
 const route = useRoute()
 
@@ -146,9 +143,12 @@ const { data: artifact, error: fetchError } = await useAsyncData(
   }),
 )
 
-// HTML and bundles are the document: they take the whole area under the header
-// instead of sitting in a bordered card with a title above them.
-const isEmbed = computed(() => artifact.value?.type === 'html' || artifact.value?.type === 'bundle')
+const isFramed = computed(() => artifact.value?.type === 'html' || artifact.value?.type === 'bundle')
+const isSource = computed(() => artifact.value?.type === 'json' || artifact.value?.type === 'javascript')
+
+// Types that fill the viewport between the header and footer instead of
+// scrolling as a document with a title above the content.
+const isFill = computed(() => isFramed.value || isSource.value || artifact.value?.type === 'pdf')
 
 // Most Markdown artifacts open with their own `# Title`. Rendering the page
 // heading too would show the title twice, so defer to the document when it
