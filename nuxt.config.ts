@@ -13,7 +13,7 @@ const theme = {
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
-  modules: ['@sewadah/selaras', '@nuxtjs/mdc'],
+  modules: ['@sewadah/selaras'],
   css: ['~/assets/css/main.css'],
   selaras: { theme: { colors: theme } },
   app: {

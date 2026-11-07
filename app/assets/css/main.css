@@ -224,8 +224,9 @@ html {
   color: var(--shiki-light);
 }
 
-.dark .serangkai-code-pre span[style*="--shiki-light"],
-.dark .serangkai-shiki span[style*="--shiki-light"] {
+/* Comark/Shiki emits the light color inline and the dark palette as a custom property. */
+.dark .serangkai-code-pre span[style*="--shiki-dark"],
+.dark .serangkai-shiki span[style*="--shiki-dark"] {
   color: var(--shiki-dark);
   background-color: var(--shiki-dark-bg);
 }

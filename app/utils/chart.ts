@@ -15,6 +15,8 @@ export interface ChartInput {
   data?: Array<Record<string, unknown>>
   x?: string
   y?: string
+  xKey?: string
+  yKey?: string
   title?: string
   xLabel?: string
   yLabel?: string
@@ -51,10 +53,14 @@ export function resolveChart(definition: Record<string, unknown>, label = 'Data 
   const height = typeof input.height === 'number' && input.height > 0 ? input.height : 320
   const xKey = typeof input.x === 'string' && input.x
     ? input.x
-    : firstKey(rows, value => typeof value !== 'number', 'label')
+    : typeof input.xKey === 'string' && input.xKey
+      ? input.xKey
+      : firstKey(rows, value => typeof value !== 'number', 'label')
   const yKey = typeof input.y === 'string' && input.y
     ? input.y
-    : firstKey(rows, value => typeof value === 'number', 'value')
+    : typeof input.yKey === 'string' && input.yKey
+      ? input.yKey
+      : firstKey(rows, value => typeof value === 'number', 'value')
   const color = typeof input.color === 'string' ? input.color : undefined
   const fallbackJson = JSON.stringify(definition, null, 2)
   const ariaLabel = title || label

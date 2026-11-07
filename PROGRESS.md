@@ -94,8 +94,8 @@ documented as unverified rather than claimed as supported.
 - [x] Documented the HTML marker syntax in the agent guide and the runtime boundary in `ARCHITECTURE.md`
 - [x] Created and visually verified a private “Serangkai — Launch Review” HTML artifact in the real workspace with a Mermaid flow and bar, line, area, and horizontal bar charts
 - [x] Public share readers skip the session bootstrap, removing the anonymous `/api/auth/me` 401 console entry
-- [x] Replaced custom marked + sanitize-html + DOM mounting with `@nuxtjs/mdc` parsing, server-side AST sanitization, and `MDCRenderer` component rendering
-- [x] Removed the unused `@nuxt/content` module; the app now depends only on `@nuxtjs/mdc`
+- [x] Replaced custom marked + sanitize-html + DOM mounting first with MDC, then with Comark parsing and `MarkdownDocument` component rendering
+- [x] Removed `@nuxtjs/mdc`, `@nuxt/content`, `rehype-sanitize`, and `unified`; Markdown now uses `comark` + `@comark/vue`
 - [x] Migrated artifact storage to Nitro `useStorage()` mounts and moved static bundle files into the same store; removed the custom fs/R2/S3 adapters and storage runtime aliases
 - [x] Made SQLite initialization lazy and Bun-native (`bun:sqlite` + Drizzle under Bun, better-sqlite3 under Node), preserving the existing database file and schema
 - [x] Centralized environment configuration with fail-fast production validation for JWT/SHARE secrets and S3 settings
@@ -104,6 +104,14 @@ documented as unverified rather than claimed as supported.
 - [x] Verified Cloudflare locally with D1 + R2 through Wrangler/Miniflare, including binary upload/download and no memory fallback
 - [x] Verified the Vercel Build Output and local Node runtime; durable Vercel database support remains explicitly unverified
 - [x] Documented that Nitro 3 is a release candidate and incompatible with Nuxt 4’s Nitro 2/H3 v1 integration
+
+- [x] Added a central supported-component registry shared by rendering, validation, MCP capabilities, and authoring docs
+- [x] Added declarative and restricted-local-state Selaras component support with explicit application-only classification
+- [x] Added opt-in Selaras HTML document theme generated from Selaras prose CSS and loaded only by meta tag
+- [x] Added MCP `get_artifact_capabilities`, authoring guides, component catalog, templates, and prompts
+- [x] Added MCP authoring integration coverage and documented the reproducible blind-agent limitation
+- [x] Verified ordinary Markdown, tables, code, Mermaid, charts, Selaras cards/alerts/tables, and the opt-in HTML document theme in the real app
+- [x] Preserved existing Markdown/Comark syntax, artifact URLs, SQLite data, and Nitro storage mounts
 
 ## Verification
 - `bun run build` passes

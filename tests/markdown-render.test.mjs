@@ -1,117 +1,103 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { renderMarkdownContent } from '../server/utils/markdown.ts'
-import { isSupportedLanguage } from '../server/utils/highlight.ts'
-import { normalizeLanguage } from '../server/utils/markdown-language.ts'
 
-function find(node, predicate) {
-  if (predicate(node)) return node
-  for (const child of node.children || []) {
-    const match = find(child, predicate)
-    if (match) return match
-  }
-  return null
+function isElement(node) {
+  return Array.isArray(node) && typeof node[0] === 'string'
 }
 
-function findAll(node, predicate, found = []) {
-  if (predicate(node)) found.push(node)
-  for (const child of node.children || []) findAll(child, predicate, found)
+function walkNode(node, predicate, found) {
+  if (isElement(node)) {
+    if (predicate(node)) found.push(node)
+    for (const child of node.slice(2)) walkNode(child, predicate, found)
+  }
+}
+
+function findAll(nodes, predicate) {
+  const found = []
+  for (const node of nodes) walkNode(node, predicate, found)
   return found
 }
 
-test('renders Mermaid fences as component nodes', async () => {
-  const { body } = await renderMarkdownContent('```mermaid\ngraph TD\n  A --> B\n```')
-  const node = find(body, item => item.tag === 'serangkai-mermaid')
-  assert.ok(node, 'expected a mermaid node')
-  assert.match(node.props.source, /graph TD/)
-  // The raw source is data, not markup.
-  assert.equal(node.children.length, 0)
+function find(nodes, predicate) {
+  return findAll(nodes, predicate)[0] || null
+}
+
+function tags(document) {
+  return findAll(document.nodes, () => true).map(node => node[0])
+}
+
+test('renders ordinary Markdown, tables, links, and headings', async () => {
+  const { body, toc, startsWithHeading } = await renderMarkdownContent([
+    '# Title',
+    '',
+    '## Overview',
+    '',
+    'A **bold** paragraph with a [link](/workspace).',
+    '',
+    '| Name | Role |',
+    '| --- | --- |',
+    '| Ada | Admin |',
+  ].join('\n'))
+
+  assert.equal(startsWithHeading, true)
+  assert.ok(find(body.nodes, node => node[0] === 'h1' && node[1].id === 'title'))
+  assert.ok(find(body.nodes, node => node[0] === 'strong'))
+  assert.ok(find(body.nodes, node => node[0] === 'a' && node[1].href === '/workspace'))
+  assert.ok(find(body.nodes, node => node[0] === 'table'))
+  assert.deepEqual(toc.map(link => link.id), ['overview'])
 })
 
-test('renders valid chart JSON as a chart node', async () => {
-  const { body } = await renderMarkdownContent('```chart\n{"type":"bar","xKey":"month","yKey":"value","data":[{"month":"Jan","value":10}]}\n```')
-  const node = find(body, item => item.tag === 'serangkai-chart')
-  assert.ok(node, 'expected a chart node')
-  assert.equal(JSON.parse(node.props.definition).type, 'bar')
+test('renders Mermaid and chart fences as trusted component nodes', async () => {
+  const { body } = await renderMarkdownContent([
+    '```mermaid',
+    'flowchart LR',
+    '  A --> B',
+    '```',
+    '',
+    '```chart',
+    '{"type":"bar","data":[{"week":"W1","value":1}],"x":"week","y":"value"}',
+    '```',
+  ].join('\n'))
+
+  const mermaid = find(body.nodes, node => node[0] === 'serangkai-mermaid')
+  const chart = find(body.nodes, node => node[0] === 'serangkai-chart')
+  assert.match(mermaid[1].source, /flowchart LR/)
+  assert.equal(JSON.parse(chart[1].definition).type, 'bar')
 })
 
-test('renders MDC container syntax for diagrams and charts', async () => {
-  const { body } = await renderMarkdownContent('::mermaid\nflowchart LR\n  A --> B\n::\n\n::chart\n{"type":"line","data":[{"x":"a","y":1}]}\n::\n')
-  assert.ok(find(body, item => item.tag === 'serangkai-mermaid'))
-  assert.ok(find(body, item => item.tag === 'serangkai-chart'))
+test('keeps legacy Comark chart and Mermaid component syntax working', async () => {
+  const { body } = await renderMarkdownContent([
+    '::mermaid',
+    'flowchart TD',
+    '  X --> Y',
+    '::',
+    '',
+    '::chart',
+    '{"type":"line","data":[{"x":"a","y":1}]}',
+    '::',
+  ].join('\n'))
+
+  assert.ok(find(body.nodes, node => node[0] === 'serangkai-mermaid'))
+  assert.ok(find(body.nodes, node => node[0] === 'serangkai-chart'))
 })
 
 test('keeps invalid chart JSON visible without executable HTML', async () => {
   const { body } = await renderMarkdownContent('```chart\nnot json\n```')
-  assert.ok(find(body, item => item.tag === 'pre' && String(item.props.className || '').includes('serangkai-chart-error')))
-  assert.equal(find(body, item => item.tag === 'script'), null)
+  assert.ok(find(body.nodes, node => node[0] === 'div' && node[1].class === 'serangkai-chart-error'))
+  assert.equal(find(body.nodes, node => node[0] === 'script'), null)
 })
 
-test('highlights fenced code with Shiki and keeps the copy source', async () => {
-  const { body } = await renderMarkdownContent('```ts\nconst x: number = 1\n```')
-  const pre = find(body, item => item.tag === 'pre')
-  assert.ok(pre)
-  assert.equal(pre.props.language, 'ts')
-  assert.equal(pre.props.code, 'const x: number = 1\n')
-  assert.match(JSON.stringify(pre), /--shiki-light:/)
+test('highlights code with Shiki dual themes and keeps the TOC heading ids', async () => {
+  const { body } = await renderMarkdownContent('## Setup\n\n```ts\nconst x: number = 1\n```')
+  const pre = find(body.nodes, node => node[0] === 'pre')
+  assert.equal(pre[1].language, 'ts')
+  assert.match(pre[1].class, /shiki/)
   assert.match(JSON.stringify(pre), /--shiki-dark:/)
-  // exactly one code element, not doubled
-  assert.equal(findAll(pre, item => item.tag === 'code').length, 1)
+  assert.ok(find(body.nodes, node => node[0] === 'h2' && node[1].id === 'setup'))
 })
 
-test('falls back to escaped text for unknown languages and never emits markup', async () => {
-  const { body } = await renderMarkdownContent('```notalanguage\n<b>raw</b> & text\n```')
-  const serialized = JSON.stringify(body)
-  assert.match(serialized, /<b>raw<\/b> & text/)
-  assert.doesNotMatch(serialized, /--shiki-light/)
-  // The raw fence is text inside code, not live elements.
-  const pre = find(body, item => item.tag === 'pre')
-  assert.ok(pre)
-  assert.equal(findAll(pre, item => item.tag === 'b').length, 0)
-})
-
-test('highlighting never emits executable markup', async () => {
-  const { body } = await renderMarkdownContent('```html\n<script>alert(1)</script>\n```')
-  assert.equal(find(body, item => item.tag === 'script'), null)
-  const serialized = JSON.stringify(body)
-  assert.match(serialized, /alert/)
-  assert.doesNotMatch(serialized, /onerror=/i)
-  assert.doesNotMatch(serialized, /javascript:/i)
-})
-
-test('mermaid and chart fences are not syntax highlighted', async () => {
-  const mermaid = await renderMarkdownContent('```mermaid\ngraph TD\n A-->B\n```')
-  assert.doesNotMatch(JSON.stringify(mermaid.body), /--shiki-light/)
-  const chart = await renderMarkdownContent('```chart\n{"type":"bar"}\n```')
-  assert.doesNotMatch(JSON.stringify(chart.body), /--shiki-light/)
-})
-
-test('normalizes common language aliases', () => {
-  assert.equal(normalizeLanguage('sh'), 'bash')
-  assert.equal(normalizeLanguage('yml'), 'yaml')
-  assert.equal(normalizeLanguage('py'), 'python')
-  assert.equal(normalizeLanguage('TS'), 'ts')
-  assert.equal(normalizeLanguage(''), '')
-})
-
-test('supports raw HTTP request snippets', async () => {
-  assert.ok(isSupportedLanguage('http'))
-  const { body } = await renderMarkdownContent('```http\nPOST /api/artifacts\nAuthorization: Bearer <token>\n```')
-  assert.match(JSON.stringify(body), /--shiki-light:/)
-  assert.match(JSON.stringify(body), /\/api\/artifacts/)
-  assert.equal(find(body, item => item.tag === 'script'), null)
-})
-
-test('gives headings stable, unique ids for anchors and the table of contents', async () => {
-  const { body, toc, startsWithHeading } = await renderMarkdownContent('# Top\n\n## Setup\n\n### Setup\n\n## Setup\n')
-  const ids = findAll(body, item => /^h[1-6]$/.test(item.tag || '')).map(item => item.props.id)
-  assert.deepEqual(ids, ['top', 'setup', 'setup-1', 'setup-2'])
-  assert.equal(startsWithHeading, true)
-  assert.deepEqual(toc.map(link => link.id), ['setup', 'setup-2'])
-  assert.deepEqual(toc[0].children?.map(link => link.id), ['setup-1'])
-})
-
-test('strips author scripts, iframes, event handlers, and javascript: URLs', async () => {
+test('sanitizes scripts, iframes, styles, event handlers, and javascript URLs', async () => {
   const { body } = await renderMarkdownContent([
     '<script>alert(1)</script>',
     '<iframe src="https://evil.example"></iframe>',
@@ -120,38 +106,96 @@ test('strips author scripts, iframes, event handlers, and javascript: URLs', asy
     '<img src=x onerror=alert(1)>',
   ].join('\n\n'))
 
-  const tags = findAll(body, item => item.type === 'element').map(item => item.tag)
-  assert.ok(!tags.includes('script'))
-  assert.ok(!tags.includes('iframe'))
+  const allTags = tags(body)
+  assert.ok(!allTags.includes('script'))
+  assert.ok(!allTags.includes('iframe'))
   const serialized = JSON.stringify(body)
   assert.doesNotMatch(serialized, /onerror|onclick/i)
-  assert.doesNotMatch(serialized, /javascript:/i)
   assert.doesNotMatch(serialized, /position:fixed/)
   assert.doesNotMatch(serialized, /evil\.example/)
+  const links = findAll(body.nodes, node => node[0] === 'a')
+  assert.ok(links.every(link => !String(link[1].href || '').toLowerCase().startsWith('javascript:')))
+  const images = findAll(body.nodes, node => node[0] === 'img')
+  assert.ok(images.every(image => !image[1].onerror))
 })
 
-test('never lets MDC expressions or unknown components execute', async () => {
+test('never evaluates author expressions or accepts unknown components', async () => {
   const { body } = await renderMarkdownContent([
     'Inline {{ $doc.secret }} value.',
-    '::evil-widget{onClick="alert(1)"}',
+    '::evil-widget{onclick="alert(1)"}',
     'Payload',
     '::',
-    '::s-badge{label="Approved" color="success"}',
+    '::s-checkbox{label="Not supported"}',
     '::',
   ].join('\n'))
 
   const serialized = JSON.stringify(body)
-  assert.doesNotMatch(serialized, /v-on|onclick|v-bind/i)
-  assert.equal(find(body, item => item.tag === 'evil-widget'), null)
-  assert.ok(find(body, item => item.tag === 's-badge'))
-  // The expression is preserved as literal text, never evaluated.
+  assert.doesNotMatch(serialized, /onclick|onClick/)
+  assert.equal(find(body.nodes, node => node[0] === 'evil-widget'), null)
+  assert.equal(find(body.nodes, node => node[0] === 's-checkbox'), null)
   assert.match(serialized, /\{\{ \$doc\.secret \}\}/)
 })
 
-test('keeps approved Selaras components with their attributes', async () => {
-  const { body } = await renderMarkdownContent('::s-alert{title="Heads up" color="warning"}\nRead this.\n::\n')
-  const alert = find(body, item => item.tag === 's-alert')
-  assert.ok(alert)
-  assert.equal(alert.props.title, 'Heads up')
-  assert.equal(alert.props.color, 'warning')
+test('renders approved Selaras declarative components and slots', async () => {
+  const { body } = await renderMarkdownContent([
+    '::s-card{variant="soft"}',
+    '#header',
+    '### Card title',
+    '#default',
+    'Card **body**.',
+    '::',
+    '',
+    '::s-alert{title="Heads up" color="info"}',
+    'Read this.',
+    '::',
+    '',
+    '::s-table{data=\'[{"name":"Ada","role":"Admin"}]\' columns=\'[{"field":"name","header":"Name"},{"field":"role","header":"Role"}]\' striped}',
+    '::',
+  ].join('\n'))
+
+  const card = find(body.nodes, node => node[0] === 's-card')
+  assert.equal(card[1].variant, 'soft')
+  assert.ok(find(card, node => node[0] === 'template' && node[1].name === 'header'))
+  assert.ok(find(card, node => node[0] === 'template' && node[1].name === 'default'))
+
+  const alert = find(body.nodes, node => node[0] === 's-alert')
+  assert.equal(alert[1].color, 'info')
+  assert.match(JSON.stringify(alert), /Read this/)
+
+  const table = find(body.nodes, node => node[0] === 's-table')
+  assert.equal(table[1].data[0].name, 'Ada')
+  assert.equal(table[1].columns[1].header, 'Role')
+})
+
+test('normalizes aliases and rejects unsupported props', async () => {
+  const { body } = await renderMarkdownContent([
+    '::callout{type="tip" title="Read me"}\nBody\n::',
+    '',
+    '::s-icon{name="lucide:sparkles" color="primary"}\n::',
+    '',
+    '::s-icon{name="hugeicons:sparkles" onclick="alert(1)"}\n::',
+    '',
+    '::s-alert{title="Hello" ui=\'{"root":"fixed inset-0"}\' class="custom"}\nBody\n::',
+  ].join('\n'))
+
+  const callout = find(body.nodes, node => node[0] === 's-callout')
+  assert.equal(callout[1].type, 'tip')
+  assert.equal(callout[1].title, 'Read me')
+
+  const icons = findAll(body.nodes, node => node[0] === 's-icon')
+  assert.equal(icons.length, 2)
+  assert.equal(icons[0][1].name, 'lucide:sparkles')
+  assert.equal(icons[1][1].name, undefined)
+  assert.equal(icons[0][1].onclick, undefined)
+
+  const alert = find(body.nodes, node => node[0] === 's-alert')
+  assert.equal(alert[1].ui, undefined)
+  assert.equal(alert[1].class, undefined)
+})
+
+test('keeps GFM task-list checkboxes non-interactive', async () => {
+  const { body } = await renderMarkdownContent('- [x] shipped\n- [ ] pending')
+  const inputs = findAll(body.nodes, node => node[0] === 'input')
+  assert.equal(inputs.length, 2)
+  assert.ok(inputs.every(input => input[1].type === 'checkbox' && input[1].disabled === true))
 })

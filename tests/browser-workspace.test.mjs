@@ -176,6 +176,66 @@ test('Markdown renders Mermaid diagrams and JSON charts', async () => {
   await assert.rejects(() => page.locator('section[aria-label="Contents"]').waitFor({ timeout: 500 }))
 })
 
+test('Markdown renders Selaras document components', async () => {
+  await page.goto(`${base}/workspace`)
+  const artifactId = await page.evaluate(async () => {
+    const content = [
+      '# Component check',
+      '',
+      '## Overview',
+      '',
+      '| Name | Role |',
+      '| --- | --- |',
+      '| Ada | Admin |',
+      '',
+      '::s-alert{title="Heads up" description="A Selaras alert." color="info"}',
+      '::',
+      '',
+      '::s-card{variant="soft"}',
+      '#header',
+      '### Release notes',
+      '#default',
+      'Card body.',
+      '::',
+      '',
+      '::s-tabs{items=\'[{"label":"Overview","value":"overview"},{"label":"Details","value":"details"}]\' default-value="overview"}',
+      '#overview',
+      'Overview content.',
+      '#details',
+      'Details content.',
+      '::',
+      '',
+      '::s-accordion{items=\'[{"value":"one","label":"First section"},{"value":"two","label":"Second section"}]\' default-value="one"}',
+      '#one',
+      'First body.',
+      '#two',
+      'Second body.',
+      '::',
+      '',
+      '::s-table{data=\'[{"name":"Ada","role":"Admin"},{"name":"Lin","role":"Member"}]\' columns=\'[{"field":"name","header":"Name"},{"field":"role","header":"Role"}]\' striped}',
+      '::',
+    ].join('\n')
+    const res = await fetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Component check', type: 'markdown', content }),
+    })
+    return (await res.json()).artifact.id
+  })
+
+  await page.goto(`${base}/artifacts/${artifactId}`)
+  await page.locator('.selaras-prose [data-selaras-color]').first().waitFor({ timeout: 15000 })
+  await page.getByRole('tab', { name: 'Overview' }).first().waitFor({ timeout: 15000 })
+  await page.getByRole('button', { name: 'First section' }).first().waitFor({ timeout: 15000 })
+  assert.ok(await page.locator('.selaras-prose [data-selaras-color]').count() >= 1)
+  assert.ok(await page.getByRole('tab', { name: 'Overview' }).count() >= 1)
+  assert.ok(await page.getByRole('button', { name: 'First section' }).count() >= 1)
+  const tableHeaders = await page.locator('th').allInnerTexts()
+  assert.ok(tableHeaders.includes('Name'))
+  assert.ok(tableHeaders.includes('Role'))
+  assert.ok(await page.locator('tbody tr').count() >= 2)
+})
+
 test('the share reader shows a table of contents', async () => {
   const shareUrl = await page.evaluate(async () => {
     const content = [

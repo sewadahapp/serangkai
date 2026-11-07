@@ -87,6 +87,17 @@ production data still requires an external database plus `STORAGE_DRIVER=s3`.
 See [`docs/deployment/README.md`](docs/deployment/README.md) for the complete
 provider verification matrix and explicit unverified boundaries.
 
+## Authoring
+
+Markdown is rendered with Comark and styled by Selaras. Agents can create
+tables, task lists, callouts, cards, tabs, timelines, Mermaid diagrams, and
+declarative TanStack charts without writing CSS or JavaScript. HTML artifacts are
+self-styled by default and can opt into the Selaras document theme.
+
+MCP clients can discover everything through `get_artifact_capabilities` and the
+`serangkai://guides/*` resources. See
+[`docs/authoring/README.md`](docs/authoring/README.md).
+
 ## Connect an AI agent
 
 Create a scoped token from the workspace API, then configure an MCP client with the
@@ -106,7 +117,7 @@ creating and updating artifacts. Tokens are hashed at rest and can be revoked.
 - [TypeScript](https://www.typescriptlang.org/)
 - [Bun](https://bun.sh/) - Package manager, scripts, tests, build, and container runtime
 - [@sewadah/selaras](https://selarasui.my.id/) - UI components and styling
-- [@nuxtjs/mdc](https://github.com/nuxt-modules/mdc) - Markdown/MDC rendering
+- [Comark](https://comark.dev/) - Markdown parsing and component rendering
 - [SQLite](https://www.sqlite.org/) + [Drizzle ORM](https://orm.drizzle.team/)
 - [Nitro](https://nitro.build/) - Server engine and storage abstraction
 

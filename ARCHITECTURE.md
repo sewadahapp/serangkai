@@ -27,7 +27,7 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
   `#EA580C` accent, Plus Jakarta Sans, light mode by default with a dark mode toggle.
   Generated with the `ui-ux-pro-max` skill (variance 3 / motion 3 / density 5) and
   wired through `selaras.theme.colors` in `nuxt.config.ts`.
-- **Content**: `@nuxtjs/mdc` for Markdown parsing and component-driven rendering
+- **Content**: Comark (`comark` + `@comark/vue`) for Markdown parsing and component-driven rendering
 - **Charts/Diagrams**: Mermaid, rendered theme-aware, and TanStack Charts through
   a JSON bar/line/area schema in Markdown and sandboxed HTML artifacts.
   Author-supplied JavaScript is never evaluated.
@@ -199,13 +199,13 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   link, and a global `prefers-reduced-motion` override.
 - All form controls live inside `SFormField` so labels, hints, and errors are
   programmatically associated. `SLabel` does not exist in Selaras.
-- Markdown is parsed with `@nuxtjs/mdc` into an MDC (hast) tree on the server.
-  A custom post-pass sanitizes the tree, strips author expressions and directive
-  props, and turns `mermaid`/`chart` fences into trusted component nodes. The
-  reader renders that tree with `MDCRenderer`, so Mermaid, charts, and approved
-  Selaras components are real Vue components — no `v-html` and no manual
-  `createApp().mount()` DOM pass.
-- Markdown code fences are highlighted server-side with Shiki using
+- Markdown is parsed with Comark into a serializable document on the server.
+  A custom post-pass restricts it to a trusted vocabulary, strips author
+  expressions/bindings/styles, and turns `mermaid`/`chart` fences into trusted
+  component nodes. The reader renders that document with `MarkdownDocument`, so
+  Mermaid, charts, and approved Selaras components are real Vue components — no
+  `v-html` and no manual `createApp().mount()` DOM pass.
+- Markdown code fences are highlighted with Comark's Shiki plugin using
   `github-light` / `github-dark` dual themes emitted as `--shiki-light` /
   `--shiki-dark` custom properties. `MarkdownPre` wraps the highlighted tree in
   Selaras `SProsePre`, which provides the language header and copy button.
@@ -227,9 +227,16 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   `class` attribute on `<html>`. Mermaid and chart components are wrapped in
   `ClientOnly`, so SSR sends readable fallback text and the browser hydrates the
   interactive diagram.
-- Approved MDC components are limited to `s-alert`, `s-badge`, `s-callout`,
-  `s-card`, `s-card-group`, and `s-icon`. Unknown component tags are neutralized
-  to plain blocks, and MDC binding nodes are preserved as literal text.
+- Approved declarative and restricted-local-state Selaras components are
+  defined in `shared/artifact-components.ts`, which is the single source of
+  truth for renderer mappings, prop validation, MCP discovery, and authoring
+  documentation. Forms, overlays, dashboard shells, and other application-state
+  components are explicitly application-only. `get_artifact_capabilities`,
+  resources, and prompts derive from this registry.
+- HTML artifacts remain self-styled by default. `<meta name="serangkai-theme"
+  content="selaras-document">` opts into a locally served stylesheet generated
+  from Selaras prose CSS; the link is injected only when that meta tag is
+  present. The theme provides typography and colors, not Vue components.
 - App-owned snippets (MCP config, curl examples, shell workflows) use
   `SerangkaiCode`, which wraps the real `SProsePre` so the header and copy
   button are the component's, and fetches only the highlighted body from

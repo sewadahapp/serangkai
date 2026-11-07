@@ -1,295 +1,302 @@
-import { parseMarkdown, nodeTextContent } from '@nuxtjs/mdc/runtime'
-import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
-import { unified } from 'unified'
-import { highlightToHast } from './highlight'
-import { normalizeLanguage } from './markdown-language'
-import { buildTocTree, type TocLink } from '../../app/utils/markdown-toc'
+import { createMarkdownParser, defineComarkPlugin } from 'comark'
+import { textContent } from 'comark/utils'
+import security from 'comark/plugins/security'
+import shiki from 'comark/plugins/shiki'
+import toc from 'comark/plugins/toc'
+import githubLight from '@shikijs/themes/github-light'
+import githubDark from '@shikijs/themes/github-dark'
+import bash from '@shikijs/langs/bash'
+import css from '@shikijs/langs/css'
+import dockerfile from '@shikijs/langs/dockerfile'
+import go from '@shikijs/langs/go'
+import html from '@shikijs/langs/html'
+import http from '@shikijs/langs/http'
+import javascript from '@shikijs/langs/javascript'
+import json from '@shikijs/langs/json'
+import jsonc from '@shikijs/langs/jsonc'
+import markdown from '@shikijs/langs/markdown'
+import python from '@shikijs/langs/python'
+import rust from '@shikijs/langs/rust'
+import sql from '@shikijs/langs/sql'
+import typescript from '@shikijs/langs/typescript'
+import vue from '@shikijs/langs/vue'
+import yaml from '@shikijs/langs/yaml'
+import {
+  artifactComponents,
+  findComponent,
+  normalizeComponentTag,
+  type ComponentProp,
+} from '../../shared/artifact-components'
 
 /**
- * MDC-based Markdown rendering.
+ * Comark-based Markdown rendering.
  *
- * The document is parsed into an MDC (hast) tree, transformed into a small,
- * fixed set of nodes, and sanitized before it ever reaches Vue. The reader
- * renders that tree with `MDCRenderer`, so Mermaid and TanStack Charts are real
- * Vue components instead of placeholder divs mounted by hand.
+ * Parsing happens once on the server. The resulting serializable document is
+ * sanitized, transformed into a small trusted vocabulary, and rendered by
+ * `MarkdownDocument` on the client/SSR without shipping the parser.
  *
- * Two rules keep this safe:
- *  - author template expressions and directive props are removed, so
- *    `MDCRenderer` never evaluates author-supplied code on the server;
- *  - only explicitly approved custom components survive sanitization.
+ * Security boundary:
+ *  - author expressions, binding props, event handlers, styles, unknown
+ *    components, scripts, iframes, and unsafe protocols are removed before the
+ *    renderer sees the document;
+ *  - only the declarative component registry is exposed;
+ *  - Shiki styles are added after author styles are stripped.
  */
 
-const MERMAID_TAG = 'serangkai-mermaid'
-const CHART_TAG = 'serangkai-chart'
+const htmlTags = [
+  'a', 'p', 'br', 'hr', 'strong', 'em', 'b', 'i', 'u', 's', 'del', 'ins', 'mark', 'small', 'sub', 'sup',
+  'kbd', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
+  'img', 'figure', 'figcaption', 'div', 'span', 'details', 'summary', 'template', 'input',
+]
 
-/** Selaras components authors may use in Markdown. */
-export const approvedMarkdownComponents = new Set([
-  's-alert',
-  's-badge',
-  's-callout',
-  's-card',
-  's-card-group',
-  's-icon',
-])
+const supportedTags = artifactComponents.map(component => component.tag)
 
-const schema = {
-  ...defaultSchema,
-  // Headings get ids from the MDC parser; keep them unprefixed so TOC links
-  // resolve, but allow ids only where they are useful.
-  clobberPrefix: '',
-  tagNames: [
-    ...(defaultSchema.tagNames || []),
-    'details',
-    'summary',
-    'kbd',
-    'del',
-    'ins',
-    'div',
-    'span',
-    'button',
-    MERMAID_TAG,
-    CHART_TAG,
-    ...approvedMarkdownComponents,
-  ],
-  attributes: {
-    ...defaultSchema.attributes,
-    '*': [...(defaultSchema.attributes?.['*'] || []), 'className'],
-    h1: [...(defaultSchema.attributes?.h1 || []), 'id'],
-    h2: [...(defaultSchema.attributes?.h2 || []), 'id'],
-    h3: [...(defaultSchema.attributes?.h3 || []), 'id'],
-    h4: [...(defaultSchema.attributes?.h4 || []), 'id'],
-    h5: [...(defaultSchema.attributes?.h5 || []), 'id'],
-    h6: [...(defaultSchema.attributes?.h6 || []), 'id'],
-    a: [...(defaultSchema.attributes?.a || []), 'href', 'target', 'rel'],
-    code: [...(defaultSchema.attributes?.code || []), 'className'],
-    pre: [
-      ...(defaultSchema.attributes?.pre || []),
-      'className',
-      'style',
-      'language',
-      'code',
-      'meta',
-      'filename',
-      'highlights',
-    ],
-    span: [...(defaultSchema.attributes?.span || []), 'className', 'style'],
-    button: ['type', 'className', 'aria-label'],
-    [MERMAID_TAG]: ['source'],
-    [CHART_TAG]: ['definition'],
-    's-alert': ['title', 'description', 'color', 'variant', 'icon'],
-    's-badge': ['label', 'color', 'variant', 'size', 'icon'],
-    's-callout': ['title', 'description', 'color', 'variant', 'icon'],
-    's-card': ['title', 'description', 'color', 'variant', 'icon'],
-    's-card-group': ['columns'],
-    's-icon': ['name', 'className'],
-  },
-  protocols: {
-    ...defaultSchema.protocols,
-    href: ['http', 'https', 'mailto'],
-  },
+const blockedTags = [
+  'script', 'iframe', 'frame', 'frameset', 'object', 'embed', 'link', 'meta', 'base',
+  'style', 'form', 'button', 'textarea', 'select', 'option', 'video', 'audio', 'source',
+  'track', 'canvas', 'svg', 'math',
+]
+
+const shikiLanguages = [
+  bash, css, dockerfile, go, html, http, javascript, json, jsonc, markdown,
+  python, rust, sql, typescript, vue, yaml,
+]
+
+const securityPlugin = security({
+  allowedTags: [...htmlTags, ...supportedTags],
+  blockedTags,
+  allowedProtocols: ['http', 'https', 'mailto'],
+  allowDataImages: false,
+  tagFallback: element => textContent(element),
+})
+
+const shikiPlugin = shiki({
+  themes: { light: githubLight, dark: githubDark },
+  languages: shikiLanguages,
+  registerDefaultThemes: false,
+})
+
+const tocPlugin = toc({ depth: 3, searchDepth: 3 })
+
+type ComarkNode = string | [string, Record<string, any>, ...any[]]
+
+function isElement(node: ComarkNode): node is [string, Record<string, any>, ...any[]] {
+  return Array.isArray(node)
 }
 
-const sanitizer = unified().use(rehypeSanitize, schema)
-
-type HastNode = {
-  type: string
-  tag?: string
-  value?: string
-  props?: Record<string, unknown>
-  children?: HastNode[]
+function normalizeValue(prop: ComponentProp, value: unknown) {
+  switch (prop.type) {
+    case 'string':
+      return typeof value === 'string' ? value : undefined
+    case 'url':
+      return typeof value === 'string' ? value : undefined
+    case 'number': {
+      const number = typeof value === 'number' ? value : Number(value)
+      return Number.isFinite(number) ? number : undefined
+    }
+    case 'boolean':
+      if (typeof value === 'boolean') return value
+      if (value === 'true') return true
+      if (value === 'false') return false
+      return undefined
+    case 'color':
+      return typeof value === 'string' ? value : undefined
+    case 'icon':
+      return typeof value === 'string' && value.startsWith('lucide:') ? value : undefined
+    case 'enum':
+      return typeof value === 'string' && prop.values.includes(value) ? value : undefined
+    case 'stringOrArray':
+      if (typeof value === 'string') return value
+      if (Array.isArray(value) && value.every(item => typeof item === 'string')) return value
+      return undefined
+    case 'stringOrFalse':
+      if (value === false || typeof value === 'string') return value
+      return undefined
+    case 'array':
+      return Array.isArray(value) && JSON.stringify(value).length <= 100_000 ? value : undefined
+    case 'object':
+      return value && typeof value === 'object' && !Array.isArray(value) && JSON.stringify(value).length <= 100_000
+        ? value
+        : undefined
+    default:
+      return undefined
+  }
 }
 
-interface MarkdownResult {
-  body: { type: 'root'; children: HastNode[] }
-  toc: TocLink[]
+function sanitizeComponentProps(tag: string, props: Record<string, any>) {
+  const component = findComponent(tag)
+  if (!component) return null
+  const clean: Record<string, any> = {}
+  for (const [name, value] of Object.entries(props)) {
+    if (name === '$' || name === 'class' || name === 'style' || name === 'ui' || name === 'as' || name === 'is') continue
+    if (name.startsWith(':') || name.startsWith('@') || name.startsWith('v-') || name.startsWith('on')) continue
+    const spec = component.props[name]
+    if (!spec) continue
+    const normalized = normalizeValue(spec, value)
+    if (normalized !== undefined) clean[name] = normalized
+  }
+  return clean
+}
+
+function slotName(props: Record<string, any>) {
+  return typeof props.name === 'string'
+    ? props.name
+    : typeof props['v-slot'] === 'string'
+      ? props['v-slot']
+      : ''
+}
+
+function normalizeLegacyChartBlocks(source: string) {
+  const lines = source.replace(/\r\n/g, '\n').split('\n')
+  const output: string[] = []
+  let inFence = false
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index] || ''
+    if (line.trimStart().startsWith('```')) inFence = !inFence
+    if (inFence || line.trim() !== '::chart') {
+      output.push(line)
+      continue
+    }
+
+    const body: string[] = []
+    let cursor = index + 1
+    while (cursor < lines.length && (lines[cursor] || '').trim() !== '::') {
+      body.push(lines[cursor] || '')
+      cursor++
+    }
+    if (cursor >= lines.length) {
+      output.push(line)
+      continue
+    }
+
+    const trimmed = body.join('\n').trim()
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      output.push('```chart', trimmed, '```')
+      index = cursor
+    } else {
+      output.push(line)
+    }
+  }
+
+  return output.join('\n')
+}
+
+function chartNode(source: string): ComarkNode {
+  try {
+    const parsed = JSON.parse(source)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object')
+    return ['serangkai-chart', { definition: JSON.stringify(parsed) }]
+  } catch {
+    return ['div', { class: 'serangkai-chart-error' }, 'This chart is not valid JSON.', ['pre', {}, source]]
+  }
+}
+
+function mermaidNode(source: string): ComarkNode {
+  return ['serangkai-mermaid', { source }]
+}
+
+function alertNode(node: [string, Record<string, any>, ...any[]]): ComarkNode {
+  const [, props, ...children] = node
+  const type = props.type
+  const color = ({ note: 'info', tip: 'success', warning: 'warning', danger: 'danger' } as Record<string, string>)[type] || 'info'
+  const { type: _type, ...rest } = props
+  return [normalizeComponentTag('alert'), { ...rest, color }, ...children]
+}
+
+function transformNode(node: ComarkNode): ComarkNode | null {
+  if (!isElement(node)) return node
+  let [tag, props, ...children] = node
+  props = { ...props }
+  delete props.$
+
+  // GitHub alert blockquotes become Selaras alerts.
+  if (tag === 'alert') return alertNode(node)
+
+  // Declarative chart/diagram components.
+  if (tag === 'mermaid') return mermaidNode(textContent(node))
+  if (tag === 'chart') return chartNode(textContent(node))
+
+  if (tag === 'pre') {
+    const language = String(props.language || '').toLowerCase()
+    const source = textContent(node)
+    if (language === 'mermaid') return mermaidNode(source)
+    if (language === 'chart' || language === 'chartjson') return chartNode(source)
+  }
+
+  // Raw input is only allowed for GFM task-list checkboxes.
+  if (tag === 'input') {
+    if (props.type !== 'checkbox') return null
+    return ['input', { type: 'checkbox', checked: props.checked === true || props.checked === 'true', disabled: true }]
+  }
+
+  if (tag === 'template') {
+    const name = slotName(props)
+    return name ? ['template', { name }, ...children.map(transformNode).filter(Boolean) as any[]] : null
+  }
+
+  const canonical = normalizeComponentTag(tag)
+  const component = findComponent(canonical)
+  if (component) {
+    const clean = sanitizeComponentProps(canonical, props)
+    const normalizedChildren = children
+      .map(child => transformNode(child as ComarkNode))
+      .filter(Boolean) as any[]
+    return [canonical, clean || {}, ...normalizedChildren]
+  }
+
+  // Author styles and classes would leak into the app shell. Shiki adds its
+  // own styles later, after this pass.
+  delete props.style
+  delete props.class
+  delete props.className
+  if (tag !== 'h1' && tag !== 'h2' && tag !== 'h3' && tag !== 'h4' && tag !== 'h5' && tag !== 'h6') delete props.id
+  for (const key of Object.keys(props)) {
+    if (key.startsWith(':') || key.startsWith('@') || key.startsWith('v-') || key.startsWith('on')) delete props[key]
+  }
+
+  const normalizedChildren = children
+    .map(child => transformNode(child as ComarkNode))
+    .filter(Boolean) as any[]
+  return [tag, props, ...normalizedChildren]
+}
+
+const artifactPlugin = defineComarkPlugin({
+  name: 'serangkai-artifact',
+  post({ tree }) {
+    tree.nodes = tree.nodes
+      .map(node => transformNode(node as ComarkNode))
+      .filter(Boolean) as any[]
+  },
+})
+
+let parserPromise: Promise<(source: string) => Promise<any>> | undefined
+
+function getParser() {
+  parserPromise ||= createMarkdownParser({
+    plugins: [artifactPlugin, securityPlugin, shikiPlugin, tocPlugin],
+    autoClose: false,
+    headingIds: 'flat',
+  })
+  return parserPromise
+}
+
+export interface RenderedMarkdown {
+  body: Record<string, any>
+  toc: any[]
   startsWithHeading: boolean
 }
 
-function classNameOf(node: HastNode) {
-  const value = node.props?.className
-  if (Array.isArray(value)) return value.join(' ')
-  return typeof value === 'string' ? value : ''
-}
-
-function languageOf(node: HastNode) {
-  const declared = node.props?.language
-  if (typeof declared === 'string' && declared) return normalizeLanguage(declared)
-  const match = /language-([\w-]+)/.exec(classNameOf(node))
-  return normalizeLanguage(match?.[1] || '')
-}
-
-function textOf(node: HastNode): string {
-  return nodeTextContent(node as any).trim()
-}
-
-/** MDC uses `tag`/`props`; rehype-sanitize expects `tagName`/`properties`. */
-function toHast(node: HastNode): any {
-  if (node.type === 'text') return { type: 'text', value: node.value || '' }
-  if (node.type === 'element') {
-    return {
-      type: 'element',
-      tagName: node.tag,
-      properties: node.props || {},
-      children: (node.children || []).map(toHast),
-    }
-  }
-  return { type: node.type, children: (node.children || []).map(toHast) }
-}
-
-function fromHast(node: any): HastNode {
-  if (node.type === 'text') return { type: 'text', value: node.value || '' }
-  if (node.type === 'element') {
-    return {
-      type: 'element',
-      tag: node.tagName,
-      props: node.properties || {},
-      children: (node.children || []).map(fromHast),
-    }
-  }
-  return { type: node.type, children: (node.children || []).map(fromHast) }
-}
-
-function replaceNode(parent: HastNode, index: number, replacement: HastNode | HastNode[]) {
-  const items = Array.isArray(replacement) ? replacement : [replacement]
-  parent.children?.splice(index, 1, ...items)
-}
-
-function errorPre(message: string, source: string): HastNode {
-  return {
-    type: 'element',
-    tag: 'pre',
-    props: { className: ['serangkai-chart-error'] },
-    children: [{ type: 'element', tag: 'code', props: {}, children: [{ type: 'text', value: `${message}\n\n${source}` }] }],
-  }
-}
-
-function chartNode(source: string): HastNode | null {
-  try {
-    const parsed = JSON.parse(source)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
-    return {
-      type: 'element',
-      tag: CHART_TAG,
-      props: { definition: JSON.stringify(parsed) },
-      children: [],
-    }
-  } catch {
-    return null
-  }
-}
-
-function mermaidNode(source: string): HastNode {
-  return { type: 'element', tag: MERMAID_TAG, props: { source }, children: [] }
-}
-
-/**
- * Turns fences and MDC components into the two interactive nodes and
- * highlights ordinary code fences. Runs before sanitization so the resulting
- * nodes can be validated like any other element.
- */
-async function transform(root: HastNode) {
-  const visit = async (node: HastNode) => {
-    if (!node.children?.length) return
-    for (let index = node.children.length - 1; index >= 0; index--) {
-      const child = node.children[index]
-      if (!child) continue
-
-      // Remove author-supplied expressions instead of letting MDCRenderer
-      // evaluate them. The literal text is preserved so content is not lost.
-      if (child.type === 'element' && child.tag === 'binding') {
-        const value = typeof child.props?.value === 'string' ? child.props.value : ''
-        replaceNode(node, index, { type: 'text', value: `{{ ${value} }}` })
-        continue
-      }
-
-      if (child.type === 'element' && child.tag === 'pre') {
-        const language = languageOf(child)
-        const source = textOf(child)
-
-        if (language === 'mermaid') {
-          replaceNode(node, index, mermaidNode(source))
-          continue
-        }
-        if (language === 'chart' || language === 'chartjson') {
-          replaceNode(node, index, chartNode(source) || errorPre('This chart is not valid JSON.', source))
-          continue
-        }
-
-        const highlighted = source
-          ? await highlightToHast(source, language)
-          : null
-        if (highlighted) {
-          child.props = { ...child.props, ...highlighted.props }
-          child.children = highlighted.children
-        }
-      }
-
-      // MDC container syntax: ::mermaid / ::chart
-      if (child.type === 'element' && (child.tag === 'mermaid' || child.tag === 'chart')) {
-        const source = textOf(child)
-        if (child.tag === 'mermaid') {
-          replaceNode(node, index, mermaidNode(source))
-        } else {
-          replaceNode(node, index, chartNode(source) || errorPre('This chart is not valid JSON.', source))
-        }
-        continue
-      }
-
-      await visit(child)
-    }
-  }
-  await visit(root)
-}
-
-/** Drops directive/expression props, author styles, and unknown components. */
-function neutralize(root: HastNode) {
-  const visit = (node: HastNode) => {
-    if (node.type === 'element') {
-      const props = node.props || {}
-      for (const key of Object.keys(props)) {
-        if (key.startsWith('v-') || key.startsWith(':') || key.startsWith('@') || key.startsWith('#')) {
-          delete props[key]
-        }
-      }
-      // Author styles can overlay or spoof the app chrome. Shiki styles are
-      // added after this pass, so they are unaffected.
-      delete props.style
-      if (!['pre', 'code', 'span'].includes(node.tag || '')) delete props.className
-      node.props = props
-
-      if (node.tag && node.tag.includes('-') && !approvedMarkdownComponents.has(node.tag) && node.tag !== MERMAID_TAG && node.tag !== CHART_TAG) {
-        // Unknown components become plain blocks; their children stay visible.
-        node.tag = 'div'
-      }
-    }
-    for (const child of node.children || []) visit(child)
-  }
-  visit(root)
-}
-
-/**
- * Renders Markdown into a sanitized MDC body plus a nested TOC.
- *
- * The body is JSON-serializable, so the Nuxt SSR payload carries it to the
- * client where `MDCRenderer` mounts the approved components.
- */
-export async function renderMarkdownContent(source: string): Promise<MarkdownResult> {
-  const parsed = await parseMarkdown(source.replace(/\r\n/g, '\n'), {
-    highlight: false,
-    contentHeading: false,
-    toc: { searchDepth: 2, depth: 3 },
-  })
-
-  const body = parsed.body as unknown as HastNode
-  neutralize(body)
-  await transform(body)
-
-  const sanitized = fromHast(await sanitizer.run(toHast(body))) as HastNode
-  const first = sanitized.children?.find(child => child.type === 'element')
+export async function renderMarkdownContent(source: string): Promise<RenderedMarkdown> {
+  const parser = await getParser()
+  const document = await parser(normalizeLegacyChartBlocks(source))
+  const first = Array.isArray(document.nodes[0]) ? document.nodes[0][0] : null
 
   return {
-    body: sanitized as MarkdownResult['body'],
-    toc: buildTocTree((parsed.toc?.links || []) as TocLink[]),
-    startsWithHeading: first?.tag === 'h1',
+    body: document,
+    toc: document.meta?.toc?.links || [],
+    startsWithHeading: first === 'h1',
   }
 }

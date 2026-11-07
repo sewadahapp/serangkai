@@ -8,8 +8,16 @@ import { artifactVersions, artifacts, folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { requireScope } from '../../utils/require-auth'
 import { readArtifactBytes, writeArtifact } from '../../utils/artifact-storage'
+import { capabilities, capabilitiesText, htmlGuide, markdownGuide, promptMessages, templates } from '../../utils/authoring'
+import { componentCatalogMarkdown } from '../../../shared/artifact-components'
 
 const artifactType = z.enum(['markdown', 'html', 'javascript', 'pdf', 'image', 'json', 'bundle'])
+const guideResources = [
+  { name: 'Markdown authoring guide', uri: 'serangkai://guides/markdown', description: 'Comark Markdown, Selaras components, Mermaid, charts, and security limits.', text: markdownGuide },
+  { name: 'HTML authoring guide', uri: 'serangkai://guides/html', description: 'Self-styled HTML, the optional Selaras document theme, markers, and sandbox rules.', text: htmlGuide },
+  { name: 'Selaras component catalog', uri: 'serangkai://components/selaras', description: 'Supported component tags, props, slots, examples, and application-only exclusions.', text: componentCatalogMarkdown() },
+] as const
+const templateResources = Object.entries(templates).map(([name, text]) => ({ name: `Template: ${name}`, uri: `serangkai://templates/${name}`, description: `Starting ${name} artifact.`, text }))
 const visibility = z.enum(['private', 'public', 'unlisted'])
 
 function textResult(value: unknown) {
@@ -20,6 +28,13 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
   const server = new McpServer({ name: 'serangkai', version: '0.1.0' }, { maxToolInputElements: 100 })
   const findFolder = (folderId: string) => db.select().from(folders)
     .where(and(eq(folders.id, folderId), eq(folders.userId, userId))).get()
+
+  server.registerTool('get_artifact_capabilities', {
+    title: 'Get authoring capabilities',
+    description: 'Discover supported artifact types, Markdown/HTML authoring, Selaras components, Mermaid, TanStack chart schema, and security limits. Use this before creating a rich artifact.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  }, async () => textResult(capabilities))
 
   server.registerTool('list_folders', {
     title: 'List folders',
@@ -119,7 +134,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
 
   server.registerTool('create_artifact', {
     title: 'Create artifact',
-    description: 'Create a private-by-default artifact in the authenticated workspace.',
+    description: 'Create a private-by-default artifact. Before authoring, call get_artifact_capabilities or read serangkai://guides/markdown / serangkai://guides/html for supported syntax and components.',
     inputSchema: {
       title: z.string().min(1).max(200),
       type: artifactType,
@@ -142,7 +157,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
 
   server.registerTool('update_artifact', {
     title: 'Update artifact',
-    description: 'Publish a new version of an artifact. baseVersion (the version you read with get_artifact) is required whenever content changes; a mismatch is refused with the current version so you can re-read and merge. Unchanged content creates no version.',
+    description: 'Publish a new version of an artifact. baseVersion (the version you read with get_artifact) is required whenever content changes; a mismatch is refused with the current version so you can re-read and merge. Call get_artifact_capabilities for authoring syntax. Unchanged content creates no version.',
     inputSchema: {
       id: z.string(),
       title: z.string().min(1).max(200).optional(),
@@ -209,6 +224,40 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
       version: versionCreated ? currentVersion + 1 : currentVersion,
     })
   })
+
+  server.registerResource('Serangkai capabilities', 'serangkai://capabilities', {
+    title: 'Serangkai authoring capabilities',
+    description: 'Supported artifact types, rendering modes, components, charts, diagrams, and security limits.',
+    mimeType: 'application/json',
+  }, async uri => ({ contents: [{ uri: uri.href, mimeType: 'application/json', text: capabilitiesText() }] }))
+
+  for (const resource of guideResources) {
+    server.registerResource(resource.name, resource.uri, {
+      title: resource.name,
+      description: resource.description,
+      mimeType: 'text/markdown',
+    }, async uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: resource.text }] }))
+  }
+
+  for (const resource of templateResources) {
+    server.registerResource(resource.name, resource.uri, {
+      title: resource.name,
+      description: resource.description,
+      mimeType: 'text/markdown',
+    }, async uri => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: resource.text }] }))
+  }
+
+  const promptEntries = [
+    ['create_report', 'Create a polished Markdown report.', promptMessages.createReport],
+    ['create_dashboard', 'Create a Markdown dashboard with Selaras cards and a chart.', promptMessages.createDashboard],
+    ['create_html_document', 'Create a styled HTML report with the Selaras document theme.', promptMessages.createHtmlDocument],
+    ['create_custom_dashboard', 'Create a custom-designed HTML dashboard without Selaras styling.', promptMessages.createCustomDashboard],
+  ] as const
+  for (const [name, description, text] of promptEntries) {
+    server.registerPrompt(name, { title: description, description }, async () => ({
+      messages: [{ role: 'user', content: { type: 'text', text } }],
+    }))
+  }
 
   return server
 }

@@ -9,7 +9,7 @@ Serangkai is a production-minded, open-source, self-hosted artifact and knowledg
 - **Framework**: Nuxt 4 + TypeScript, running on **Nitro 2 / H3 v1**
 - **Toolchain**: **Bun 1.4+** for install, scripts, tests, builds, and the Docker runtime
 - **UI/Styling**: `@sewadah/selaras` for UI, layouts, and document styling
-- **Markdown**: `@nuxtjs/mdc` parsed into a sanitized MDC tree and rendered with `MDCRenderer`; Mermaid and TanStack Charts are Vue components
+- **Markdown**: Comark (`comark` + `@comark/vue`) parsed once on the server into a sanitized document and rendered with `MarkdownDocument`; Mermaid and TanStack Charts are Vue components
 - **Backend**: Nuxt/Nitro server routes, REST APIs, MCP integration
 - **Database**: Drizzle ORM; `bun:sqlite` under Bun, `better-sqlite3` under Node, request-scoped D1 on Cloudflare
 - **Storage**: Nitro `useStorage()` over unstorage; filesystem by default, R2 binding on Cloudflare, S3-compatible storage on Vercel
@@ -43,6 +43,14 @@ bun test tests/markdown-render.test.mjs tests/toc-extract.test.mjs
 
 Node 24 is retained only for the Node fallback and for Vercel/Node runtime
 verification. Do not make npm the default.
+
+## Authoring
+- Markdown/Comark + Selaras for reports, documentation, and rich documents
+- Declarative TanStack chart JSON for supported charts
+- Mermaid for diagrams
+- HTML for custom interfaces; the Selaras document theme is explicit opt-in
+- `shared/artifact-components.ts` is the single source of truth for supported components; do not add renderer-only component lists
+- MCP must advertise only implemented, verified capabilities
 
 ## Nitro version note
 Nuxt 4.6.x uses **Nitro 2 / H3 v1** through `@nuxt/nitro-server`. Nitro 3 is a

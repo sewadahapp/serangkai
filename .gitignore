@@ -6,8 +6,9 @@
 .cache
 dist
 
-# Generated trusted runtime for sandboxed HTML artifacts
+# Generated trusted runtime and opt-in document theme for HTML artifacts
 public/runtime
+public/artifact-themes
 
 # Node dependencies
 node_modules

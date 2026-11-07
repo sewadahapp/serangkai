@@ -91,7 +91,7 @@ test('supports MCP initialization and tool discovery', async () => {
 
   const tools = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} })
   const names = tools.result.tools.map(tool => tool.name)
-  assert.deepEqual(names, ['list_folders', 'search', 'create_folder', 'list_artifacts', 'get_artifact', 'create_artifact', 'update_artifact'])
+  assert.deepEqual(names, ['get_artifact_capabilities', 'list_folders', 'search', 'create_folder', 'list_artifacts', 'get_artifact', 'create_artifact', 'update_artifact'])
 })
 
 test('creates and reads an artifact through MCP tools', async () => {

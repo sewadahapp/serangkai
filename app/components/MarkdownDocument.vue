@@ -1,32 +1,39 @@
 <template>
   <article class="selaras-prose max-w-none">
-    <MDCRenderer :body="body" :components="components" :tag="false" />
+    <ComarkMarkdownDocument :value="body" :components="components" />
   </article>
 </template>
 
 <script setup lang="ts">
+import { MarkdownDocument as ComarkMarkdownDocument } from '@comark/vue'
+import { artifactComponents } from '#shared/artifact-components'
+import { selarasComponents } from '~/utils/selaras-components'
 import MarkdownPre from './MarkdownPre.vue'
 import MarkdownMermaid from './MarkdownMermaid.vue'
 import MarkdownChart from './MarkdownChart.vue'
+import SerangkaiTable from './SerangkaiTable.vue'
 
 /**
- * Component-driven Markdown renderer.
+ * Renders a sanitized Comark document with Selaras components.
  *
- * The server sends a sanitized MDC body. `MDCRenderer` turns it into Vue
- * nodes, so Mermaid and charts are ordinary components and no `v-html` or
- * manual `createApp().mount()` pass is needed.
+ * The server parses and sanitizes the document; this component only maps the
+ * trusted tag vocabulary to Vue components. No parser or plugin code ships to
+ * the browser for artifact rendering.
  */
-defineProps<{ body: Record<string, unknown> }>()
+defineProps<{ body: Record<string, any> }>()
 
-const components = {
+const components: Record<string, any> = {
   pre: MarkdownPre,
   'serangkai-mermaid': MarkdownMermaid,
   'serangkai-chart': MarkdownChart,
-  's-alert': 'SAlert',
-  's-badge': 'SBadge',
-  's-callout': 'SCallout',
-  's-card': 'SCard',
-  's-card-group': 'SCardGroup',
-  's-icon': 'SIcon',
+  's-table': SerangkaiTable,
 }
+
+for (const entry of artifactComponents) {
+  const component = selarasComponents[entry.component]
+  if (component) components[entry.tag] = component
+}
+
+// Serialized JSON needs a small bridge for Selaras' children-as-columns table API.
+components['s-table'] = SerangkaiTable
 </script>

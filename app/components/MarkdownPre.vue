@@ -9,21 +9,26 @@
 </template>
 
 <script setup lang="ts">
+import { textContent } from 'comark/utils'
+
 /**
- * Renders an MDC `pre` node with Selaras' code chrome.
+ * Renders a Comark `pre` node with Selaras' code chrome.
  *
- * The MDC parser provides the raw `code` (for the copy button) and the
- * highlighted child spans (from the server-side Shiki pass).
+ * Comark's Shiki plugin replaces the code body with highlighted nodes, so the
+ * copy source is reconstructed from the original node rather than a `code`
+ * prop.
  */
 defineOptions({ inheritAttrs: false })
 
-withDefaults(defineProps<{
-  code?: string
+const props = withDefaults(defineProps<{
+  __node?: any
   language?: string
   filename?: string
 }>(), {
-  code: '',
+  __node: undefined,
   language: '',
   filename: undefined,
 })
+
+const code = computed(() => props.__node ? textContent(props.__node).replace(/\n$/, '') : '')
 </script>

@@ -140,7 +140,7 @@ test('previews HTML artifacts in a sandboxed frame for the owner only', async ()
   assert.match(csp, /sandbox allow-scripts/)
   assert.match(csp, /connect-src 'none'/)
   assert.match(csp, /form-action 'none'/)
-  assert.match(csp, /style-src 'unsafe-inline'/)
+  assert.match(csp, /style-src 'self' 'unsafe-inline'/)
   assert.doesNotMatch(csp, /allow-same-origin/)
   assert.match(await preview.text(), /Preview me/)
 

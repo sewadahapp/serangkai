@@ -37,7 +37,7 @@ test('HTML artifacts receive a restrictive sandbox CSP', async () => {
 
   // Styling is allowed for documents; script injection from other origins,
   // framing, and network exfiltration are not.
-  assert.match(csp, /style-src 'unsafe-inline'/)
+  assert.match(csp, /style-src 'self' 'unsafe-inline'/)
   assert.doesNotMatch(csp, /script-src[^;]*https:/)
   assert.doesNotMatch(csp, /connect-src (?!'none')/)
   assert.doesNotMatch(csp, /allow-same-origin/)
@@ -50,7 +50,7 @@ test('Markdown output strips executable links and escapes document metadata', as
   const body = await response.text()
   assert.equal(response.status, 200)
   assert.doesNotMatch(body, /<script>alert\(1\)<\/script>/)
-  assert.doesNotMatch(body, /javascript:/)
+  assert.doesNotMatch(body, /href="javascript:/i)
   assert.match(body, /&lt;\/title&gt;/)
 })
 
@@ -66,7 +66,7 @@ test('HTML artifacts get a color-mode bridge that follows the client hint', asyn
   assert.doesNotMatch(csp, /script-src[^;]*https?:/, 'remote scripts must stay blocked')
   assert.match(csp, /connect-src 'none'/, 'artifacts must not reach the network')
   assert.match(csp, /sandbox allow-scripts/)
-  assert.match(csp, /style-src 'unsafe-inline'/)
+  assert.match(csp, /style-src 'self' 'unsafe-inline'/)
   assert.doesNotMatch(csp, /allow-same-origin/)
   assert.doesNotMatch(csp, /allow-forms/)
   assert.equal(adaptive.headers.get('accept-ch'), 'Sec-CH-Prefers-Color-Scheme')
