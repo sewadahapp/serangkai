@@ -277,6 +277,43 @@ test('the JSON editor surfaces parse errors before saving', async () => {
   assert.equal(await page.locator('.cm-line').nth(2).locator('.cm-lintPoint-error').count(), 1)
 })
 
+test('HTML artifacts render Mermaid and TanStack charts in the sandbox', async () => {
+  const artifactId = await page.evaluate(async () => {
+    const content = `<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><title>Rich HTML artifact</title></head>
+  <body>
+    <h1>Launch dashboard</h1>
+    <pre class="mermaid">flowchart LR
+  Draft --> Review
+  Review --> Share</pre>
+    <script type="application/json" data-serangkai-chart>
+      {"type":"bar","title":"Requests by week","data":[{"week":"W1","value":12},{"week":"W2","value":19},{"week":"W3","value":8}],"x":"week","y":"value","color":"#2563eb"}
+    </script>
+    <script type="application/json" data-serangkai-chart>
+      {"type":"line","title":"Latency","data":[{"week":"W1","value":320},{"week":"W2","value":280},{"week":"W3","value":240}],"x":"week","y":"value","color":"#ea580c"}
+    </script>
+    <div data-serangkai-chart='{"type":"bar","horizontal":true,"title":"Releases","data":[{"team":"Web","value":14},{"team":"API","value":9},{"team":"Agents","value":5}],"x":"team","y":"value"}'></div>
+  </body>
+</html>`
+    const res = await fetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Rich HTML artifact', type: 'html', content }),
+    })
+    return (await res.json()).artifact.id
+  })
+
+  await page.goto(`${base}/artifacts/${artifactId}`)
+  const frame = page.frameLocator('iframe')
+  await frame.locator('.serangkai-mermaid svg').waitFor({ timeout: 15000 })
+  await frame.locator('.serangkai-chart-figure svg').first().waitFor({ timeout: 15000 })
+  assert.equal(await frame.locator('.serangkai-chart-figure svg').count(), 3)
+  assert.equal(await frame.locator('.serangkai-mermaid svg').count(), 1)
+  assert.equal(await frame.locator('.serangkai-runtime-error').count(), 0)
+  assert.match(await frame.locator('.serangkai-mermaid').innerText(), /Draft/)
+})
+
 test('read-only values offer a working copy button', async () => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base })
 

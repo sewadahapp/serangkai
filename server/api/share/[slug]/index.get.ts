@@ -1,6 +1,7 @@
 import { getRequestStorage } from '#serangkai-storage-runtime'
 import { renderMarkdownAsync } from '../../../utils/markdown'
 import { normalizeColorMode, withColorMode } from '../../../utils/artifact-color-mode'
+import { withArtifactRuntime } from '../../../utils/artifact-runtime'
 import { loadSharedArtifact } from '../../../utils/share-access'
 
 /**
@@ -68,13 +69,13 @@ export default defineEventHandler(async (event) => {
     setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
     // `frame-ancestors 'self'` lets the reader frame this; the sandbox still
     // denies same-origin access, forms, popups, framing outsiders, and network.
-    setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' https: data:; font-src https: data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
+    setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src https: data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
     setHeader(event, 'X-Content-Type-Options', 'nosniff')
     // No parent frame to message, so bake the requested mode in and let the
     // client's prefers-color-scheme take over afterwards.
     setHeader(event, 'Vary', 'Sec-CH-Prefers-Color-Scheme')
     setHeader(event, 'Accept-CH', 'Sec-CH-Prefers-Color-Scheme')
-    return withColorMode(content.toString(), normalizeColorMode(getHeader(event, 'sec-ch-prefers-color-scheme')))
+    return withArtifactRuntime(withColorMode(content.toString(), normalizeColorMode(getHeader(event, 'sec-ch-prefers-color-scheme'))))
   }
 
   if (artifact.type === 'json') {

@@ -88,6 +88,12 @@ documented as unverified rather than claimed as supported.
 - [x] Added a full-viewport, VS Code-like artifact edit workspace with inline title, type/version, dirty indicator, and Save/Cancel; sharing/folder/history return when the preview is shown
 - [x] Limited source editing to Markdown, HTML, JSON, and JavaScript; binary and bundle artifacts keep their preview/download actions only
 - [x] Kept the editor out of reader paths with a lazy, client-only chunk (~208 KB gzip for all four languages); Monaco was measured at ~1.7 MB and rejected
+- [x] HTML artifacts render Mermaid diagrams and TanStack charts through an opt-in same-origin runtime; markers stay declarative and author JavaScript is never evaluated
+- [x] Runtime bundles are built with esbuild into gitignored `public/runtime/` and injected only when the matching marker is present, keeping the CSP network-denied
+- [x] Browser coverage proves a sandboxed HTML artifact renders one Mermaid SVG and four chart SVGs; share API coverage proves conditional injection and `script-src 'self'`
+- [x] Documented the HTML marker syntax in the agent guide and the runtime boundary in `ARCHITECTURE.md`
+- [x] Created and visually verified a private “Serangkai — Launch Review” HTML artifact in the real workspace with a Mermaid flow and bar, line, area, and horizontal bar charts
+- [x] Public share readers skip the session bootstrap, removing the anonymous `/api/auth/me` 401 console entry
 
 ## Verification
 - `npm run build` passes
@@ -99,6 +105,9 @@ documented as unverified rather than claimed as supported.
 - Browser test covers registration, artifact creation, and switching to an unlisted signed link
 - Full API suite passes: MCP, upload, share, tokens, folders, security, bundles, Markdown, local runtime
 - Browser tests cover creating through the CodeMirror editor, HTML syntax highlighting, `Mod-S` saving, and inline JSON parse errors
+- Browser tests cover Mermaid and TanStack chart rendering inside a sandboxed HTML artifact (10/10 passing)
+- Share API tests cover conditional runtime injection and the updated CSP (2/2 passing)
+- The real workspace demo artifact was checked in light and dark mode: one Mermaid SVG, four chart SVGs, zero runtime errors
 - Cloudflare Worker deploy dry-run, Vercel build, and local provider runtime tests pass; remote provider deployments remain unverified
 - Container image re-verified from the built image with a persistent volume and restart
 - Search returns matching artifacts

@@ -6,6 +6,9 @@
 .cache
 dist
 
+# Generated trusted runtime for sandboxed HTML artifacts
+public/runtime
+
 # Node dependencies
 node_modules
 

@@ -1,9 +1,14 @@
 export default defineNuxtPlugin(async () => {
   const user = useState<any>('user', () => null)
+  const route = useRoute()
 
-  // Resolve the session during SSR too, so the header never renders
-  // logged-out chrome on a page the user is already signed in to (and then
-  // swaps it after hydration). `useRequestFetch` forwards the request cookies.
+  // The public reader has no account chrome, so asking for a session there only
+  // produces a 401 console entry for anonymous visitors. Workspace pages still
+  // resolve the session during SSR, so the header never renders logged-out
+  // chrome for a signed-in user and then swaps it after hydration.
+  if (route.path.startsWith('/share/')) return
+
+  // `useRequestFetch` forwards the request cookies.
   const requestFetch = useRequestFetch()
   try {
     const res = await requestFetch('/api/auth/me')

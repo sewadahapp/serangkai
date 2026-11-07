@@ -29,7 +29,8 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
   wired through `selaras.theme.colors` in `nuxt.config.ts`.
 - **Content**: @nuxt/content with MDC for Markdown rendering
 - **Charts/Diagrams**: Mermaid, rendered theme-aware, and TanStack Charts through
-  a JSON bar/line/area schema. Author-supplied JavaScript is never evaluated.
+  a JSON bar/line/area schema in Markdown and sandboxed HTML artifacts.
+  Author-supplied JavaScript is never evaluated.
 - **Backend**: Nuxt Nitro server routes
 - **Database**: Drizzle ORM with better-sqlite3 by default and a request-scoped D1 adapter for Cloudflare
 - **Storage**: Local filesystem with adapter pattern; S3-compatible/R2 adapter for portable deployments
@@ -167,7 +168,8 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   version panels.
 - `/settings` - API token creation, listing, and revocation
 - `/agent` - MCP/REST connection guide with endpoint, client config, scope reference,
-  publishing workflow (`baseVersion`), and the HTML color-mode contract
+  publishing workflow (`baseVersion`), the HTML color-mode contract, and the
+  Mermaid/chart marker syntax
 - `/share/[slug]` - Public reader for every shared artifact type. Only the
   Serangkai header is sticky; the footer is shared by every type but follows
   the content in normal flow. Markdown gets the workspace prose styles, Shiki,
@@ -232,8 +234,25 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   live mode so artifacts re-theme without a reload, while public share links bake the
   mode in from `Sec-CH-Prefers-Color-Scheme` and then follow `prefers-color-scheme`.
   Artifacts can opt out with `<meta name="color-scheme" content="only light">`.
-  The CSP gains `script-src 'unsafe-inline'` for that bridge; `sandbox allow-scripts`
-  still denies same-origin access, forms, popups, framing, and network calls.
+  `sandbox allow-scripts` still denies same-origin access, forms, popups, framing,
+  and network calls.
+- Sandboxed HTML artifacts can render Mermaid and TanStack charts without a CDN
+  by opting into a same-origin runtime. `server/utils/artifact-runtime.ts` scans
+  the delivered HTML and injects only the bundles it needs:
+  `/runtime/charts.js` for `[data-serangkai-chart]` and `/runtime/mermaid.js`
+  for `.mermaid` / `[data-serangkai-mermaid]`. Chart definitions are JSON
+  (`<script type="application/json" data-serangkai-chart>` or a data attribute),
+  and Mermaid source stays declarative, so the runtime never evaluates artifact
+  JavaScript. Both bundles are built by `scripts/build-artifact-runtime.mjs`
+  into gitignored `public/runtime/` before dev/build. They are classic IIFEs,
+  not modules: a sandboxed frame has an opaque origin, and module imports would
+  require CORS. `charts.js` is ~186 KB raw / 67 KB gzip; `mermaid.js` is
+  ~5.3 MB raw / 1.5 MB gzip and only loads when a diagram is present.
+- The owner preview and public HTML share CSP allow `script-src 'self'` in
+  addition to the inline bridge, so the runtime can load. `connect-src 'none'`
+  still prevents network calls, and the runtime itself only reads declarative
+  markers. Share pages skip the session bootstrap entirely, so anonymous
+  readers do not generate a `/api/auth/me` 401.
 - Source editing uses CodeMirror 6 directly rather than a wrapper component.
   `SerangkaiEditor.client.vue` owns the editor view, language compartment, a
   Selaras-token theme (so light/dark needs no foreign theme), JSON parse linting,
@@ -260,7 +279,7 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - **API Tokens**: Hashed with SHA-256 or similar, prefixed for identification
 - **Authorization**: All private resources check ownership; API tokens checked for scopes
 - **XSS/Sanitization**: Sanitize user input; careful with HTML rendering
-- **Sandboxing**: HTML/JS artifacts rendered in sandboxed iframes with restrictive CSP
+- **Sandboxing**: HTML/JS artifacts rendered in sandboxed iframes with restrictive CSP; the opt-in Mermaid/chart runtime is same-origin, declarative, and network-denied
 - **File Uploads**: Validate file types, size limits, scan if needed
 - **Rate Limiting**: On auth endpoints and API
 - **CSP**: Content Security Policy headers

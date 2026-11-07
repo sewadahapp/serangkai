@@ -40,3 +40,32 @@ test('unlisted artifacts require signed links', async () => {
   const tampered = share.url.slice(0, -1) + (lastDigit === '0' ? '1' : '0')
   assert.equal((await fetch(tampered)).status, 404)
 })
+
+test('HTML shares get the opt-in chart runtime without widening the CSP', async () => {
+  const create = (content) => fetch(`${base}/api/artifacts`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Runtime share', type: 'html', content, visibility: 'public' }),
+  })
+
+  const content = '<!doctype html><html><head><title>Runtime</title></head><body>'
+    + '<pre class="mermaid">flowchart LR\nA-->B</pre>'
+    + '<script type="application/json" data-serangkai-chart>{"type":"bar","data":[{"label":"A","value":1}]}</script>'
+    + '</body></html>'
+  const created = await create(content)
+  const runtimeArtifact = (await created.json()).artifact
+  const response = await fetch(`${base}/api/share/${runtimeArtifact.slug}`)
+  assert.equal(response.status, 200)
+  const html = await response.text()
+  assert.match(response.headers.get('content-security-policy'), /script-src 'self' 'unsafe-inline'/)
+  assert.match(html, /data-serangkai-runtime src="\/runtime\/charts\.js"/)
+  assert.match(html, /data-serangkai-runtime src="\/runtime\/mermaid\.js"/)
+  assert.match(html, /data-serangkai-runtime>/)
+
+  const plain = await create('<!doctype html><html><body><p>Just HTML</p></body></html>')
+  const plainArtifact = (await plain.json()).artifact
+  const plainResponse = await fetch(`${base}/api/share/${plainArtifact.slug}`)
+  const plainHtml = await plainResponse.text()
+  assert.doesNotMatch(plainHtml, /data-serangkai-runtime/)
+})
+

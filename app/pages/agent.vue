@@ -88,6 +88,15 @@
             <code>&lt;meta name="color-scheme" content="only light"&gt;</code>.
           </p>
         </section>
+        <section class="serangkai-panel p-5" aria-labelledby="html-diagrams">
+          <h2 id="html-diagrams" class="text-sm font-semibold">HTML diagrams &amp; charts</h2>
+          <p class="mt-2 text-sm text-[var(--selaras-resolved-text-muted)]">
+            Add a <code>.mermaid</code> block or a JSON chart marker. Serangkai
+            injects only the runtime the artifact needs — no CDN, and no
+            author JavaScript is evaluated.
+          </p>
+          <SerangkaiCode class="mt-2" :code="htmlDiagramExample" language="html" :show-header="false" />
+        </section>
         <section class="serangkai-panel p-5" aria-labelledby="tools">
           <h2 id="tools" class="text-sm font-semibold">MCP tools</h2>
           <ul class="mt-3 space-y-1.5">
@@ -165,6 +174,15 @@ body {
   color:
     light-dark(#111, #f5f5f5);
 }`
+
+const htmlDiagramExample = `<pre class="mermaid">flowchart LR
+  Draft --> Review --> Share
+</pre>
+
+<script type="application/json" data-serangkai-chart>
+{"type":"bar","data":[{"week":"W1","value":12}],
+ "x":"week","y":"value"}
+<\/script>`
 
 const restExample = computed(() => `curl -H "Authorization: Bearer $SERANGKAI_TOKEN" \\
   ${restUrl.value}

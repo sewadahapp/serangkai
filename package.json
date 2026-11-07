@@ -3,12 +3,13 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "nuxt build",
-    "build:node": "NITRO_PRESET=node-server nuxt build",
-    "build:cloudflare": "NITRO_PRESET=cloudflare_module nuxt build",
-    "build:vercel": "NITRO_PRESET=vercel nuxt build",
-    "dev": "nuxt dev --port 6969 --host 127.0.0.1",
-    "generate": "nuxt generate",
+    "build": "node scripts/build-artifact-runtime.mjs && nuxt build",
+    "build:node": "node scripts/build-artifact-runtime.mjs && NITRO_PRESET=node-server nuxt build",
+    "build:cloudflare": "node scripts/build-artifact-runtime.mjs && NITRO_PRESET=cloudflare_module nuxt build",
+    "build:vercel": "node scripts/build-artifact-runtime.mjs && NITRO_PRESET=vercel nuxt build",
+    "build:runtime": "node scripts/build-artifact-runtime.mjs",
+    "dev": "node scripts/build-artifact-runtime.mjs && nuxt dev --port 6969 --host 127.0.0.1",
+    "generate": "node scripts/build-artifact-runtime.mjs && nuxt generate",
     "preview": "nuxt preview --port 6969 --host 127.0.0.1",
     "test:mcp": "npm run build && node --test tests/mcp-protocol.test.mjs",
     "test:upload": "npm run build && node --test tests/upload-api.test.mjs",
@@ -19,6 +20,7 @@
     "test:security": "npm run build && node --test tests/security-api.test.mjs",
     "test:browser": "npm run build && node --test tests/browser-workspace.test.mjs",
     "test:markdown": "node --import tsx --test tests/markdown-render.test.mjs tests/toc-extract.test.mjs",
+    "test:runtime": "node --import tsx --test tests/artifact-runtime.test.mjs",
     "test:bundle": "npm run build && node --test tests/bundle-api.test.mjs",
     "test:deployment-config": "node --test tests/deployment-config.test.mjs",
     "test:deployment-files": "node --test tests/deployment-files.test.mjs",
@@ -32,7 +34,7 @@
     "test:r2-request": "node --import tsx --test tests/r2-request-runtime.test.mjs",
     "test:vercel-runtime": "NITRO_PRESET=node-server npm run build:node && node --test tests/vercel-runtime.test.mjs",
     "test:provider-local": "npm run test:database && npm run test:storage && npm run test:r2 && npm run test:r2-request && npm run test:local-runtime && npm run test:cloudflare-runtime && npm run test:vercel-runtime",
-    "test:ci": "npm run build:node && npm run test:markdown && npm run test:deployment-config && npm run test:database && npm run test:storage && npm run test:r2 && npm run test:r2-request",
+    "test:ci": "npm run build:node && npm run test:markdown && npm run test:runtime && npm run test:deployment-config && npm run test:database && npm run test:storage && npm run test:r2 && npm run test:r2-request",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
@@ -76,6 +78,7 @@
   },
   "devDependencies": {
     "@sewadah/selaras-mcp": "^0.1.2",
+    "esbuild": "^0.28.2",
     "playwright-core": "^1.64.1",
     "tsx": "^4.23.15",
     "wrangler": "^4.156.1"

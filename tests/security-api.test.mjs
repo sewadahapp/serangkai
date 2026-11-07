@@ -61,7 +61,9 @@ test('HTML artifacts get a color-mode bridge that follows the client hint', asyn
   assert.match(body, /prefers-color-scheme: dark/)
 
   const csp = adaptive.headers.get('content-security-policy')
-  assert.match(csp, /script-src 'unsafe-inline'/, 'the bridge script must be allowed')
+  assert.match(csp, /script-src 'self' 'unsafe-inline'/, 'the bridge and same-origin runtime must be allowed')
+  assert.doesNotMatch(csp, /script-src[^;]*https?:/, 'remote scripts must stay blocked')
+  assert.match(csp, /connect-src 'none'/, 'artifacts must not reach the network')
   assert.match(csp, /sandbox allow-scripts/)
   assert.match(csp, /style-src 'unsafe-inline'/)
   assert.doesNotMatch(csp, /allow-same-origin/)
