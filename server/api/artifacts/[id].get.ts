@@ -1,12 +1,11 @@
 import { artifacts } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { getRequestStorage } from '#serangkai-storage-runtime'
 import { eq } from 'drizzle-orm'
-import { renderMarkdownAsync } from '../../utils/markdown'
+import { renderMarkdownContent } from '../../utils/markdown'
+import { readArtifactBytes } from '../../utils/artifact-storage'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
-  const storage = getRequestStorage(event)
   const user = event.context.user
   if (!user) {
     throw createError({ statusCode: 401, message: 'Unauthorized' })
@@ -25,8 +24,10 @@ export default defineEventHandler(async (event) => {
   // Binary artifacts are previewed/downloaded through dedicated endpoints;
   // do not inflate them into a string for the metadata response.
   const isBinary = artifact.type === 'image' || artifact.type === 'pdf' || artifact.type === 'bundle'
-  const content = isBinary ? Buffer.alloc(0) : await storage.read(artifact.contentPath)
+  const content = isBinary ? Buffer.alloc(0) : await readArtifactBytes(artifact.contentPath)
   
+  const markdown = artifact.type === 'markdown' ? await renderMarkdownContent(content.toString()) : null
+
   return { 
     artifact: { 
       id: artifact.id, 
@@ -40,6 +41,8 @@ export default defineEventHandler(async (event) => {
       updatedAt: artifact.updatedAt
     },
     content: content.toString(),
-    renderedContent: artifact.type === 'markdown' ? await renderMarkdownAsync(content.toString()) : null
+    body: markdown?.body ?? null,
+    toc: markdown?.toc ?? [],
+    startsWithHeading: markdown?.startsWithHeading ?? false,
   }
 })

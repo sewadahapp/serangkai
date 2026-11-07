@@ -1,10 +1,10 @@
 import { nanoid } from 'nanoid'
 import { artifacts, artifactVersions, folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireScope } from '../../utils/require-auth'
 import { z } from 'zod'
 import { and, eq, max } from 'drizzle-orm'
+import { readArtifactBytes, writeArtifact } from '../../utils/artifact-storage'
 
 const schema = z.object({
   title: z.string().min(1).optional(),
@@ -17,7 +17,6 @@ const schema = z.object({
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
-  const storage = getRequestStorage(event)
   const user = requireScope(event, 'write')
   const id = getRouterParam(event, 'id')
   if (!id) throw createError({ statusCode: 400, message: 'ID required' })
@@ -57,11 +56,11 @@ export default defineEventHandler(async (event) => {
 
     // Only record a version when the bytes actually change; a no-op save
     // must not append duplicate history.
-    const currentContent = (await storage.read(artifact.contentPath)).toString()
+    const currentContent = (await readArtifactBytes(artifact.contentPath)).toString()
     if (currentContent !== changes.content) {
       version = currentVersion + 1
       contentPath = `${user.id}/${artifact.id}/versions/${version}`
-      await storage.save(contentPath, changes.content)
+      await writeArtifact(contentPath, changes.content)
       await db.insert(artifactVersions).values({
         id: nanoid(), artifactId: artifact.id, version, contentPath,
         metadata: changes.metadata || artifact.metadata || {}, createdAt: now,

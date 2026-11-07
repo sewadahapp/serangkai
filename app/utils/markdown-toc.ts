@@ -5,12 +5,45 @@ export interface TocLink {
   children?: TocLink[]
 }
 
+const entityMap: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+}
+
+function decodeEntities(value: string) {
+  return value.replace(/&(?:amp|lt|gt|quot|#39);/g, entity => entityMap[entity] || entity)
+}
+
 /**
- * Builds an `SContentToc` tree from rendered Markdown.
+ * Converts the MDC parser's flat TOC into the nested shape `SContentToc`
+ * expects: deeper headings become children of the preceding shallower one.
+ */
+export function buildTocTree(links: TocLink[]): TocLink[] {
+  const tree: TocLink[] = []
+  let current: TocLink | undefined
+
+  for (const link of links) {
+    if (link.depth < 2) continue
+    const node = { ...link, text: decodeEntities(link.text) }
+    if (node.depth <= 2 || !current) {
+      tree.push(node)
+      current = node
+    } else {
+      (current.children ||= []).push(node)
+    }
+  }
+
+  return tree
+}
+
+/**
+ * Builds a nested TOC from rendered HTML.
  *
- * The server renderer assigns heading ids, so this only reads the HTML it
- * already produced — no second Markdown parse and no client-side DOM scraping
- * that could run before the article exists.
+ * Kept for HTML that was already rendered (and for the existing tests). New
+ * Markdown rendering uses `buildTocTree` straight from the MDC parser.
  */
 export function extractToc(html: string, options: { minDepth?: number; maxDepth?: number } = {}): TocLink[] {
   const minDepth = options.minDepth ?? 2
@@ -25,31 +58,11 @@ export function extractToc(html: string, options: { minDepth?: number; maxDepth?
     const id = /\bid="([^"]+)"/i.exec(match[2])?.[1]
     if (!id) continue
 
-    const text = match[3]
-      .replace(/<[^>]+>/g, '')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/\s+/g, ' ')
-      .trim()
+    const text = decodeEntities(match[3].replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
     if (!text) continue
 
     flat.push({ id, text, depth })
   }
 
-  // Nest deeper headings under the preceding shallower one; `SContentToc`
-  // renders `children` through its own recursive branch.
-  const tree: TocLink[] = []
-  let current: TocLink | undefined
-  for (const link of flat) {
-    if (link.depth === minDepth || !current) {
-      tree.push(link)
-      current = link
-    } else {
-      (current.children ||= []).push(link)
-    }
-  }
-  return tree
+  return buildTocTree(flat)
 }

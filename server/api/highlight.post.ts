@@ -1,4 +1,5 @@
-import { highlightCode, normalizeLanguage, stripShikiPre } from '../utils/highlight'
+import { highlightCode, stripShikiPre } from '../utils/highlight'
+import { normalizeLanguage } from '../utils/markdown-language'
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 

@@ -1,10 +1,10 @@
 import { and, eq } from 'drizzle-orm'
 import { artifacts } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
-import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireUser } from '../../../utils/require-auth'
 import { withColorMode } from '../../../utils/artifact-color-mode'
 import { withArtifactRuntime } from '../../../utils/artifact-runtime'
+import { readArtifactBytes } from '../../../utils/artifact-storage'
 
 const imageTypes: Record<string, string> = {
   png: 'image/png',
@@ -25,7 +25,6 @@ function resolveImageType(metadata: Record<string, any>) {
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
-  const storage = getRequestStorage(event)
   const user = requireUser(event)
   const id = getRouterParam(event, 'id')
   if (!id) throw createError({ statusCode: 400, message: 'ID required' })
@@ -39,7 +38,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Only image, PDF, and HTML artifacts can be previewed inline' })
   }
 
-  const content = await storage.read(artifact.contentPath)
+  const content = await readArtifactBytes(artifact.contentPath)
   const metadata = artifact.metadata || {}
   const filename = String(metadata.filename || artifact.slug).replace(/[^a-zA-Z0-9._-]/g, '_')
 

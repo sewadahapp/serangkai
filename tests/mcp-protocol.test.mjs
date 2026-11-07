@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { test, before, after } from 'node:test'
+import { serverRuntime } from './helpers/server.mjs'
 
 const port = 3220 + Math.floor(Math.random() * 200)
 const baseUrl = `http://127.0.0.1:${port}`
@@ -52,12 +53,12 @@ async function mcp(message) {
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-mcp-test-'))
-  processHandle = spawn('node', ['.output/server/index.mjs'], {
+  processHandle = spawn(serverRuntime, ['.output/server/index.mjs'], {
     cwd: join(import.meta.dirname, '..'),
     env: {
       ...process.env,
       PORT: String(port),
-      JWT_SECRET: randomBytes(32).toString('hex'),
+      JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'),
       DATABASE_PATH: join(dataDir, 'serangkai.db'),
       STORAGE_PATH: join(dataDir, 'files'),
     },

@@ -4,7 +4,7 @@ This runbook is intentionally procedural. Completing a local build or dry-run
 does not make a provider deployment verified.
 
 If credentials or a provider environment are unavailable, use
-`npm run test:provider-local` and record the target as **not deployed** rather
+`bun run test:provider-local` and record the target as **not deployed** rather
 than attempting to infer remote support from local output.
 
 ## Common acceptance checks
@@ -28,21 +28,20 @@ Required before verification:
 
 - A Cloudflare account and Wrangler authentication.
 - A real D1 database bound as `DB`.
-- D1 migrations applied to that database.
 - A real R2 bucket bound as `ARTIFACTS`.
 - `JWT_SECRET` and `SHARE_SECRET` set with `wrangler secret put`.
 
 Commands:
 
 ```bash
-npm run build:cloudflare
-npx wrangler d1 migrations apply serangkai --remote
-npx wrangler deploy --config wrangler.jsonc
-npm run test:cloudflare-runtime # local emulation only
+bun run build:cloudflare
+bunx wrangler deploy --config wrangler.jsonc
+bun run test:cloudflare-runtime # local emulation only
 ```
 
-Run the common acceptance checks against the deployed URL, then record the
-Worker deployment ID, D1 database name, R2 bucket name, and migration revision.
+The D1 schema bootstraps on first request. Run the common acceptance checks
+against the deployed URL, then record the Worker deployment ID, D1 database
+name, R2 bucket name, and test date.
 
 ## Vercel
 
@@ -50,18 +49,19 @@ Required before verification:
 
 - A linked Vercel project and authenticated CLI.
 - `JWT_SECRET` and `SHARE_SECRET` project secrets.
-- A durable external database and S3-compatible object store.
+- A durable external database (not implemented in this repository yet).
 - `STORAGE_DRIVER=s3` and all `S3_*` variables configured.
 
 Commands:
 
 ```bash
-npm run build:vercel
-npx vercel deploy --prebuilt
+bun run build:vercel
+bunx vercel deploy --prebuilt
 ```
 
-Run the common acceptance checks against the deployment URL. A successful
-Vercel build with ephemeral local filesystem storage is not sufficient.
+A successful Vercel build with ephemeral local filesystem storage is not
+sufficient. Do not mark Vercel production-ready until a managed database adapter
+and S3 storage are both verified remotely.
 
 ## Docker Engine
 

@@ -1,14 +1,13 @@
 # Deployment documentation
 
-Serangkai supports a simple Node/container deployment by default and includes
+Serangkai supports a simple Bun/container deployment by default and includes
 portable provider presets. The status below is intentionally conservative.
 
 | Provider | Local verification | Remote status |
 | --- | --- | --- |
-| Docker-compatible container | Podman image build, health, registration, restart persistence | Docker Engine not run here |
-| Cloudflare Workers | Nitro build, Wrangler dry-run, Miniflare D1 registration/artifact/listing | Not deployed remotely |
-| Cloudflare R2 | Request-scoped mock binding and binary adapter tests | Real R2 not deployed |
-| Vercel | Nitro Build Output and local Node runtime registration/artifact/listing | Not deployed remotely |
+| Docker-compatible container | Bun image build, health, registration, artifact creation, restart persistence | Docker Engine not run here |
+| Cloudflare Workers | Nitro build, Wrangler dry-run, Miniflare D1 + R2 registration/artifact/binary upload/download | Not deployed remotely |
+| Vercel | Nitro Build Output and local Node runtime registration/artifact/listing | Not deployed remotely; durable database adapter still missing |
 | InstaCloud | Generic container checklist | **Not verified** |
 
 ## Before claiming a provider is verified
@@ -31,19 +30,20 @@ See the provider-specific documents:
 
 Any provider that runs a Docker image can host Serangkai: the image exposes port
 `3000`, stores runtime state under `/app/data`, and needs `JWT_SECRET` and
-`SHARE_SECRET`. Tagged releases publish multi-arch images to GHCR through
+`SHARE_SECRET`. The runtime is Bun 1.4 running Nitro's node-server output.
+Tagged releases publish multi-arch images to GHCR through
 `.github/workflows/docker.yml`. See [InstaCloud](./instacloud.md) for the
 generic image checklist; that provider remains **Not verified** until tested
 against a real account.
 
 ## Credential-free local verification
 
-Run the complete local/emulated provider suite with:
+Run the local/emulated provider suite with:
 
 ```bash
-npm run test:provider-local
+bun run test:provider-local
 ```
 
-This covers SQLite, D1/Miniflare, mocked/request-scoped R2, and the local
-Vercel-compatible Node runtime. It does not deploy to or authenticate with a
-remote provider.
+This covers Bun SQLite, the local Bun server runtime, D1/R2 through
+Wrangler/Miniflare, and the local Vercel-compatible Node runtime. It does not
+deploy to or authenticate with a remote provider.

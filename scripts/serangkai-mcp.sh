@@ -27,5 +27,5 @@ if [[ -z "${SERANGKAI_MCP_TOKEN:-}" ]]; then
   exit 1
 fi
 
-exec npx --yes mcp-remote "$BASE_URL/api/mcp" \
+exec bunx mcp-remote "$BASE_URL/api/mcp" \
   --header "Authorization: Bearer ${SERANGKAI_MCP_TOKEN}"

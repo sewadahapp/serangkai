@@ -1,4 +1,5 @@
-import { createHighlighter, type Highlighter } from 'shiki'
+import { createHighlighter, bundledLanguages, type Highlighter } from 'shiki'
+import { normalizeLanguage } from './markdown-language'
 
 /** Languages pre-registered so common fences highlight without a cold load. */
 export const COMMON_LANGS = [
@@ -20,22 +21,66 @@ export function getHighlighter() {
   return highlighterPromise
 }
 
-/** Fence languages Shiki may still load lazily beyond the pre-registered set. */
-const ALIASES: Record<string, string> = {
-  sh: 'bash', shell: 'bash', console: 'bash', zsh: 'bash',
-  yml: 'yaml', py: 'python', rs: 'rust', md: 'markdown',
-  text: '', plaintext: '', txt: '',
-}
-
-export function normalizeLanguage(lang = '') {
-  const raw = lang.trim().toLowerCase().split(/\s+/)[0] || ''
-  if (raw in ALIASES) return ALIASES[raw]
-  return raw
-}
-
 export function isSupportedLanguage(lang = '') {
   const normalized = normalizeLanguage(lang)
-  return normalized === '' || COMMON_LANGS.includes(normalized)
+  return normalized === '' || normalized in bundledLanguages
+}
+
+interface HighlightedFence {
+  type: 'element'
+  tag: 'pre'
+  props: Record<string, unknown>
+  children: any[]
+}
+
+function toMdcNode(node: any): any {
+  if (node.type === 'text') return { type: 'text', value: node.value || '' }
+  if (node.type === 'element') {
+    return {
+      type: 'element',
+      tag: node.tagName,
+      props: node.properties || {},
+      children: (node.children || []).map(toMdcNode),
+    }
+  }
+  return { type: node.type, children: (node.children || []).map(toMdcNode) }
+}
+
+/**
+ * Highlights a fence and returns a `pre` node ready for the MDC tree.
+ *
+ * Returns `null` for unknown languages or on failure, so callers keep the
+ * escaped source instead of emitting broken markup.
+ */
+export async function highlightToHast(code: string, language = ''): Promise<HighlightedFence | null> {
+  const lang = normalizeLanguage(language)
+  if (!lang) return null
+
+  try {
+    const highlighter = await getHighlighter()
+    if (!highlighter.getLoadedLanguages().includes(lang)) {
+      const bundled = bundledLanguages[lang as keyof typeof bundledLanguages]
+      if (!bundled) return null
+      await highlighter.loadLanguage(bundled as any)
+    }
+
+    const hast = highlighter.codeToHast(code, {
+      lang,
+      themes: { light: 'github-light', dark: 'github-dark' },
+      defaultColor: false,
+    })
+
+    const pre = hast.children[0]
+    if (pre?.type !== 'element' || pre.tagName !== 'pre') return null
+    return {
+      type: 'element',
+      tag: 'pre',
+      props: pre.properties || {},
+      children: (pre.children || []).map(toMdcNode),
+    }
+  } catch {
+    return null
+  }
 }
 
 /** Extracts the inner markup Shiki emits, dropping its own `<pre>` wrapper. */
@@ -52,11 +97,11 @@ export function stripShikiPre(html: string) {
 export async function highlightCode(code: string, language = ''): Promise<string | null> {
   const lang = normalizeLanguage(language)
   if (!lang) return null
-  if (!COMMON_LANGS.includes(lang)) return null
+  if (!(lang in bundledLanguages)) return null
   try {
     const highlighter = await getHighlighter()
     if (!highlighter.getLoadedLanguages().includes(lang)) {
-      await highlighter.loadLanguage(lang as any)
+      await highlighter.loadLanguage(bundledLanguages[lang as keyof typeof bundledLanguages] as any)
     }
     return highlighter.codeToHtml(code, {
       lang,
@@ -66,4 +111,9 @@ export async function highlightCode(code: string, language = ''): Promise<string
   } catch {
     return null
   }
+}
+
+/** Resolves the language label shown in the code header. */
+export function displayLanguage(lang = '') {
+  return normalizeLanguage(lang) || 'text'
 }

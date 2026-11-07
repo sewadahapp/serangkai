@@ -11,7 +11,7 @@ reads it from a gitignored file.
 1. Start the dev server on the pinned port:
 
    ```bash
-   npm run dev        # → http://127.0.0.1:6969
+   bun run dev        # → http://127.0.0.1:6969
    ```
 
 2. Create a token in the app at `/settings` (scopes: `read`, `write`).
@@ -44,7 +44,7 @@ stdio→HTTP bridge, so the bearer header is never written into a tracked file.
 
 ## Notes
 
-- Requires `npm run dev` to be running; the MCP server lives in the app.
-- Only dependency is `npx mcp-remote` on first run (cached afterwards).
+- Requires `bun run dev` to be running; the MCP server lives in the app.
+- Only dependency is `bunx mcp-remote` on first run (cached afterwards).
 - Rotate the token in `/settings` and update `.env.serangkai-mcp` if it leaks.
 - `scripts/serangkai-mcp.sh` is committed; `.env.serangkai-mcp` is not.

@@ -82,8 +82,8 @@
               :src="`/api/artifacts/${artifact.id}/preview`"
               :title="`${artifact.title} HTML preview`"
             />
-            <div v-else-if="artifact.type === 'markdown'" class="serangkai-prose mx-auto">
-              <MarkdownDocument :html="renderedContent" />
+            <div v-else-if="artifact.type === 'markdown'" class="selaras-prose mx-auto">
+              <MarkdownDocument :body="contentBody" />
             </div>
             <SerangkaiCode
               v-else-if="artifact.type === 'json' || artifact.type === 'javascript'"
@@ -196,8 +196,7 @@ import type { EditorLanguage } from '~/utils/editor'
 const route = useRoute()
 const artifact = ref<any>(null)
 const content = ref('')
-const renderedContent = ref('')
-
+const contentBody = ref<Record<string, unknown> | null>(null)
 const editing = ref(false)
 const draftTitle = ref('')
 const draftContent = ref('')
@@ -347,7 +346,7 @@ const reloadArtifact = async () => {
   const res = await $fetch<any>(`/api/artifacts/${route.params.id}`)
   artifact.value = res.artifact
   content.value = res.content
-  renderedContent.value = res.renderedContent || ''
+  contentBody.value = res.body || null
   draftTitle.value = res.artifact.title
   draftContent.value = res.content
   draftVisibility.value = res.artifact.visibility
@@ -428,7 +427,7 @@ onMounted(async () => {
     const res = await $fetch<any>(`/api/artifacts/${route.params.id}`)
     artifact.value = res.artifact
     content.value = res.content
-    renderedContent.value = res.renderedContent || ''
+    contentBody.value = res.body || null
     draftTitle.value = res.artifact.title
     draftContent.value = res.content
     draftVisibility.value = res.artifact.visibility
@@ -466,7 +465,9 @@ const save = async () => {
     })
     artifact.value = res.artifact
     content.value = draftContent.value
-    renderedContent.value = res.artifact.type === 'markdown' ? (await $fetch<any>(`/api/artifacts/${route.params.id}`)).renderedContent : ''
+    contentBody.value = res.artifact.type === 'markdown'
+      ? ((await $fetch<any>(`/api/artifacts/${route.params.id}`)).body || null)
+      : null
     versions.value = (await $fetch<any>(`/api/artifacts/${route.params.id}/versions`)).versions || []
     editing.value = false
     message.value = res.versionCreated ? `Saved version ${res.version}` : 'Saved without a new version'

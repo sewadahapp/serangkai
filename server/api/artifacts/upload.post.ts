@@ -1,11 +1,11 @@
 import { nanoid } from 'nanoid'
 import { artifactVersions, artifacts, folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireScope } from '../../utils/require-auth'
 import { artifactTypes, inferArtifactType, makeSlug, MAX_UPLOAD_BYTES } from '../../utils/artifacts'
-import { extractBundle } from '#serangkai-bundles-runtime'
+import { extractBundle } from '../../utils/bundles'
 import { and, eq } from 'drizzle-orm'
+import { writeArtifact } from '../../utils/artifact-storage'
 
 const allowedMimeTypes = new Set([
   'text/markdown', 'text/plain', 'text/html', 'text/javascript', 'application/javascript',
@@ -15,7 +15,6 @@ const allowedMimeTypes = new Set([
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
-  const storage = getRequestStorage(event)
   const user = requireScope(event, 'write')
   const parts = await readMultipartFormData(event)
   const file = parts?.find(part => part.name === 'file' && part.data)
@@ -46,11 +45,11 @@ export default defineEventHandler(async (event) => {
   const slug = makeSlug(title)
   const contentPath = `${user.id}/${id}/content`
   if (type === 'bundle') {
-    try { await extractBundle(file.data, `${process.env.STORAGE_PATH || './data/files'}/${user.id}/${id}/bundle`) }
+    try { await extractBundle(file.data, `${user.id}/${id}/bundle`) }
     catch (error: any) { throw createError({ statusCode: 400, message: error.message || 'Invalid static bundle' }) }
-    await storage.save(contentPath, file.data)
+    await writeArtifact(contentPath, file.data)
   } else {
-    await storage.save(contentPath, file.data)
+    await writeArtifact(contentPath, file.data)
   }
   await db.insert(artifacts).values({
     id, userId: user.id, folderId, slug, title, type,

@@ -65,7 +65,7 @@
             <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
             <h1 v-if="!startsWithHeading" class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
             <div :class="startsWithHeading ? 'mt-4' : 'mt-8'">
-              <MarkdownDocument :html="artifact.renderedContent" />
+              <MarkdownDocument :body="artifact.body" />
             </div>
           </article>
 
@@ -102,8 +102,6 @@
 </template>
 
 <script setup lang="ts">
-import { extractToc } from '~/utils/markdown-toc'
-
 /**
  * Reader for a shared artifact.
  *
@@ -128,7 +126,9 @@ interface SharedArtifact {
   visibility: string
   updatedAt: string
   filename?: string
-  renderedContent?: string
+  body?: Record<string, unknown>
+  toc?: Array<{ id: string; text: string; depth: number; children?: any[] }>
+  startsWithHeading?: boolean
   content?: string
   rawUrl?: string
 }
@@ -154,10 +154,10 @@ const isFill = computed(() => isFramed.value || isSource.value || artifact.value
 // Most Markdown artifacts open with their own `# Title`. Rendering the page
 // heading too would show the title twice, so defer to the document when it
 // already starts with one.
-const startsWithHeading = computed(() => /^\s*<h1[\s>]/i.test(artifact.value?.renderedContent || ''))
+const startsWithHeading = computed(() => artifact.value?.startsWithHeading === true)
 
 const toc = computed(() => {
-  const links = extractToc(artifact.value?.renderedContent || '')
+  const links = artifact.value?.toc || []
   return links.length >= 2 ? links : []
 })
 

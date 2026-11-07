@@ -1,64 +1,40 @@
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import Database from 'better-sqlite3'
+import { mkdirSync } from 'node:fs'
+import { dirname } from 'node:path'
 import * as schema from './schema'
-import { mkdirSync } from 'fs'
-import { dirname } from 'path'
+import { BOOTSTRAP_SQL } from './bootstrap'
+import { getServerConfig } from '../utils/config'
 
-const dbPath = process.env.DATABASE_PATH || './data/serangkai.db'
-mkdirSync(dirname(dbPath), { recursive: true })
+/**
+ * Local SQLite database, created lazily.
+ *
+ * Bun's built-in SQLite is used when the app runs under Bun; Node keeps the
+ * better-sqlite3 fallback. Both produce the same SQLite file, so existing data
+ * and Drizzle queries are unchanged.
+ */
+let databasePromise: Promise<any> | null = null
 
-const sqlite = new Database(dbPath)
-sqlite.pragma('foreign_keys = ON')
-sqlite.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-    updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-  );
-  CREATE TABLE IF NOT EXISTS api_tokens (
-    id TEXT PRIMARY KEY NOT NULL,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    token_hash TEXT NOT NULL UNIQUE,
-    scopes TEXT NOT NULL DEFAULT '[]',
-    last_used_at INTEGER,
-    expires_at INTEGER,
-    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-  );
-  CREATE TABLE IF NOT EXISTS folders (
-    id TEXT PRIMARY KEY NOT NULL,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    parent_id TEXT REFERENCES folders(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    path TEXT NOT NULL,
-    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-    updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
-  );
-  CREATE TABLE IF NOT EXISTS artifacts (
-    id TEXT PRIMARY KEY NOT NULL,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
-    slug TEXT NOT NULL,
-    title TEXT NOT NULL,
-    type TEXT NOT NULL,
-    visibility TEXT NOT NULL DEFAULT 'private',
-    content_path TEXT NOT NULL,
-    metadata TEXT DEFAULT '{}',
-    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-    updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-    UNIQUE(user_id, slug)
-  );
-  CREATE TABLE IF NOT EXISTS artifact_versions (
-    id TEXT PRIMARY KEY NOT NULL,
-    artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
-    version INTEGER NOT NULL,
-    content_path TEXT NOT NULL,
-    metadata TEXT DEFAULT '{}',
-    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-    UNIQUE(artifact_id, version)
-  );
-`)
-export const db = drizzle(sqlite, { schema })
-export * from './schema'
+async function createDatabase() {
+  const path = getServerConfig().databasePath
+  mkdirSync(dirname(path), { recursive: true })
+
+  if ((process.versions as any).bun) {
+    const { Database } = await import('bun:sqlite')
+    const { drizzle } = await import('drizzle-orm/bun-sqlite')
+    const sqlite = new Database(path)
+    sqlite.exec('PRAGMA foreign_keys = ON;')
+    sqlite.exec(BOOTSTRAP_SQL)
+    return drizzle(sqlite, { schema })
+  }
+
+  const { default: Database } = await import('better-sqlite3')
+  const { drizzle } = await import('drizzle-orm/better-sqlite3')
+  const sqlite = new Database(path)
+  sqlite.pragma('foreign_keys = ON')
+  sqlite.exec(BOOTSTRAP_SQL)
+  return drizzle(sqlite, { schema })
+}
+
+export function getDatabase() {
+  databasePromise ||= createDatabase()
+  return databasePromise
+}

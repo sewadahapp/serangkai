@@ -1,10 +1,10 @@
 import { nanoid } from 'nanoid'
 import { artifacts, artifactVersions, folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { getRequestStorage } from '#serangkai-storage-runtime'
 import { z } from 'zod'
 import { requireScope } from '../../utils/require-auth'
 import { and, eq } from 'drizzle-orm'
+import { writeArtifact } from '../../utils/artifact-storage'
 
 const schema = z.object({
   title: z.string().min(1),
@@ -18,7 +18,6 @@ const schema = z.object({
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
-  const storage = getRequestStorage(event)
   const user = requireScope(event, 'write')
   
   const body = await readBody(event)
@@ -41,7 +40,7 @@ export default defineEventHandler(async (event) => {
   
   const artifactId = nanoid()
   const contentKey = `${user.id}/${artifactId}/content`
-  await storage.save(contentKey, content)
+  await writeArtifact(contentKey, content)
   
   await db.insert(artifacts).values({
     id: artifactId,

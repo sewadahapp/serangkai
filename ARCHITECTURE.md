@@ -15,7 +15,7 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
   download it. Monaco was rejected at ~1.7 MB gzip once CSS and workers are
   counted; Tiptap/Lexical/Quill are rich-text editors and normalize the HTML
   instead of editing raw source. `vue-codemirror` is unmaintained and is not used.
-- **Local MCP dogfooding**: `npm run dev` is pinned to `127.0.0.1:6969`.
+- **Local MCP dogfooding**: `bun run dev` is pinned to `127.0.0.1:6969`.
   `opencode.json` registers a `serangkai` MCP server that runs
   `scripts/serangkai-mcp.sh`, a stdio→HTTP bridge reading the bearer token from
   the gitignored `.env.serangkai-mcp`. See `docs/development/mcp-dogfood.md`.
@@ -27,13 +27,17 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
   `#EA580C` accent, Plus Jakarta Sans, light mode by default with a dark mode toggle.
   Generated with the `ui-ux-pro-max` skill (variance 3 / motion 3 / density 5) and
   wired through `selaras.theme.colors` in `nuxt.config.ts`.
-- **Content**: @nuxt/content with MDC for Markdown rendering
+- **Content**: `@nuxtjs/mdc` for Markdown parsing and component-driven rendering
 - **Charts/Diagrams**: Mermaid, rendered theme-aware, and TanStack Charts through
   a JSON bar/line/area schema in Markdown and sandboxed HTML artifacts.
   Author-supplied JavaScript is never evaluated.
-- **Backend**: Nuxt Nitro server routes
-- **Database**: Drizzle ORM with better-sqlite3 by default and a request-scoped D1 adapter for Cloudflare
-- **Storage**: Local filesystem with adapter pattern; S3-compatible/R2 adapter for portable deployments
+- **Backend**: Nuxt Nitro server routes (Nitro 2 / H3 v1 via Nuxt 4)
+- **Database**: Drizzle ORM with Bun's built-in SQLite under Bun, better-sqlite3
+  under Node, and a request-scoped D1 adapter for Cloudflare
+- **Storage**: Nitro `useStorage()` over unstorage — filesystem by default,
+  Cloudflare R2 binding, or S3-compatible storage
+- **Toolchain**: Bun 1.4 for install, scripts, tests, builds, and the Docker
+  runtime; Node 24 remains an explicit fallback for Vercel/Node deployments
 - **Auth**: Session cookies signed with `jose` + scoped API tokens
 - **MCP**: Official `@modelcontextprotocol/sdk` Streamable HTTP transport
 
@@ -95,17 +99,19 @@ ArtifactVersion {
 ```
 
 ### Storage Layer
-Abstract storage interface to support multiple backends:
-```typescript
-interface StorageAdapter {
-  save(key: string, data: Buffer | string): Promise<string>
-  read(key: string): Promise<Buffer>
-  delete(key: string): Promise<void>
-  exists(key: string): Promise<boolean>
-  getUrl?(key: string): Promise<string> // for presigned URLs if needed
-}
-```
-Implementations: LocalStorageAdapter (default), S3StorageAdapter (future), etc.
+Artifact bytes use Nitro's built-in storage abstraction (`useStorage()` over
+unstorage). Keys are the existing `userId/artifactId/...` paths, so the local
+filesystem layout and all existing artifacts remain compatible.
+
+- Local/Docker: `fs` driver mounted at `STORAGE_PATH` (default `./data/files`)
+- Cloudflare: `cloudflare-r2-binding` driver mounted at `R2_BINDING`
+  (default `ARTIFACTS`)
+- Vercel/portable: `s3` driver when `STORAGE_DRIVER=s3`
+- Static bundles are extracted into the same store under
+  `userId/artifactId/bundle/...`; no route reads the filesystem directly.
+
+`server/plugins/storage.ts` mounts the driver once at startup, and
+`server/utils/artifact-storage.ts` is the single read/write surface.
 
 ### API Routes (Nitro)
 - `POST /api/auth/register` - Create account
@@ -193,19 +199,22 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   link, and a global `prefers-reduced-motion` override.
 - All form controls live inside `SFormField` so labels, hints, and errors are
   programmatically associated. `SLabel` does not exist in Selaras.
-- Markdown fenced code is highlighted with Shiki using `github-light` /
-  `github-dark` dual themes emitted as `--shiki-light` / `--shiki-dark` custom
-  properties, so one CSS rule switches with the color mode. Blocks mirror
-  `SProsePre`'s chrome (language header + copy button) with plain markup, since
-  sanitized Markdown output cannot carry Vue components. Unknown languages fall
-  back to escaped text; Mermaid and `chart` fences keep their own renderers.
-  Copying is delegated by `app/plugins/code-copy.client.ts`.
-- Markdown headings get stable, unique ids after sanitization (`setup`,
+- Markdown is parsed with `@nuxtjs/mdc` into an MDC (hast) tree on the server.
+  A custom post-pass sanitizes the tree, strips author expressions and directive
+  props, and turns `mermaid`/`chart` fences into trusted component nodes. The
+  reader renders that tree with `MDCRenderer`, so Mermaid, charts, and approved
+  Selaras components are real Vue components — no `v-html` and no manual
+  `createApp().mount()` DOM pass.
+- Markdown code fences are highlighted server-side with Shiki using
+  `github-light` / `github-dark` dual themes emitted as `--shiki-light` /
+  `--shiki-dark` custom properties. `MarkdownPre` wraps the highlighted tree in
+  Selaras `SProsePre`, which provides the language header and copy button.
+  Unknown languages fall back to plain text.
+- Markdown headings get stable, unique ids from the MDC parser (`setup`,
   `setup-2`, ...) so headings can be deep-linked. The share reader builds an
-  `SContentToc` rail with `extractToc`, which only reads the rendered HTML; the
-  in-app preview deliberately has no contents panel, keeping the focus on the
-  document and the sharing controls. The chart and Mermaid containers share the
-  same border and surface tokens.
+  `SContentToc` rail from the parser's TOC links; the in-app preview
+  deliberately has no contents panel, keeping the focus on the document and
+  the sharing controls.
 - Markdown `chart` fences accept JSON — `type` (`bar`, `line`, `area`), `data`,
   optional `x`/`y` keys, `title`, axis labels, `horizontal`, `color`, and
   `height`. `DataChart.client.vue` maps that onto fixed TanStack Charts marks and
@@ -215,8 +224,12 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   JSON rather than a blank panel.
 - Mermaid diagrams re-render when the color mode changes: `MermaidDiagram` uses
   `theme: 'neutral'` in light mode and `'dark'` in dark mode, observing the
-  `class` attribute on `<html>`. Both diagram types are mounted after the
-  sanitized Markdown is in the DOM.
+  `class` attribute on `<html>`. Mermaid and chart components are wrapped in
+  `ClientOnly`, so SSR sends readable fallback text and the browser hydrates the
+  interactive diagram.
+- Approved MDC components are limited to `s-alert`, `s-badge`, `s-callout`,
+  `s-card`, `s-card-group`, and `s-icon`. Unknown component tags are neutralized
+  to plain blocks, and MDC binding nodes are preserved as literal text.
 - App-owned snippets (MCP config, curl examples, shell workflows) use
   `SerangkaiCode`, which wraps the real `SProsePre` so the header and copy
   button are the component's, and fetches only the highlighted body from

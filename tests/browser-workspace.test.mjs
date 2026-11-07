@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process'
 import { request as httpRequest } from 'node:http'
 import { test, before, after } from 'node:test'
 import { chromium } from 'playwright-core'
+import { serverRuntime } from './helpers/server.mjs'
 
 const port = 3720 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
@@ -14,7 +15,7 @@ let child, dataDir, browser, page
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-browser-test-'))
-  child = spawn('node', ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
+  child = spawn(serverRuntime, ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
   for (let i = 0; i < 60; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break } catch {} await new Promise(resolve => setTimeout(resolve, 100)) }
   browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] })
   page = await browser.newPage()

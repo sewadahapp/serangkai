@@ -1,13 +1,12 @@
 import { nanoid } from 'nanoid'
 import { artifactVersions, artifacts } from '../../../../../db/schema'
 import { getRequestDatabase } from '../../../../../db/adapter'
-import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireScope } from '../../../../../utils/require-auth'
 import { and, eq, max } from 'drizzle-orm'
+import { readArtifactBytes, writeArtifact } from '../../../../../utils/artifact-storage'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
-  const storage = getRequestStorage(event)
   const user = requireScope(event, 'write')
   const id = getRouterParam(event, 'id')
   const versionNumber = Number(getRouterParam(event, 'version'))
@@ -29,8 +28,8 @@ export default defineEventHandler(async (event) => {
     .from(artifactVersions).where(eq(artifactVersions.artifactId, artifact.id)).get()
   const version = Number(latest?.value || 0) + 1
   const contentPath = `${user.id}/${artifact.id}/versions/${version}`
-  const content = await storage.read(source.contentPath)
-  await storage.save(contentPath, content)
+  const content = await readArtifactBytes(source.contentPath)
+  await writeArtifact(contentPath, content)
 
   const now = new Date()
   await db.insert(artifactVersions).values({

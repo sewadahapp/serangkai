@@ -25,7 +25,7 @@ test('uses D1 batch when the binding provides it', async () => {
 test('resolves and caches a request-scoped Cloudflare D1 binding', async () => {
   const calls = []
   const binding = { prepare(sql) { calls.push(sql); return { run: async () => ({}) } } }
-  const event = { context: {}, req: { runtime: { cloudflare: { env: { DB: binding } } } } }
+  const event = { context: { cloudflare: { env: { DB: binding } } } }
   const first = await getRequestDatabase(event)
   const second = await getRequestDatabase(event)
   assert.equal(first, second)

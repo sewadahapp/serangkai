@@ -2,8 +2,8 @@
 set -eu
 
 # Named/bind-mounted volumes are commonly created as root. Prepare the
-# persistent directory before dropping privileges for the application.
+# persistent directory, then run the app as the image's unprivileged user.
 mkdir -p /app/data /app/data/files
-chown -R node:node /app/data
+chown -R bun:bun /app/data
 
-exec su -s /bin/sh node -c 'exec node .output/server/index.mjs'
+exec su bun -s /bin/sh -c 'exec bun .output/server/index.mjs'

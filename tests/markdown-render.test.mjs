@@ -1,69 +1,89 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { renderMarkdown, renderMarkdownAsync } from '../server/utils/markdown.ts'
-import { normalizeLanguage, isSupportedLanguage } from '../server/utils/highlight.ts'
+import { renderMarkdownContent } from '../server/utils/markdown.ts'
+import { isSupportedLanguage } from '../server/utils/highlight.ts'
+import { normalizeLanguage } from '../server/utils/markdown-language.ts'
 
-test('renders Mermaid fences as safe interactive markers', () => {
-  const html = renderMarkdown('```mermaid\ngraph TD\n  A --> B\n```')
-  assert.match(html, /class="serangkai-mermaid"/)
-  assert.match(html, /data-mermaid=/)
-  assert.match(html, /graph TD/)
+function find(node, predicate) {
+  if (predicate(node)) return node
+  for (const child of node.children || []) {
+    const match = find(child, predicate)
+    if (match) return match
+  }
+  return null
+}
+
+function findAll(node, predicate, found = []) {
+  if (predicate(node)) found.push(node)
+  for (const child of node.children || []) findAll(child, predicate, found)
+  return found
+}
+
+test('renders Mermaid fences as component nodes', async () => {
+  const { body } = await renderMarkdownContent('```mermaid\ngraph TD\n  A --> B\n```')
+  const node = find(body, item => item.tag === 'serangkai-mermaid')
+  assert.ok(node, 'expected a mermaid node')
+  assert.match(node.props.source, /graph TD/)
+  // The raw source is data, not markup.
+  assert.equal(node.children.length, 0)
 })
 
-test('renders valid chart JSON as a chart marker', () => {
-  const html = renderMarkdown('```chart\n{"type":"bar","xKey":"month","yKey":"value","data":[{"month":"Jan","value":10}]}\n```')
-  assert.match(html, /class="serangkai-chart"/)
-  assert.match(html, /data-chart=/)
+test('renders valid chart JSON as a chart node', async () => {
+  const { body } = await renderMarkdownContent('```chart\n{"type":"bar","xKey":"month","yKey":"value","data":[{"month":"Jan","value":10}]}\n```')
+  const node = find(body, item => item.tag === 'serangkai-chart')
+  assert.ok(node, 'expected a chart node')
+  assert.equal(JSON.parse(node.props.definition).type, 'bar')
 })
 
-test('keeps invalid chart JSON visible without executable HTML', () => {
-  const html = renderMarkdown('```chart\nnot json\n```')
-  assert.match(html, /serangkai-chart-error/)
-  assert.doesNotMatch(html, /<script/i)
+test('renders MDC container syntax for diagrams and charts', async () => {
+  const { body } = await renderMarkdownContent('::mermaid\nflowchart LR\n  A --> B\n::\n\n::chart\n{"type":"line","data":[{"x":"a","y":1}]}\n::\n')
+  assert.ok(find(body, item => item.tag === 'serangkai-mermaid'))
+  assert.ok(find(body, item => item.tag === 'serangkai-chart'))
 })
 
-test('highlights fenced code with Shiki and keeps the copy affordance', async () => {
-  const html = await renderMarkdownAsync('```ts\nconst x: number = 1\n```')
-  assert.match(html, /class="serangkai-code"/)
-  assert.match(html, /data-language="ts"/)
-  assert.match(html, /class="serangkai-code-header"/)
-  assert.match(html, /data-serangkai-copy/)
-  // dual-theme span custom properties, switched by CSS per mode
-  assert.match(html, /--shiki-light:/)
-  assert.match(html, /--shiki-dark:/)
+test('keeps invalid chart JSON visible without executable HTML', async () => {
+  const { body } = await renderMarkdownContent('```chart\nnot json\n```')
+  assert.ok(find(body, item => item.tag === 'pre' && String(item.props.className || '').includes('serangkai-chart-error')))
+  assert.equal(find(body, item => item.tag === 'script'), null)
+})
+
+test('highlights fenced code with Shiki and keeps the copy source', async () => {
+  const { body } = await renderMarkdownContent('```ts\nconst x: number = 1\n```')
+  const pre = find(body, item => item.tag === 'pre')
+  assert.ok(pre)
+  assert.equal(pre.props.language, 'ts')
+  assert.equal(pre.props.code, 'const x: number = 1\n')
+  assert.match(JSON.stringify(pre), /--shiki-light:/)
+  assert.match(JSON.stringify(pre), /--shiki-dark:/)
   // exactly one code element, not doubled
-  assert.equal((html.match(/<code>/g) || []).length, 1)
+  assert.equal(findAll(pre, item => item.tag === 'code').length, 1)
 })
 
-test('falls back to escaped text for unknown languages', async () => {
-  const html = await renderMarkdownAsync('```notalanguage\n<b>raw</b> & text\n```')
-  assert.match(html, /class="serangkai-code"/)
-  assert.match(html, /&lt;b&gt;raw&lt;\/b&gt; &amp; text/)
-  assert.doesNotMatch(html, /<b>raw<\/b>/)
-  assert.doesNotMatch(html, /--shiki-light/)
+test('falls back to escaped text for unknown languages and never emits markup', async () => {
+  const { body } = await renderMarkdownContent('```notalanguage\n<b>raw</b> & text\n```')
+  const serialized = JSON.stringify(body)
+  assert.match(serialized, /<b>raw<\/b> & text/)
+  assert.doesNotMatch(serialized, /--shiki-light/)
+  // The raw fence is text inside code, not live elements.
+  const pre = find(body, item => item.tag === 'pre')
+  assert.ok(pre)
+  assert.equal(findAll(pre, item => item.tag === 'b').length, 0)
 })
 
 test('highlighting never emits executable markup', async () => {
-  const html = await renderMarkdownAsync('```html\n<script>alert(1)</script>\n```')
-  // No real <script> element survives sanitization...
-  assert.doesNotMatch(html, /<script/i)
-  // ...and the angle brackets remain escaped even though Shiki splits them
-  // across span boundaries, so check the entities rather than the joined tag.
-  assert.match(html, /&lt;/)
-  assert.match(html, /&gt;</)
-  assert.match(html, /alert/)
-  // No inline event handler or javascript: URL slipped through either.
-  assert.doesNotMatch(html, /onerror=/i)
-  assert.doesNotMatch(html, /javascript:/i)
+  const { body } = await renderMarkdownContent('```html\n<script>alert(1)</script>\n```')
+  assert.equal(find(body, item => item.tag === 'script'), null)
+  const serialized = JSON.stringify(body)
+  assert.match(serialized, /alert/)
+  assert.doesNotMatch(serialized, /onerror=/i)
+  assert.doesNotMatch(serialized, /javascript:/i)
 })
 
 test('mermaid and chart fences are not syntax highlighted', async () => {
-  const mermaid = await renderMarkdownAsync('```mermaid\ngraph TD\n A-->B\n```')
-  assert.match(mermaid, /serangkai-mermaid/)
-  assert.doesNotMatch(mermaid, /--shiki-light/)
-  const chart = await renderMarkdownAsync('```chart\n{"type":"bar"}\n```')
-  assert.match(chart, /serangkai-chart/)
-  assert.doesNotMatch(chart, /--shiki-light/)
+  const mermaid = await renderMarkdownContent('```mermaid\ngraph TD\n A-->B\n```')
+  assert.doesNotMatch(JSON.stringify(mermaid.body), /--shiki-light/)
+  const chart = await renderMarkdownContent('```chart\n{"type":"bar"}\n```')
+  assert.doesNotMatch(JSON.stringify(chart.body), /--shiki-light/)
 })
 
 test('normalizes common language aliases', () => {
@@ -76,23 +96,62 @@ test('normalizes common language aliases', () => {
 
 test('supports raw HTTP request snippets', async () => {
   assert.ok(isSupportedLanguage('http'))
-  const html = await renderMarkdownAsync('```http\nPOST /api/artifacts\nAuthorization: Bearer <token>\n```')
-  assert.match(html, /--shiki-light:/)
-  assert.match(html, /\/api\/artifacts/)
-  assert.doesNotMatch(html, /<script/i)
+  const { body } = await renderMarkdownContent('```http\nPOST /api/artifacts\nAuthorization: Bearer <token>\n```')
+  assert.match(JSON.stringify(body), /--shiki-light:/)
+  assert.match(JSON.stringify(body), /\/api\/artifacts/)
+  assert.equal(find(body, item => item.tag === 'script'), null)
 })
 
 test('gives headings stable, unique ids for anchors and the table of contents', async () => {
-  const html = await renderMarkdownAsync('# Top\n\n## Setup\n\n### Setup\n\n## Setup\n')
-  assert.match(html, /<h2 id="setup">Setup<\/h2>/)
-  // Duplicate titles get suffixed instead of colliding.
-  assert.match(html, /<h3 id="setup-2">Setup<\/h3>/)
-  assert.match(html, /<h2 id="setup-3">Setup<\/h2>/)
+  const { body, toc, startsWithHeading } = await renderMarkdownContent('# Top\n\n## Setup\n\n### Setup\n\n## Setup\n')
+  const ids = findAll(body, item => /^h[1-6]$/.test(item.tag || '')).map(item => item.props.id)
+  assert.deepEqual(ids, ['top', 'setup', 'setup-1', 'setup-2'])
+  assert.equal(startsWithHeading, true)
+  assert.deepEqual(toc.map(link => link.id), ['setup', 'setup-2'])
+  assert.deepEqual(toc[0].children?.map(link => link.id), ['setup-1'])
 })
 
-test('heading ids cannot be injected through heading text', async () => {
-  const html = await renderMarkdownAsync('## <img src=x onerror=alert(1)> Hello "quoted"')
-  assert.doesNotMatch(html, /<img/i)
-  assert.match(html, /<h2 id="[a-z0-9-]+">/)
-  assert.doesNotMatch(html, /onerror/i)
+test('strips author scripts, iframes, event handlers, and javascript: URLs', async () => {
+  const { body } = await renderMarkdownContent([
+    '<script>alert(1)</script>',
+    '<iframe src="https://evil.example"></iframe>',
+    '<span onclick="alert(1)" style="position:fixed">x</span>',
+    '[bad](javascript:alert(1))',
+    '<img src=x onerror=alert(1)>',
+  ].join('\n\n'))
+
+  const tags = findAll(body, item => item.type === 'element').map(item => item.tag)
+  assert.ok(!tags.includes('script'))
+  assert.ok(!tags.includes('iframe'))
+  const serialized = JSON.stringify(body)
+  assert.doesNotMatch(serialized, /onerror|onclick/i)
+  assert.doesNotMatch(serialized, /javascript:/i)
+  assert.doesNotMatch(serialized, /position:fixed/)
+  assert.doesNotMatch(serialized, /evil\.example/)
+})
+
+test('never lets MDC expressions or unknown components execute', async () => {
+  const { body } = await renderMarkdownContent([
+    'Inline {{ $doc.secret }} value.',
+    '::evil-widget{onClick="alert(1)"}',
+    'Payload',
+    '::',
+    '::s-badge{label="Approved" color="success"}',
+    '::',
+  ].join('\n'))
+
+  const serialized = JSON.stringify(body)
+  assert.doesNotMatch(serialized, /v-on|onclick|v-bind/i)
+  assert.equal(find(body, item => item.tag === 'evil-widget'), null)
+  assert.ok(find(body, item => item.tag === 's-badge'))
+  // The expression is preserved as literal text, never evaluated.
+  assert.match(serialized, /\{\{ \$doc\.secret \}\}/)
+})
+
+test('keeps approved Selaras components with their attributes', async () => {
+  const { body } = await renderMarkdownContent('::s-alert{title="Heads up" color="warning"}\nRead this.\n::\n')
+  const alert = find(body, item => item.tag === 's-alert')
+  assert.ok(alert)
+  assert.equal(alert.props.title, 'Heads up')
+  assert.equal(alert.props.color, 'warning')
 })

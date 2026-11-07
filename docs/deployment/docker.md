@@ -2,7 +2,7 @@
 
 ## Verified locally
 
-The repository was verified with Podman using:
+The repository was verified with Podman using the Bun-based multi-stage image:
 
 ```bash
 podman build -t serangkai:local .
@@ -11,23 +11,23 @@ podman run -d --name serangkai-smoke -p 3810:3000 \
   -e NODE_ENV=production \
   -e JWT_SECRET=... \
   -e SHARE_SECRET=... \
-  -e DATABASE_PATH=/app/data/serangkai.db \
-  -e STORAGE_PATH=/app/data/files \
   serangkai:local
 ```
 
 Verified behavior:
 
-- Image build succeeds.
+- Image build succeeds with `oven/bun:1.4.0` and
+  `bun install --frozen-lockfile --ignore-scripts`.
 - `/api/health` returns `status: ok`.
-- User registration succeeds.
+- User registration and artifact creation succeed.
 - Container restart succeeds.
-- The registered user remains available after restart.
+- The registered user and artifact remain available after restart.
+- The app runs the Nitro node-server output under Bun; Bun's built-in SQLite
+  avoids a native `better-sqlite3` build in the image.
 
 The Docker daemon itself is unavailable in the development environment, so this
 is Dockerfile/container verification through Podman, not a claim that Docker
-Engine was run here. The image uses Debian slim because native SQLite/Rolldown
-dependencies were not reliable on Alpine with the current dependency lockfile.
+Engine was run here.
 
 ## Published image
 
@@ -49,21 +49,10 @@ When building with Podman, pass `--format docker` if you need the image
 `HEALTHCHECK` to be preserved; Podman's default OCI format drops it and the
 warning is expected. The compose files define their own healthcheck regardless.
 
-## Container image smoke test
+## Persistent volume
 
-The image path was re-verified from a built image (not a source checkout) with a
-persistent bind mount:
-
-```bash
-podman build -t serangkai:image-path-test .
-podman run -d --name serangkai-image-test -p 3830:3000 \
-  -v /tmp/serangkai-image-data:/app/data \
-  -e JWT_SECRET=... -e SHARE_SECRET=... \
-  -e DATABASE_PATH=/app/data/serangkai.db \
-  -e STORAGE_PATH=/app/data/files \
-  serangkai:image-path-test
-```
-
-Verified: `/api/health` returns ok, registration succeeds, artifact creation
-succeeds, and the artifact is still listed after `podman restart` with the same
-volume and session cookie.
+The entrypoint prepares `/app/data` and `/app/data/files`, then drops to the
+image's unprivileged `bun` user. SQLite and uploaded files stay on the mounted
+volume. A restart with the same volume must preserve users, artifacts, and
+versions; that workflow is covered by the local Podman verification and the
+container smoke test.

@@ -7,21 +7,26 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci --legacy-peer-deps
-      - run: npm run build:node
-      - run: npm run test:markdown
-      - run: npm run test:deployment-config
-      - run: npm run test:deployment-files
-      - run: npm run test:release-readiness
-      - run: npm run test:database
-      - run: npm run test:storage
-      - run: npm run test:r2
-      - run: npm run test:r2-request
-      - run: node --test tests/mcp-protocol.test.mjs tests/upload-api.test.mjs tests/share-api.test.mjs tests/tokens-api.test.mjs tests/folders-api.test.mjs tests/artifacts-lifecycle.test.mjs tests/security-api.test.mjs tests/bundle-api.test.mjs tests/browser-workspace.test.mjs tests/local-runtime.test.mjs tests/vercel-runtime.test.mjs
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run build:node
+      - run: bun run test:markdown
+      - run: bun run test:runtime
+      - run: bun run test:deployment-config
+      - run: bun run test:deployment-files
+      - run: bun run test:release-readiness
+      - run: bun run test:database
+      - run: bun run test:ci-workflow
+      - run: bun test --timeout 30000 tests/mcp-protocol.test.mjs tests/upload-api.test.mjs tests/share-api.test.mjs tests/tokens-api.test.mjs tests/folders-api.test.mjs tests/artifacts-lifecycle.test.mjs tests/security-api.test.mjs tests/bundle-api.test.mjs tests/browser-workspace.test.mjs tests/local-runtime.test.mjs
+      - run: SERANGKAI_TEST_RUNTIME=node bun test tests/local-runtime.test.mjs

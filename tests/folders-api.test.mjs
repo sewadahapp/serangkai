@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { test, before, after } from 'node:test'
+import { serverRuntime } from './helpers/server.mjs'
 
 const port = 3660 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
@@ -20,7 +21,7 @@ const json = (cookie, method, path, body) => fetch(`${base}${path}`, { method, h
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-folder-test-'))
-  child = spawn('node', ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
+  child = spawn(serverRuntime, ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
   let healthy = false
   for (let i = 0; i < 120; i++) { try { if ((await fetch(`${base}/api/health`)).ok) { healthy = true; break } } catch {} await new Promise(resolve => setTimeout(resolve, 100)) }
   if (!healthy) throw new Error('Server did not become healthy before the folder test')

@@ -1,1 +1,1 @@
-export { db } from './index'
+export { getDatabase } from './index'

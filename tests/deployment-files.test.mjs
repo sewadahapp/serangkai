@@ -5,11 +5,15 @@ import { test } from 'node:test'
 test('deployment files require stable secrets and persistent storage', async () => {
   const compose = await readFile(new URL('../docker-compose.yml', import.meta.url), 'utf8')
   const dockerfile = await readFile(new URL('../Dockerfile', import.meta.url), 'utf8')
-  assert.match(compose, /JWT_SECRET:\s*\$\{JWT_SECRET:\?/) 
-  assert.match(compose, /SHARE_SECRET:\s*\$\{SHARE_SECRET:\?/) 
+  assert.match(compose, /JWT_SECRET:\s*\$\{JWT_SECRET:\?/)
+  assert.match(compose, /SHARE_SECRET:\s*\$\{SHARE_SECRET:\?/)
   assert.match(compose, /serangkai-data:\/app\/data/)
+  assert.match(compose, /"bun", "-e"/)
+  assert.match(dockerfile, /oven\/bun:1\.4\.0/)
+  assert.match(dockerfile, /bun install --frozen-lockfile --ignore-scripts/)
   assert.match(dockerfile, /HEALTHCHECK/)
   assert.match(dockerfile, /docker-entrypoint\.sh/)
+  assert.match(dockerfile, /bun -e/)
 })
 
 test('published-image compose file keeps secrets, volume, and health checks', async () => {
@@ -19,6 +23,7 @@ test('published-image compose file keeps secrets, volume, and health checks', as
   assert.match(compose, /SHARE_SECRET:\s*\$\{SHARE_SECRET:\?/)
   assert.match(compose, /serangkai-data:\/app\/data/)
   assert.match(compose, /\/api\/health/)
+  assert.match(compose, /"bun", "-e"/)
   assert.doesNotMatch(compose, /build:/)
 })
 

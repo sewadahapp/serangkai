@@ -13,5 +13,11 @@
       "database_name": "serangkai-local",
       "database_id": "local-serangkai-d1"
     }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "ARTIFACTS",
+      "bucket_name": "serangkai-artifacts"
+    }
   ]
 }

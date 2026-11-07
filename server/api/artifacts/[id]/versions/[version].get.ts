@@ -1,12 +1,11 @@
 import { artifactVersions, artifacts } from '../../../../db/schema'
 import { getRequestDatabase } from '../../../../db/adapter'
-import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireUser } from '../../../../utils/require-auth'
 import { and, eq } from 'drizzle-orm'
+import { readArtifactBytes } from '../../../../utils/artifact-storage'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
-  const storage = getRequestStorage(event)
   const user = requireUser(event)
   const id = getRouterParam(event, 'id')
   const versionNumber = Number(getRouterParam(event, 'version'))
@@ -22,7 +21,7 @@ export default defineEventHandler(async (event) => {
     .where(and(eq(artifactVersions.artifactId, artifact.id), eq(artifactVersions.version, versionNumber))).get()
   if (!version) throw createError({ statusCode: 404, message: 'Version not found' })
 
-  const content = await storage.read(version.contentPath)
+  const content = await readArtifactBytes(version.contentPath)
   return {
     version: { id: version.id, version: version.version, createdAt: version.createdAt },
     content: content.toString(),

@@ -1,8 +1,8 @@
-import { getRequestStorage } from '#serangkai-storage-runtime'
-import { renderMarkdownAsync } from '../../../utils/markdown'
+import { renderMarkdownContent } from '../../../utils/markdown'
 import { normalizeColorMode, withColorMode } from '../../../utils/artifact-color-mode'
 import { withArtifactRuntime } from '../../../utils/artifact-runtime'
 import { loadSharedArtifact } from '../../../utils/share-access'
+import { readArtifactBytes } from '../../../utils/artifact-storage'
 
 /**
  * Only real browser navigations should land on the reader page.
@@ -16,7 +16,6 @@ function isTopLevelNavigation(event: Parameters<Parameters<typeof defineEventHan
 }
 
 export default defineEventHandler(async (event) => {
-  const storage = getRequestStorage(event)
   const slug = getRouterParam(event, 'slug')
   if (!slug) throw createError({ statusCode: 400, message: 'Slug required' })
 
@@ -40,12 +39,13 @@ export default defineEventHandler(async (event) => {
     }
 
     if (artifact.type === 'markdown') {
-      const content = await storage.read(artifact.contentPath)
-      return { ...base, renderedContent: await renderMarkdownAsync(content.toString()) }
+      const content = await readArtifactBytes(artifact.contentPath)
+      const markdown = await renderMarkdownContent(content.toString())
+      return { ...base, body: markdown.body, toc: markdown.toc, startsWithHeading: markdown.startsWithHeading }
     }
 
     if (artifact.type === 'json' || artifact.type === 'javascript') {
-      const content = await storage.read(artifact.contentPath)
+      const content = await readArtifactBytes(artifact.contentPath)
       return { ...base, content: content.toString() }
     }
 
@@ -63,7 +63,7 @@ export default defineEventHandler(async (event) => {
     return sendRedirect(event, `/share/${encodeURIComponent(slug)}${suffix}`, 302)
   }
 
-  const content = await storage.read(artifact.contentPath)
+  const content = await readArtifactBytes(artifact.contentPath)
 
   if (artifact.type === 'html') {
     setHeader(event, 'Content-Type', 'text/html; charset=utf-8')

@@ -1,14 +1,13 @@
 import { nanoid } from 'nanoid'
 import { artifactVersions, artifacts } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
-import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireScope } from '../../../utils/require-auth'
 import { makeSlug } from '../../../utils/artifacts'
 import { and, eq } from 'drizzle-orm'
+import { readArtifactBytes, writeArtifact } from '../../../utils/artifact-storage'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
-  const storage = getRequestStorage(event)
   const user = requireScope(event, 'write')
   const id = getRouterParam(event, 'id')
   if (!id) throw createError({ statusCode: 400, message: 'ID required' })
@@ -23,7 +22,7 @@ export default defineEventHandler(async (event) => {
 
   const duplicateId = nanoid()
   const contentPath = `${user.id}/${duplicateId}/content`
-  await storage.save(contentPath, await storage.read(source.contentPath))
+  await writeArtifact(contentPath, await readArtifactBytes(source.contentPath))
 
   const now = new Date()
   const slug = makeSlug(title)

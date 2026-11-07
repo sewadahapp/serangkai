@@ -6,8 +6,8 @@ import { nanoid } from 'nanoid'
 import { toWebRequest } from 'h3'
 import { artifactVersions, artifacts, folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { getRequestStorage } from '#serangkai-storage-runtime'
 import { requireScope } from '../../utils/require-auth'
+import { readArtifactBytes, writeArtifact } from '../../utils/artifact-storage'
 
 const artifactType = z.enum(['markdown', 'html', 'javascript', 'pdf', 'image', 'json', 'bundle'])
 const visibility = z.enum(['private', 'public', 'unlisted'])
@@ -16,7 +16,7 @@ function textResult(value: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] }
 }
 
-function createMcpServer(userId: string, canWrite: boolean, db: any, storage: any) {
+function createMcpServer(userId: string, canWrite: boolean, db: any) {
   const server = new McpServer({ name: 'serangkai', version: '0.1.0' }, { maxToolInputElements: 100 })
   const findFolder = (folderId: string) => db.select().from(folders)
     .where(and(eq(folders.id, folderId), eq(folders.userId, userId))).get()
@@ -109,7 +109,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
       eq(artifacts.userId, userId), id ? eq(artifacts.id, id) : eq(artifacts.slug, slug!),
     )).get()
     if (!row) return { isError: true, content: [{ type: 'text', text: 'Artifact not found.' }] }
-    const content = (await storage.read(row.contentPath)).toString()
+    const content = (await readArtifactBytes(row.contentPath)).toString()
     // An agent cannot publish without baseVersion, and this is where it learns
     // the current one. Omitting it here made the documented workflow impossible.
     const versionRows = await db.select({ version: artifactVersions.version }).from(artifactVersions).where(eq(artifactVersions.artifactId, row.id))
@@ -134,7 +134,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
     const id = nanoid()
     const slug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80)}-${nanoid(6)}`
     const contentPath = `${userId}/${id}/content`
-    await storage.save(contentPath, content)
+    await writeArtifact(contentPath, content)
     await db.insert(artifacts).values({ id, userId, folderId: folderId || null, slug, title, type, visibility: artifactVisibility, contentPath, metadata: {}, createdAt: new Date(), updatedAt: new Date() })
     await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version: 1, contentPath, metadata: {}, createdAt: new Date() })
     return textResult({ id, slug, title, type, visibility: artifactVisibility, folderId: folderId || null })
@@ -188,11 +188,11 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
       // Only record a version when the bytes actually change. Agents commonly
       // re-save unchanged content, and unconditional inserts turned that into
       // duplicate history entries.
-      const currentContent = (await storage.read(row.contentPath)).toString()
+      const currentContent = (await readArtifactBytes(row.contentPath)).toString()
       if (currentContent !== content) {
         const version = currentVersion + 1
         contentPath = `${userId}/${id}/versions/${version}`
-        await storage.save(contentPath, content)
+        await writeArtifact(contentPath, content)
         await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version, contentPath, metadata: row.metadata || {}, createdAt: new Date() })
       }
     }
@@ -216,7 +216,6 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, storage: an
 export default defineEventHandler(async (event) => {
   const user = requireScope(event, 'read')
   const db = await getRequestDatabase(event)
-  const storage = getRequestStorage(event)
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
@@ -224,7 +223,7 @@ export default defineEventHandler(async (event) => {
   })
   const token = event.context.apiToken
   const canWrite = !token || token.scopes.includes('write') || token.scopes.includes('full')
-  const server = createMcpServer(user.id, canWrite, db, storage)
+  const server = createMcpServer(user.id, canWrite, db)
   await server.connect(transport)
   return transport.handleRequest(toWebRequest(event))
 })

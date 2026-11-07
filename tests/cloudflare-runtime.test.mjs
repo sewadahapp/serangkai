@@ -33,7 +33,9 @@ async function stopChild() {
 }
 
 before(async () => {
-  child = spawn('npx', ['wrangler', 'dev', '.output/server/index.mjs', '--assets', '.output/public', '--local', '--port', String(port), '--show-interactive-dev-session=false'], { cwd: process.cwd(), env: { ...process.env, JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex') }, stdio: ['ignore', 'pipe', 'pipe'], detached: true })
+  const jwtSecret = randomBytes(32).toString('hex')
+  const shareSecret = randomBytes(32).toString('hex')
+  child = spawn('bunx', ['wrangler', 'dev', '.output/server/index.mjs', '--assets', '.output/public', '--local', '--port', String(port), '--show-interactive-dev-session=false', '--var', `JWT_SECRET:${jwtSecret}`, '--var', `SHARE_SECRET:${shareSecret}`], { cwd: process.cwd(), env: { ...process.env }, stdio: ['ignore', 'pipe', 'pipe'], detached: true })
   child.stdout.on('data', chunk => { stderr += chunk.toString() })
   child.stderr.on('data', chunk => { stderr += chunk.toString() })
   for (let i = 0; i < 90; i++) { try { if ((await fetch(`${base}/api/health`)).ok) return } catch {} await new Promise(resolve => setTimeout(resolve, 200)) }
@@ -53,10 +55,25 @@ test('Cloudflare local D1 runtime supports registration, artifact creation, and 
   assert.equal(listed.status, 200)
   assert.equal((await listed.json()).artifacts[0].title, 'D1 runtime artifact')
 
+  // Exercise the R2 binding, not just D1: upload and read back binary bytes.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
+  const form = new FormData()
+  form.append('file', new Blob([png], { type: 'image/png' }), 'pixel.png')
+  form.append('title', 'CF image')
+  const uploaded = await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie }, body: form })
+  const uploadBody = await uploaded.text()
+  assert.equal(uploaded.status, 200, uploadBody)
+  const image = JSON.parse(uploadBody).artifact
+  const downloaded = await fetch(`${base}/api/artifacts/${image.id}/download`, { headers: { cookie } })
+  assert.equal(downloaded.status, 200)
+  assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()), png)
+  assert.doesNotMatch(stderr, /ephemeral memory storage/)
+
   const tokenResponse = await fetch(`${base}/api/tokens`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Edge agent', scopes: ['read'] }) })
   if (tokenResponse.status !== 200) assert.fail(await tokenResponse.text())
   const { token } = await tokenResponse.json()
   const bearerListed = await fetch(`${base}/api/artifacts`, { headers: { authorization: `Bearer ${token}` } })
   assert.equal(bearerListed.status, 200)
-  assert.equal((await bearerListed.json()).artifacts[0].title, 'D1 runtime artifact')
+  const titles = (await bearerListed.json()).artifacts.map(artifact => artifact.title)
+  assert.deepEqual(titles.sort(), ['CF image', 'D1 runtime artifact'])
 })

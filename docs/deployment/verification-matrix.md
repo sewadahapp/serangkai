@@ -6,35 +6,31 @@ deployment is supported.
 
 | Target | Local evidence | Real deployment | Boundary |
 | --- | --- | --- | --- |
-| Docker-compatible container | Podman image build, health, registration, restart persistence; GHCR multi-arch publish workflow checked in | Docker Engine unavailable here | Docker Engine, registry publishing, and host verification remain separate |
-| Cloudflare Workers + D1 | Nitro build and Wrangler/Miniflare registration/artifact/listing pass | Not deployed | Requires real D1 secrets, migrations, and production config |
-| Cloudflare R2 | Mocked request-scoped binding and binary adapter tests pass | Not deployed | Requires a real R2 bucket/binding and durable object verification |
-| Vercel | Nitro preset build and local Node runtime registration/listing pass | Not deployed | Requires Vercel project, secrets, and durable external storage |
+| Docker-compatible container | Podman build of the Bun image; health, registration, artifact creation, restart persistence | Docker Engine unavailable here | Docker Engine, registry publishing, and host verification remain separate |
+| Cloudflare Workers + D1 | Nitro build and Wrangler/Miniflare registration, artifact creation, and listing pass | Not deployed | Requires real D1 database, secrets, and production config |
+| Cloudflare R2 | Local Wrangler R2 binding: binary upload/download byte-for-byte; no memory fallback | Not deployed | Requires a real R2 bucket and durable object verification |
+| Vercel | Nitro Build Output and local Node runtime registration/artifact/listing pass | Not deployed | Requires a Vercel project, secrets, durable external database, and S3 storage |
 | InstaCloud | Generic Docker checklist and image run path only | Not verified | Requires platform documentation/account or official emulator |
 
 The Wrangler `deploy --dry-run` check also passes locally and validates the
-generated Worker bundle and checked-in D1 binding without uploading or requiring
-Cloudflare credentials. This is build validation, not a remote deployment.
+generated Worker bundle and checked-in D1/R2 bindings without uploading or
+requiring Cloudflare credentials. This is build validation, not a remote
+deployment.
 
 ## Current commands
 
 ```bash
-npm run test:database
-npm run test:r2
-npm run test:r2-request
-npm run test:local-runtime
-npm run test:cloudflare-runtime
-npm run test:vercel-runtime
+bun run test:config
+bun run test:database
+bun run test:local-runtime
+bun run test:cloudflare-runtime
+bun run test:vercel-runtime
 ```
 
 No command in this matrix deploys to a remote service or incurs provider cost.
 
 Credential-free checks also validate Docker Compose secret interpolation and
 deployment-file invariants. These checks do not create remote resources.
-
-The development cleanup verification confirmed the disposable local ports used
-by prior smoke tests (`3199`, `3210`, and `3788`) are closed and the `serangkai`
-tmux session was removed.
 
 ## Remote deployment boundary
 

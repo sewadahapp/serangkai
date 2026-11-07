@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { test, before, after } from 'node:test'
 import { ZipFile } from 'yazl'
+import { serverRuntime } from './helpers/server.mjs'
 
 const port = 3820 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
@@ -17,7 +18,7 @@ function zip(entries) {
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-bundle-test-'))
-  child = spawn('node', ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
+  child = spawn(serverRuntime, ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
   for (let i = 0; i < 60; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break } catch {} await new Promise(resolve => setTimeout(resolve, 100)) }
   const response = await fetch(`${base}/api/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: `bundle-${randomBytes(3).toString('hex')}@example.com`, password: 'correct horse battery' }) })
   cookie = response.headers.get('set-cookie')

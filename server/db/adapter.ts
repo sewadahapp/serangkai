@@ -1,5 +1,6 @@
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import * as schema from './schema'
+import { BOOTSTRAP_STATEMENTS } from './bootstrap'
 
 export type DatabaseProvider = 'sqlite' | 'd1'
 
@@ -17,13 +18,16 @@ export function createD1Database(client: D1Like) {
   return drizzleD1(client as any, { schema })
 }
 
-/** Resolve the database for the current request. Node uses the local SQLite
- * singleton; Cloudflare Workers uses the request-scoped D1 binding. */
+/**
+ * Resolve the database for the current request.
+ *
+ * Cloudflare exposes its bindings on `event.context.cloudflare`; every other
+ * runtime uses the lazy local SQLite singleton. Nitro 2's experimental db0
+ * layer is intentionally not used because Drizzle already owns the schema and
+ * query surface.
+ */
 export async function getRequestDatabase(event: any) {
-  const cloudflare = event?.req?.runtime?.cloudflare
-    || event?.context?.cloudflare
-    || event?.context?._platform?.cloudflare
-  const binding = cloudflare?.env?.DB
+  const binding = event?.context?.cloudflare?.env?.DB
   if (binding) {
     if (!event.context.d1Database) {
       event.context.d1Database = createD1Database(binding)
@@ -31,20 +35,14 @@ export async function getRequestDatabase(event: any) {
     }
     return event.context.d1Database
   }
-  const { db } = await import('#serangkai-db-runtime')
-  return db
+
+  const { getDatabase } = await import('#serangkai-db-runtime')
+  return getDatabase()
 }
 
-/** Apply the small bootstrap schema for development/preview D1 databases.
- * Production deployments should use generated Drizzle migrations instead. */
+/** Apply the shared bootstrap schema to development/preview D1 databases. */
 export async function initializeD1Schema(client: D1Like) {
-  const statements = [
-    `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY NOT NULL, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')), updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')))`,
-    `CREATE TABLE IF NOT EXISTS api_tokens (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, name TEXT NOT NULL, token_hash TEXT NOT NULL UNIQUE, scopes TEXT NOT NULL DEFAULT '[]', last_used_at INTEGER, expires_at INTEGER, created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')))`,
-    `CREATE TABLE IF NOT EXISTS folders (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, parent_id TEXT REFERENCES folders(id) ON DELETE CASCADE, name TEXT NOT NULL, path TEXT NOT NULL, created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')), updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')))` ,
-    `CREATE TABLE IF NOT EXISTS artifacts (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL, slug TEXT NOT NULL, title TEXT NOT NULL, type TEXT NOT NULL, visibility TEXT NOT NULL DEFAULT 'private', content_path TEXT NOT NULL, metadata TEXT DEFAULT '{}', created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')), updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')), UNIQUE(user_id, slug))`,
-    `CREATE TABLE IF NOT EXISTS artifact_versions (id TEXT PRIMARY KEY NOT NULL, artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE, version INTEGER NOT NULL, content_path TEXT NOT NULL, metadata TEXT DEFAULT '{}', created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')), UNIQUE(artifact_id, version))`,
-  ].map(statement => client.prepare(statement))
+  const statements = BOOTSTRAP_STATEMENTS.map(statement => client.prepare(statement))
   if (client.batch) return client.batch(statements)
   for (const statement of statements) await statement.run()
 }

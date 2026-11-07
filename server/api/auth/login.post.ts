@@ -1,6 +1,7 @@
 import { users } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { verifyPassword, createSessionToken } from '../../utils/auth'
+import { getServerConfig } from '../../utils/config'
 import { setCookie } from 'h3'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
@@ -34,7 +35,7 @@ export default defineEventHandler(async (event) => {
   const token = await createSessionToken(user.id)
   setCookie(event, 'session', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: getServerConfig().production,
     sameSite: 'lax',
     maxAge: 60 * 60 * 24 * 7,
     path: '/',

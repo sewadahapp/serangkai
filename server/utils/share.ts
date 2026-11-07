@@ -1,7 +1,8 @@
 import { createHmac, timingSafeEqual } from 'crypto'
+import { getServerConfig } from './config'
 
 function secret() {
-  return process.env.SHARE_SECRET || process.env.JWT_SECRET || 'dev-share-secret-change-me'
+  return getServerConfig().shareSecret
 }
 
 export function signShareKey(artifactId: string) {

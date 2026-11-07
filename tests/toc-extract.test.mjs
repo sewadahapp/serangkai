@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { extractToc } from '../app/utils/markdown-toc.ts'
+import { buildTocTree, extractToc } from '../app/utils/markdown-toc.ts'
 
 test('builds a nested table of contents from rendered headings', () => {
   const html = [
@@ -25,4 +25,15 @@ test('ignores headings without ids and depth outside the range', () => {
 test('decodes entities in heading text', () => {
   const toc = extractToc('<h2 id="a">Tom &amp; Jerry</h2><h2 id="b">B</h2>')
   assert.equal(toc[0].text, 'Tom & Jerry')
+})
+
+test('nests MDC parser links and skips the document title', () => {
+  const tree = buildTocTree([
+    { id: 'title', text: 'Title', depth: 1 },
+    { id: 'one', text: 'One', depth: 2 },
+    { id: 'one-a', text: 'One A', depth: 3 },
+    { id: 'two', text: 'Two', depth: 2 },
+  ])
+  assert.deepEqual(tree.map(link => link.id), ['one', 'two'])
+  assert.deepEqual(tree[0].children?.map(link => link.id), ['one-a'])
 })

@@ -13,7 +13,7 @@ const theme = {
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
-  modules: ['@sewadah/selaras', '@nuxt/content'],
+  modules: ['@sewadah/selaras', '@nuxtjs/mdc'],
   css: ['~/assets/css/main.css'],
   selaras: { theme: { colors: theme } },
   app: {
@@ -39,12 +39,4 @@ export default defineNuxtConfig({
     // artifacts render in the right mode without a flash.
     '/api/share/**': { headers: { 'Accept-CH': 'Sec-CH-Prefers-Color-Scheme' } },
   },
-  content: {
-    highlight: {
-      theme: {
-        default: 'github-light',
-        dark: 'github-dark'
-      }
-    }
-  }
 })

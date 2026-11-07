@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { test, before, after } from 'node:test'
+import { serverRuntime } from './helpers/server.mjs'
 
 const port = 3420 + Math.floor(Math.random() * 100)
 const baseUrl = `http://127.0.0.1:${port}`
@@ -12,7 +13,7 @@ let child, dataDir, cookie
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-upload-test-'))
-  child = spawn('node', ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
+  child = spawn(serverRuntime, ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
   for (let i = 0; i < 60; i++) { try { if ((await fetch(`${baseUrl}/api/health`)).ok) break } catch {} await new Promise(resolve => setTimeout(resolve, 100)) }
   const response = await fetch(`${baseUrl}/api/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: `upload-${randomBytes(3).toString('hex')}@example.com`, password: 'correct horse battery' }) })
   assert.equal(response.ok, true)

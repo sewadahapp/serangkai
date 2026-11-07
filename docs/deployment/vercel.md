@@ -1,25 +1,30 @@
 # Vercel deployment
 
-Nitro documents `vercel` as the current Vercel preset. The repository includes
-`vercel.json` and an explicit Node 24 function runtime.
+Serangkai uses Nitro's `vercel` preset and an explicit Node 24 function runtime.
 
 ```bash
-npm run build:vercel
-vercel deploy --prebuilt
+bun run build:vercel
+bunx vercel deploy --prebuilt
 ```
 
-Set `JWT_SECRET`, `SHARE_SECRET`, `DATABASE_PATH`, and `STORAGE_PATH` in the
-Vercel project environment. The default SQLite/filesystem adapter is suitable
-only when the deployment has durable writable storage; Vercel serverless
-filesystem is ephemeral, so a Vercel deployment requires a portable database and
-object-storage adapter for durable production data. Set `STORAGE_DRIVER=s3` and
-the `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_ENDPOINT`, `S3_REGION`, and
-`S3_BUCKET` variables for an S3-compatible object store.
+## Configuration
 
-This project verifies the Nitro Vercel output build locally. It does not claim a
-production-ready Vercel data path until that adapter is implemented and tested.
+Set `JWT_SECRET` and `SHARE_SECRET` as Vercel project secrets. The app validates
+both at startup in production.
 
-`npm run test:vercel-runtime` verifies the same Node 24-compatible application
-runtime locally using the Node server preset; `npm run build:vercel` separately
-verifies Vercel Build Output generation. A live Vercel deployment still requires
-provider credentials and durable object/database storage configuration.
+Artifact storage uses Nitro's storage layer. Set `STORAGE_DRIVER=s3` and the
+`S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_ENDPOINT`, `S3_REGION`, and
+`S3_BUCKET` variables for durable object storage. Without S3, the local
+filesystem driver is ephemeral on Vercel and is only suitable for a smoke test.
+
+## Verification status
+
+- `bun run build:vercel` verifies Vercel Build Output generation.
+- `bun run test:vercel-runtime` verifies the Node 24-compatible server locally.
+- A remote Vercel deployment has not been performed.
+
+**Durable database boundary:** the local SQLite file is ephemeral on Vercel.
+There is no managed database adapter for Vercel in this repository yet, so a
+Vercel deployment is not production-ready for durable data even with S3
+configured. Do not claim otherwise until a managed database adapter is
+implemented and tested.

@@ -9,7 +9,7 @@ documented as unverified rather than claimed as supported.
 - [x] Nuxt 4 + TypeScript + Selaras scaffolding
 - [x] Repository-local Git identity configured
 - [x] SQLite schema auto-initialization for fresh deployments
-- [x] Local filesystem storage adapter
+- [x] Nitro `useStorage()` artifact storage: filesystem by default, R2 binding on Cloudflare, S3-compatible storage for portable deployments
 - [x] Registration, login, logout, session auth, scoped API token endpoints
 - [x] Nested folder creation and artifact organization
 - [x] Artifact creation for Markdown, HTML, JSON, and related types
@@ -89,19 +89,29 @@ documented as unverified rather than claimed as supported.
 - [x] Limited source editing to Markdown, HTML, JSON, and JavaScript; binary and bundle artifacts keep their preview/download actions only
 - [x] Kept the editor out of reader paths with a lazy, client-only chunk (~208 KB gzip for all four languages); Monaco was measured at ~1.7 MB and rejected
 - [x] HTML artifacts render Mermaid diagrams and TanStack charts through an opt-in same-origin runtime; markers stay declarative and author JavaScript is never evaluated
-- [x] Runtime bundles are built with esbuild into gitignored `public/runtime/` and injected only when the matching marker is present, keeping the CSP network-denied
+- [x] Runtime bundles are built with Bun’s native bundler into gitignored `public/runtime/` and injected only when the matching marker is present, keeping the CSP network-denied
 - [x] Browser coverage proves a sandboxed HTML artifact renders one Mermaid SVG and four chart SVGs; share API coverage proves conditional injection and `script-src 'self'`
 - [x] Documented the HTML marker syntax in the agent guide and the runtime boundary in `ARCHITECTURE.md`
 - [x] Created and visually verified a private “Serangkai — Launch Review” HTML artifact in the real workspace with a Mermaid flow and bar, line, area, and horizontal bar charts
 - [x] Public share readers skip the session bootstrap, removing the anonymous `/api/auth/me` 401 console entry
+- [x] Replaced custom marked + sanitize-html + DOM mounting with `@nuxtjs/mdc` parsing, server-side AST sanitization, and `MDCRenderer` component rendering
+- [x] Removed the unused `@nuxt/content` module; the app now depends only on `@nuxtjs/mdc`
+- [x] Migrated artifact storage to Nitro `useStorage()` mounts and moved static bundle files into the same store; removed the custom fs/R2/S3 adapters and storage runtime aliases
+- [x] Made SQLite initialization lazy and Bun-native (`bun:sqlite` + Drizzle under Bun, better-sqlite3 under Node), preserving the existing database file and schema
+- [x] Centralized environment configuration with fail-fast production validation for JWT/SHARE secrets and S3 settings
+- [x] Standardized on Bun 1.4: `bun.lock` only, Bun scripts/tests/builds, Bun-native runtime bundling, and a Bun multi-stage Docker image
+- [x] Verified the Bun runtime with SQLite, auth, MCP, uploads, sharing, and restart persistence; retained Node 24 as an explicit fallback
+- [x] Verified Cloudflare locally with D1 + R2 through Wrangler/Miniflare, including binary upload/download and no memory fallback
+- [x] Verified the Vercel Build Output and local Node runtime; durable Vercel database support remains explicitly unverified
+- [x] Documented that Nitro 3 is a release candidate and incompatible with Nuxt 4’s Nitro 2/H3 v1 integration
 
 ## Verification
-- `npm run build` passes
-- `npm run test:provider-local` passes and exits cleanly: SQLite, D1/Miniflare, R2 contracts, request-scoped R2, Vercel Node runtime
+- `bun run build` passes
+- `bun run test:provider-local` passes and exits cleanly: Bun SQLite, local Bun runtime, D1/R2 through Wrangler/Miniflare, and Vercel Node runtime
 - Fresh SQLite database smoke test passes
 - Health, registration, session auth, folder creation, artifact creation and listing pass
 - Artifact update creates version 2 and version history lists versions 2 and 1
-- Public Markdown returns rendered `<h1>` and restrictive CSP
+- Public Markdown returns a sanitized MDC body, heading ids, and a nested TOC
 - Browser test covers registration, artifact creation, and switching to an unlisted signed link
 - Full API suite passes: MCP, upload, share, tokens, folders, security, bundles, Markdown, local runtime
 - Browser tests cover creating through the CodeMirror editor, HTML syntax highlighting, `Mod-S` saving, and inline JSON parse errors
@@ -109,7 +119,9 @@ documented as unverified rather than claimed as supported.
 - Share API tests cover conditional runtime injection and the updated CSP (2/2 passing)
 - The real workspace demo artifact was checked in light and dark mode: one Mermaid SVG, four chart SVGs, zero runtime errors
 - Cloudflare Worker deploy dry-run, Vercel build, and local provider runtime tests pass; remote provider deployments remain unverified
-- Container image re-verified from the built image with a persistent volume and restart
+- Bun Docker image built with Podman; health, registration, artifact creation, restart, and persistence verified
+- Node fallback verified against the same node-server build (`SERANGKAI_TEST_RUNTIME=node`)
+- Existing `data/` database and files remain readable through the Nitro storage mount without migration
 - Search returns matching artifacts
 - Latest commits use `Wicaksana Pratama <wicaksanapratama@gmail.com>`
 
@@ -141,7 +153,7 @@ documented as unverified rather than claimed as supported.
 - [x] Pass Wrangler/Miniflare D1 runtime test for registration, artifact creation, and listing
 - [x] Replace Node JWT dependency with Web Crypto-compatible `jose` for edge runtime
 - [x] Add durable R2 adapter contract and binary storage test
-- [x] Add request-scoped R2 binding runtime test with a mocked Cloudflare binding
+- [x] Verify Cloudflare R2 through a local Wrangler binding, including binary upload/download
 - [x] Verify no disposable Serangkai background servers remain running
 - [x] Verify Wrangler Cloudflare deploy dry-run and D1 binding configuration without upload
 - [x] Verify Docker Compose required-secret interpolation and deployment-file invariants
@@ -150,8 +162,8 @@ documented as unverified rather than claimed as supported.
 - [x] Add deployment documentation index with conservative provider status matrix
 - [x] Add remote deployment verification runbook without claiming provider support
 - [x] Add passing Vercel Node runtime integration test for registration and artifact listing
-- [x] Verify local provider runtime suite: SQLite, D1/Miniflare, Vercel Node, R2 contracts
-- [x] Verify request-scoped R2 is used by artifact route storage resolution
+- [x] Verify local provider runtime suite: Bun SQLite, D1/Miniflare with R2, Vercel Node
+- [x] Use Nitro storage mounts for every artifact file, including static bundles
 - [x] Add deployment verification matrix separating local evidence from real-provider claims
 - [x] Add reproducible GitHub Actions verification workflow for local and provider-contract coverage
 - [x] Run consolidated local provider/API/security/browser/bundle verification suite successfully
