@@ -159,16 +159,15 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `/settings` - API token creation, listing, and revocation
 - `/agent` - MCP/REST connection guide with endpoint, client config, scope reference,
   publishing workflow (`baseVersion`), and the HTML color-mode contract
-- `/share/[slug]` - Public reader for every shared artifact type, under a sticky
-  Serangkai header and a footer that every type shares. Markdown gets the
-  workspace prose styles, Shiki, Mermaid, charts, and a contents rail; images
-  sit in a document page. HTML, bundles, PDFs, and JSON/JavaScript fill the
-  space between the header and footer instead of sitting in a title card:
-  framed types are borderless and sandboxed (with the live color mode posted
-  into them), PDFs use the browser viewer full-bleed, and source files get a
-  full-width highlighted code block that scrolls under the pinned footer. It
-  has no workspace navigation and is `noindex`. Signed unlisted links pass
-  `?k=`.
+- `/share/[slug]` - Public reader for every shared artifact type. Only the
+  Serangkai header is sticky; the footer is shared by every type but follows
+  the content in normal flow. Markdown gets the workspace prose styles, Shiki,
+  Mermaid, charts, and a contents rail; images sit in a document page. HTML,
+  bundles, PDFs, and JSON/JavaScript skip the title card and use the full
+  width: framed types are borderless and sandboxed (with the live color mode
+  posted into them), PDFs use the browser viewer, and source files get a
+  full-width highlighted code block. It has no workspace navigation and is
+  `noindex`. Signed unlisted links pass `?k=`.
 - Share delivery happens through `/api/share/:slug`, which applies visibility,
   always redirects Markdown to the reader, and redirects other types only for
   top-level browser navigations (`Sec-Fetch-Dest: document`). Frames, images,

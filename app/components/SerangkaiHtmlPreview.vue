@@ -6,9 +6,9 @@
     sandbox="allow-scripts"
     referrerpolicy="no-referrer"
     :class="flush
-      ? 'block h-full w-full border-0 bg-white dark:bg-[#111]'
+      ? 'block w-full border-0 bg-white dark:bg-[#111]'
       : 'w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-white dark:bg-[#111]'"
-    :style="flush ? undefined : { height }"
+    :style="{ height }"
     @load="sync"
   />
 </template>

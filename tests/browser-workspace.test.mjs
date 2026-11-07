@@ -276,8 +276,9 @@ test('shared HTML artifacts open in the reader with the app chrome', async () =>
   assert.ok(await page.getByRole('link', { name: 'Serangkai home' }).isVisible())
   await assert.doesNotReject(() => page.frameLocator('iframe').getByText('Frame content').waitFor())
 
-  // The artifact is the page, not a card inside it: header and footer are the
-  // only chrome, and the frame fills everything between them edge to edge.
+  // The artifact is the page, not a card inside it: the header and footer are
+  // the only chrome, the frame spans the width, and the footer follows the
+  // content instead of being pinned.
   const layout = await page.evaluate(() => {
     const header = document.querySelector('header')
     const frame = document.querySelector('iframe')
@@ -291,6 +292,7 @@ test('shared HTML artifacts open in the reader with the app chrome', async () =>
       border: getComputedStyle(frame).borderTopWidth,
       title: document.querySelectorAll('main h1').length,
       footer: { text: footer.innerText, top: footerRect.top, bottom: footerRect.bottom },
+      windowScrolls: document.documentElement.scrollHeight > innerHeight,
       viewport: { width: innerWidth, height: innerHeight },
     }
   })
@@ -298,14 +300,26 @@ test('shared HTML artifacts open in the reader with the app chrome', async () =>
   assert.equal(layout.frame.x, 0)
   assert.equal(layout.frame.y, layout.headerBottom)
   assert.equal(Math.round(layout.frame.width), layout.viewport.width)
-  assert.equal(Math.round(layout.frame.y + layout.frame.height), Math.round(layout.footer.top))
   assert.equal(layout.border, '0px')
   assert.equal(layout.title, 0)
   assert.match(layout.footer.text, /Shared from Serangkai/)
-  assert.equal(Math.round(layout.footer.bottom), layout.viewport.height)
+  assert.equal(layout.windowScrolls, true)
+  assert.ok(layout.footer.top >= layout.viewport.height, `footer top ${layout.footer.top}`)
+
+  // Only the header is pinned: scrolling to the end reveals the footer at the
+  // bottom of the viewport, with the header still in place.
+  await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight))
+  await page.waitForTimeout(150)
+  const scrolled = await page.evaluate(() => ({
+    headerTop: document.querySelector('header').getBoundingClientRect().top,
+    footerBottom: document.querySelector('footer').getBoundingClientRect().bottom,
+    viewportHeight: innerHeight,
+  }))
+  assert.equal(scrolled.headerTop, 0)
+  assert.ok(Math.abs(scrolled.footerBottom - scrolled.viewportHeight) < 1, `footer bottom ${scrolled.footerBottom}`)
 })
 
-test('shared source files use the full page between header and footer', async () => {
+test('shared source files use the full page, with the footer at the end', async () => {
   const shareUrl = await page.evaluate(async () => {
     const content = JSON.stringify({
       project: 'Serangkai',
@@ -327,26 +341,32 @@ test('shared source files use the full page between header and footer', async ()
     const header = document.querySelector('header')
     const footer = document.querySelector('footer')
     const pre = document.querySelector('pre')
-    const main = document.querySelector('main')
     const rect = pre.getBoundingClientRect()
     return {
       headerBottom: header.getBoundingClientRect().bottom,
       footerTop: footer.getBoundingClientRect().top,
-      footerBottom: footer.getBoundingClientRect().bottom,
       pre: { top: rect.top, width: rect.width },
       title: document.querySelectorAll('main h1').length,
       windowScrolls: document.documentElement.scrollHeight > innerHeight,
       viewport: { width: innerWidth, height: innerHeight },
-      mainScrolls: main.scrollHeight > main.clientHeight,
     }
   })
 
   // No title card, and the code spans the whole width instead of a 4xl column.
   assert.equal(layout.title, 0)
   assert.ok(layout.pre.width > layout.viewport.width * 0.9, `code width ${layout.pre.width} of ${layout.viewport.width}`)
-  assert.equal(Math.round(layout.footerBottom), layout.viewport.height)
-  assert.equal(layout.windowScrolls, false)
-  // Tall source scrolls inside the page, under a pinned footer.
-  assert.equal(layout.mainScrolls, true)
   assert.ok(layout.pre.top >= layout.headerBottom)
+  // The document scrolls normally and the footer sits after the code.
+  assert.equal(layout.windowScrolls, true)
+  assert.ok(layout.footerTop > layout.pre.top)
+
+  await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight))
+  await page.waitForTimeout(150)
+  const scrolled = await page.evaluate(() => ({
+    headerTop: document.querySelector('header').getBoundingClientRect().top,
+    footerBottom: document.querySelector('footer').getBoundingClientRect().bottom,
+    viewportHeight: innerHeight,
+  }))
+  assert.equal(scrolled.headerTop, 0)
+  assert.ok(Math.abs(scrolled.footerBottom - scrolled.viewportHeight) < 1, `footer bottom ${scrolled.footerBottom}`)
 })

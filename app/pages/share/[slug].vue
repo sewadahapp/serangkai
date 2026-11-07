@@ -1,7 +1,6 @@
 <template>
   <div
-    class="flex flex-col bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]"
-    :class="isFill ? 'h-dvh overflow-hidden' : 'min-h-dvh'"
+    class="bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]"
   >
     <header class="sticky top-0 z-40 shrink-0 border-b border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-canvas)]">
       <div class="serangkai-shell flex h-16 items-center justify-between gap-4">
@@ -19,9 +18,10 @@
     </header>
 
     <!-- Framed, PDF, and source artifacts are the document itself rather than a
-         preview inside the page: they take all the space between the header and
-         footer, edge to edge, with no title card. -->
-    <main v-if="isFill" class="min-h-0 flex-1" :class="isSource ? 'overflow-auto' : 'overflow-hidden'">
+         preview inside the page: they use the full width, and the frame or
+         viewer fills the first screen. The footer follows in normal flow, so
+         only the header is pinned. -->
+    <main v-if="isFill">
       <p v-if="error" role="alert" class="serangkai-shell p-6">
         <span class="serangkai-panel block p-5 text-sm text-[var(--selaras-resolved-color-danger-text)]">{{ error }}</span>
       </p>
@@ -32,12 +32,13 @@
           flush
           :src="artifact.rawUrl"
           :title="`${artifact.title} preview`"
+          height="calc(100dvh - 4rem)"
         />
         <iframe
           v-else-if="artifact.type === 'pdf' && artifact.rawUrl"
           :src="artifact.rawUrl"
           :title="`${artifact.title} PDF`"
-          class="h-full w-full border-0 bg-[var(--selaras-resolved-surface-default)]"
+          class="block h-[calc(100dvh-4rem)] w-full border-0 bg-[var(--selaras-resolved-surface-default)]"
         />
         <div v-else-if="isSource" class="p-4 sm:p-6">
           <SerangkaiCode
@@ -52,7 +53,7 @@
     </main>
 
     <!-- Markdown and images scroll like a document. -->
-    <main v-else class="serangkai-shell flex-1 py-10">
+    <main v-else class="serangkai-shell py-10">
       <p v-if="error" role="alert" class="serangkai-panel mx-auto max-w-[46rem] p-5 text-sm text-[var(--selaras-resolved-color-danger-text)]">
         {{ error }}
       </p>
@@ -90,8 +91,8 @@
     </main>
 
     <!-- Every shared type carries the same chrome, so a link always ends the
-         same way. On full-page types the footer stays pinned under the content. -->
-    <footer class="shrink-0 border-t border-[var(--selaras-resolved-border-muted)] py-6">
+         same way. Only the header is pinned; the footer follows the content. -->
+    <footer class="border-t border-[var(--selaras-resolved-border-muted)] py-6">
       <div class="serangkai-shell flex flex-col gap-2 text-sm text-[var(--selaras-resolved-text-muted)] sm:flex-row sm:items-center sm:justify-between">
         <p>Shared from Serangkai — a private-by-default artifact workspace.</p>
         <NuxtLink to="/" class="underline-offset-4 hover:underline">Open Serangkai</NuxtLink>
