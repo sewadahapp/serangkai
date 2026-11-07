@@ -31,7 +31,7 @@ Requires **Bun 1.4+** and Node 24 only when exercising the Node fallback.
 
 ```bash
 # Install dependencies from the committed Bun lockfile
-bun install --frozen-lockfile
+bun install --frozen-lockfile --ignore-scripts
 
 # Start the dev server
 bun run dev
@@ -44,7 +44,9 @@ bun test tests/markdown-render.test.mjs tests/toc-extract.test.mjs tests/artifac
 ```
 
 `bun.lock` is the only committed lockfile. Do not add `package-lock.json` or run
-npm to work around dependency issues.
+npm to work around dependency issues. `--ignore-scripts` avoids Bun's optional
+native rebuild of `better-sqlite3`; Bun uses `bun:sqlite` at runtime and the
+prebuilt Node binary remains available for the Node fallback.
 
 ### Docker verification status
 

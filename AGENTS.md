@@ -35,7 +35,7 @@ Serangkai is a production-minded, open-source, self-hosted artifact and knowledg
 
 ### Commands
 ```bash
-bun install --frozen-lockfile
+bun install --frozen-lockfile --ignore-scripts
 bun run dev
 bun run build
 bun test tests/markdown-render.test.mjs tests/toc-extract.test.mjs
