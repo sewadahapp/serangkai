@@ -40,7 +40,7 @@ test('human browser workflow registers and creates an artifact', async () => {
   await page.getByRole('button', { name: /Projects/ }).click()
   await page.getByRole('button', { name: 'New artifact' }).first().click()
   await page.getByLabel('Title').first().fill('Browser-created artifact')
-  await page.locator('textarea').fill('# Browser flow')
+  await page.getByRole('textbox', { name: 'Content' }).fill('# Browser flow')
   await page.getByRole('button', { name: 'Create artifact' }).click()
   await assert.doesNotReject(() => page.getByText('Browser-created artifact').waitFor())
   await assert.doesNotReject(() => page.getByText(/· Projects/).waitFor())
@@ -77,7 +77,7 @@ test('human browser workflow registers and creates an artifact', async () => {
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await shareLink.inputValue())
 
   await page.getByRole('button', { name: 'Edit' }).click()
-  await page.locator('textarea').fill('# Browser flow revised')
+  await page.getByRole('textbox', { name: 'Content' }).fill('# Browser flow revised')
   await page.getByRole('button', { name: 'Save version' }).click()
   await assert.doesNotReject(() => page.getByText('Saved version 2').waitFor())
   await page.getByRole('button', { name: 'View' }).last().click()
@@ -220,6 +220,61 @@ test('JSON artifacts are syntax highlighted in the preview', async () => {
   await assert.doesNotReject(() => page.locator('.serangkai-shiki span[style*="--shiki-light"]').first().waitFor())
   assert.ok(await page.locator('.serangkai-shiki span[style*="--shiki-light"]').count() > 0)
   assert.match(await page.locator('.serangkai-prose, main').innerText(), /presentation-spec\.json/)
+})
+
+test('source artifacts open in a full editor with syntax highlighting', async () => {
+  const artifactId = await page.evaluate(async () => {
+    const res = await fetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        title: 'HTML editing',
+        type: 'html',
+        content: '<!doctype html>\n<html>\n  <body>\n    <h1>Hello</h1>\n  </body>\n</html>',
+      }),
+    })
+    return (await res.json()).artifact.id
+  })
+
+  await page.goto(`${base}/artifacts/${artifactId}`)
+  await page.getByRole('button', { name: 'Edit' }).click()
+  const editor = page.getByRole('textbox', { name: 'Content' })
+  await editor.waitFor()
+  await assert.doesNotReject(() => page.getByText('html-editing.html').waitFor())
+  await assert.doesNotReject(() => page.getByText('UTF-8').waitFor())
+  assert.ok(await page.locator('.cm-lineNumbers .cm-gutterElement').count() > 0)
+
+  // The theme must give HTML tokens more than one colour, not plain text.
+  const colors = await editor.evaluate((element) => {
+    const spans = [...element.querySelectorAll('span')]
+    return [...new Set(spans.map(span => getComputedStyle(span).color))]
+  })
+  assert.ok(colors.length > 1, `expected highlighted colours, got ${colors.join(', ')}`)
+
+  await editor.fill('<h1>Edited from the editor</h1>')
+  await page.keyboard.press('Control+s')
+  await assert.doesNotReject(() => page.getByText('Saved version 2').waitFor())
+  await assert.doesNotReject(() => page.frameLocator('iframe').getByText('Edited from the editor').waitFor())
+})
+
+test('the JSON editor surfaces parse errors before saving', async () => {
+  const artifactId = await page.evaluate(async () => {
+    const res = await fetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Release metadata', type: 'json', content: '{\n  "version": "0.1.0"\n}' }),
+    })
+    return (await res.json()).artifact.id
+  })
+
+  await page.goto(`${base}/artifacts/${artifactId}`)
+  await page.getByRole('button', { name: 'Edit' }).click()
+  const editor = page.getByRole('textbox', { name: 'Content' })
+  await editor.waitFor()
+  await editor.fill('{\n  "version":\n}')
+  await assert.doesNotReject(() => page.locator('.cm-lintPoint-error, .cm-lint-marker-error').first().waitFor({ timeout: 4000 }))
+  // The marker follows the parser's error node instead of defaulting to line 1.
+  assert.equal(await page.locator('.cm-line').nth(2).locator('.cm-lintPoint-error').count(), 1)
 })
 
 test('read-only values offer a working copy button', async () => {

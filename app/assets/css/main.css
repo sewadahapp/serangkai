@@ -234,6 +234,204 @@ html {
   background-color: var(--selaras-resolved-surface-elevated);
 }
 
+/* ---------------------------------------------------------------------------
+   Code editor shell (CodeMirror 6).
+
+   CodeMirror injects its own styles from JavaScript, so these rules only draw
+   the frame around it. The editor theme itself is defined in
+   SerangkaiEditor.client.vue with the same resolved Selaras tokens.
+--------------------------------------------------------------------------- */
+
+html.serangkai-editor-workspace-open,
+html.serangkai-editor-fullscreen-open,
+html.serangkai-editor-workspace-open body,
+html.serangkai-editor-fullscreen-open body {
+  overflow: hidden;
+}
+
+.serangkai-editor {
+  display: flex;
+  height: var(--serangkai-editor-height, 28rem);
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--selaras-resolved-border-default);
+  border-radius: var(--selaras-resolved-radius-lg);
+  background-color: var(--selaras-resolved-surface-default);
+  transition: border-color 160ms var(--serangkai-ease), box-shadow 160ms var(--serangkai-ease);
+}
+
+.serangkai-editor:focus-within {
+  border-color: var(--selaras-resolved-color-primary-border);
+}
+
+.serangkai-editor-fill {
+  height: 100%;
+}
+
+.serangkai-editor-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background-color: var(--selaras-resolved-surface-canvas);
+}
+
+.serangkai-editor-fullscreen:focus-within {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.serangkai-editor-toolbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  border-bottom: 1px solid var(--selaras-resolved-border-default);
+  background-color: var(--selaras-resolved-surface-elevated);
+  padding: 0.3125rem 0.5rem;
+}
+
+.serangkai-editor-tab {
+  display: inline-flex;
+  min-width: 0;
+  max-width: min(100%, 22rem);
+  align-items: center;
+  gap: 0.375rem;
+  border: 1px solid var(--selaras-resolved-border-default);
+  border-radius: var(--selaras-resolved-radius-sm);
+  box-shadow: inset 0 2px 0 var(--selaras-resolved-color-primary-indicator);
+  background-color: var(--selaras-resolved-surface-default);
+  padding: 0.25rem 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--selaras-resolved-text-default);
+}
+
+.serangkai-editor-dirty {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex-shrink: 0;
+  border-radius: var(--selaras-resolved-radius-full);
+  background-color: var(--selaras-resolved-color-primary-indicator);
+}
+
+.serangkai-editor-action {
+  display: grid;
+  cursor: pointer;
+  place-items: center;
+  border-radius: var(--selaras-resolved-radius-sm);
+  padding: 0.3125rem;
+  color: var(--selaras-resolved-text-muted);
+  transition: color 160ms var(--serangkai-ease), background-color 160ms var(--serangkai-ease);
+}
+
+.serangkai-editor-action:hover {
+  background-color: var(--selaras-resolved-surface-default);
+  color: var(--selaras-resolved-text-default);
+}
+
+.serangkai-editor-action:focus-visible {
+  outline: 2px solid var(--selaras-resolved-color-primary-border);
+  outline-offset: 1px;
+}
+
+.serangkai-editor-body {
+  position: relative;
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.serangkai-editor-host {
+  height: 100%;
+  min-height: 0;
+}
+
+.serangkai-editor-host .cm-editor {
+  height: 100%;
+}
+
+.serangkai-editor-loading {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  font-size: 0.875rem;
+  color: var(--selaras-resolved-text-muted);
+}
+
+.serangkai-editor-status {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-top: 1px solid var(--selaras-resolved-border-default);
+  background-color: var(--selaras-resolved-surface-elevated);
+  padding: 0.25rem 0.625rem;
+  font-size: 0.6875rem;
+  color: var(--selaras-resolved-text-muted);
+}
+
+.serangkai-editor-status-sep {
+  width: 1px;
+  height: 0.75rem;
+  flex-shrink: 0;
+  background-color: var(--selaras-resolved-border-default);
+}
+
+@media (max-width: 640px) {
+  .serangkai-editor:not(.serangkai-editor-fill):not(.serangkai-editor-fullscreen) {
+    height: 55dvh;
+  }
+}
+
+/* Full-viewport edit mode for artifacts. The page keeps the global chrome in
+   preview, then hands the whole viewport to the editor while editing. */
+.serangkai-editor-workspace {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--selaras-resolved-surface-canvas);
+  color: var(--selaras-resolved-text-default);
+}
+
+.serangkai-editor-workspace-bar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--selaras-resolved-border-default);
+  background-color: var(--selaras-resolved-surface-canvas);
+  padding: 0.5rem 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .serangkai-editor-workspace-bar {
+    padding-inline: 1rem;
+  }
+}
+
+.serangkai-editor-workspace-body {
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 0;
+  flex-direction: column;
+  padding: 0.5rem;
+  background-color: var(--selaras-resolved-surface-canvas);
+}
+
+@media (min-width: 768px) {
+  .serangkai-editor-workspace-body {
+    padding: 0.75rem 1rem 1rem;
+  }
+}
+
 /* Balanced headings; progressive enhancement only. */
 .serangkai-balance {
   text-wrap: balance;

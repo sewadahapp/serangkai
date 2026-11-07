@@ -9,6 +9,12 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
   `SFormField`, `SFileUpload`, `SCheckbox`, `SAlertDialog` via `useConfirm`,
   `SToast` via `useToast`, and others). `app.vue` mounts `SApp` once, which is
   required for `useToast`/`useConfirm`/`useModal` renderers to exist.
+- **Source editor**: CodeMirror 6 (`codemirror` plus the HTML, Markdown, JSON, and
+  JavaScript language packages), MIT licensed. It is a lazy, client-only chunk
+  (~208 KB gzip for all four languages), so readers and workspace browsers never
+  download it. Monaco was rejected at ~1.7 MB gzip once CSS and workers are
+  counted; Tiptap/Lexical/Quill are rich-text editors and normalize the HTML
+  instead of editing raw source. `vue-codemirror` is unmaintained and is not used.
 - **Local MCP dogfooding**: `npm run dev` is pinned to `127.0.0.1:6969`.
   `opencode.json` registers a `serangkai` MCP server that runs
   `scripts/serangkai-mcp.sh`, a stdio→HTTP bridge reading the bearer token from
@@ -155,7 +161,10 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `/auth/login`, `/auth/register` - Auth pages with labeled `SFormField` inputs
 - `/dashboard` - Workspace overview: counts, storage total, recent activity, types
 - `/workspace` - Artifact workspace with folder tree, scoped search, create/upload panels
-- `/artifacts/[id]` - Artifact preview/edit, sharing, folder, and version panels
+- `/artifacts/[id]` - Artifact preview/edit. Markdown, HTML, JSON, and JavaScript
+  open a full-viewport source workspace with an inline title, type and version,
+  dirty state, and Save/Cancel; preview mode keeps the sharing, folder, and
+  version panels.
 - `/settings` - API token creation, listing, and revocation
 - `/agent` - MCP/REST connection guide with endpoint, client config, scope reference,
   publishing workflow (`baseVersion`), and the HTML color-mode contract
@@ -225,15 +234,23 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   Artifacts can opt out with `<meta name="color-scheme" content="only light">`.
   The CSP gains `script-src 'unsafe-inline'` for that bridge; `sandbox allow-scripts`
   still denies same-origin access, forms, popups, framing, and network calls.
+- Source editing uses CodeMirror 6 directly rather than a wrapper component.
+  `SerangkaiEditor.client.vue` owns the editor view, language compartment, a
+  Selaras-token theme (so light/dark needs no foreign theme), JSON parse linting,
+  Markdown line wrapping, and `Mod-S`. `SerangkaiCodeEditor.vue` adds the file
+  tab, dirty dot, fullscreen toggle, and Ln/Col/lines/chars/UTF-8 status bar.
+  The editor is lazy-loaded: previews, share pages, and the workspace list do
+  not pay for it. HTML gets tag/attribute autocomplete and auto-closing tags;
+  JSON gets inline parse errors before saving.
 - Read-only values people copy (MCP/REST endpoints, signed share links, a
   freshly minted API token) put `SerangkaiCopyButton` in `SInput`'s `trailing`
   slot. It uses `copyText`, which falls back to a temporary textarea when the
   instance is served over plain HTTP and `navigator.clipboard` is unavailable,
   and swaps to a check mark for 1.5s instead of raising a toast.
-- There are no native form elements left: text inputs use `SInput`, multi-line
-  content uses `STextarea`, choices use `SSelect`, booleans use `SCheckbox`,
-  files use `SFileUpload`, and dates use `SDatePicker` with
-  `@internationalized/date` `DateValue`s.
+- There are no native form elements left in app forms: text inputs use `SInput`,
+  choices use `SSelect`, booleans use `SCheckbox`, files use `SFileUpload`, and
+  dates use `SDatePicker` with `@internationalized/date` `DateValue`s. Multi-line
+  source editing uses CodeMirror 6 instead of `STextarea`.
 - The global `:focus-visible` outline targets links and custom tabbables only.
   Form controls are excluded because Selaras draws its own focus ring, and an
   extra outline stacked a second ring on every focused field.

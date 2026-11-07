@@ -84,6 +84,10 @@ documented as unverified rather than claimed as supported.
 - [x] Copy buttons on read-only values: MCP/REST endpoints, share links, and new API tokens, with an insecure-context fallback
 - [x] Every shared artifact type carries the same sticky header and a footer in normal flow; HTML, bundles, PDFs, and JSON/JavaScript use the full width instead of a title card, while Markdown and images read as a document
 - [x] Fixed a flaky signed-link tamper assertion (setting the last digit to `0` was a no-op 1/16 of the time)
+- [x] Replaced both `STextarea` editors with CodeMirror 6: HTML/Markdown/JSON/JavaScript highlighting, HTML tag and attribute completion, JSON parse linting, search, folding, and `Mod-S` to save
+- [x] Added a full-viewport, VS Code-like artifact edit workspace with inline title, type/version, dirty indicator, and Save/Cancel; sharing/folder/history return when the preview is shown
+- [x] Limited source editing to Markdown, HTML, JSON, and JavaScript; binary and bundle artifacts keep their preview/download actions only
+- [x] Kept the editor out of reader paths with a lazy, client-only chunk (~208 KB gzip for all four languages); Monaco was measured at ~1.7 MB and rejected
 
 ## Verification
 - `npm run build` passes
@@ -94,6 +98,7 @@ documented as unverified rather than claimed as supported.
 - Public Markdown returns rendered `<h1>` and restrictive CSP
 - Browser test covers registration, artifact creation, and switching to an unlisted signed link
 - Full API suite passes: MCP, upload, share, tokens, folders, security, bundles, Markdown, local runtime
+- Browser tests cover creating through the CodeMirror editor, HTML syntax highlighting, `Mod-S` saving, and inline JSON parse errors
 - Cloudflare Worker deploy dry-run, Vercel build, and local provider runtime tests pass; remote provider deployments remain unverified
 - Container image re-verified from the built image with a persistent volume and restart
 - Search returns matching artifacts

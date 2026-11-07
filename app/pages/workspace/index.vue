@@ -50,7 +50,7 @@
           <SSelect :id="id" v-model="artifactFolderId" :items="artifactFolderOptions" placeholder="No folder" clearable class="w-full" />
         </SFormField>
         <SFormField v-slot="{ id }" label="Content" required>
-          <STextarea :id="id" v-model="artifactContent" :rows="12" autoresize :maxrows="40" placeholder="# Start writing…" required class="font-mono text-sm" />
+          <SerangkaiCodeEditor :id="id" v-model="artifactContent" :language="artifactLanguage" aria-label="Content" height="24rem" />
         </SFormField>
         <div class="flex gap-2">
           <SButton type="submit" :loading="saving" :disabled="saving">Create artifact</SButton>
@@ -230,6 +230,8 @@
 </template>
 
 <script setup lang="ts">
+import type { EditorLanguage } from '~/utils/editor'
+
 useHead({ title: 'Workspace · Serangkai' })
 
 interface Folder {
@@ -311,6 +313,25 @@ const typeOptions = [
   { label: 'HTML', value: 'html' },
   { label: 'JSON', value: 'json' },
 ]
+
+const artifactDefaults: Record<string, string> = {
+  markdown: '# New artifact\n\nStart writing here.',
+  html: '<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <title>New artifact</title>\n  </head>\n  <body>\n    <h1>New artifact</h1>\n  </body>\n</html>',
+  json: '{\n  "title": "New artifact"\n}',
+}
+
+const artifactLanguage = computed<EditorLanguage>(() => {
+  if (artifactType.value === 'html' || artifactType.value === 'json') return artifactType.value
+  return 'markdown'
+})
+
+// Keep the starter document valid for the selected type, but never overwrite
+// content the user actually edited.
+watch(artifactType, (type, previous) => {
+  if (!artifactContent.value.trim() || artifactContent.value === artifactDefaults[previous]) {
+    artifactContent.value = artifactDefaults[type] || artifactDefaults.markdown
+  }
+})
 
 const visibilityOptions = [
   { label: 'Private', value: 'private' },
@@ -466,6 +487,14 @@ const createFolder = async () => {
 }
 
 const createArtifact = async () => {
+  if (!artifactTitle.value.trim()) {
+    error.value = 'Add a title before creating the artifact.'
+    return
+  }
+  if (!artifactContent.value.trim()) {
+    error.value = 'Add some content before creating the artifact.'
+    return
+  }
   saving.value = true; error.value = ''
   try {
     await $fetch('/api/artifacts', {
