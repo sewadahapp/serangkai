@@ -82,7 +82,7 @@ documented as unverified rather than claimed as supported.
 - [x] Mermaid containers use the same border and surface tokens as charts
 - [x] JSON and JavaScript artifact previews are syntax highlighted with the file header and copy button
 - [x] Copy buttons on read-only values: MCP/REST endpoints, share links, and new API tokens, with an insecure-context fallback
-- [x] Every shared artifact type opens in the `/share/[slug]` reader with the same header and color toggle; HTML and bundles render in a sandboxed frame
+- [x] Every shared artifact type opens in the `/share/[slug]` reader under a sticky header; HTML and bundles fill the viewport below it in a borderless sandboxed frame (no title card, no footer), while other types keep the reader chrome
 - [x] Fixed a flaky signed-link tamper assertion (setting the last digit to `0` was a no-op 1/16 of the time)
 
 ## Verification

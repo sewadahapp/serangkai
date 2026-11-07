@@ -159,12 +159,14 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `/settings` - API token creation, listing, and revocation
 - `/agent` - MCP/REST connection guide with endpoint, client config, scope reference,
   publishing workflow (`baseVersion`), and the HTML color-mode contract
-- `/share/[slug]` - Public reader for every shared artifact type. Markdown gets
-  the workspace prose styles, Shiki, Mermaid, charts, and a contents rail;
-  JSON/JavaScript get a highlighted code block; images and PDFs render inline;
-  HTML and bundles run in a sandboxed frame with the live color mode posted into
-  it. All types share the same header, color toggle, and footer. It has no
-  workspace navigation and is `noindex`. Signed unlisted links pass `?k=`.
+- `/share/[slug]` - Public reader for every shared artifact type, under a sticky
+  Serangkai header with the color toggle. Markdown gets the workspace prose
+  styles, Shiki, Mermaid, charts, and a contents rail; JSON/JavaScript get a
+  highlighted code block; images and PDFs render inline; HTML and bundles fill
+  the viewport below the header in a sandboxed full-bleed frame (no title card,
+  no border, no footer), with the live color mode posted into it. Other types
+  get the reader's footer. It has no workspace navigation and is `noindex`.
+  Signed unlisted links pass `?k=`.
 - Share delivery happens through `/api/share/:slug`, which applies visibility,
   always redirects Markdown to the reader, and redirects other types only for
   top-level browser navigations (`Sec-Fetch-Dest: document`). Frames, images,

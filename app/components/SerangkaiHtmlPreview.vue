@@ -5,8 +5,10 @@
     :title="title"
     sandbox="allow-scripts"
     referrerpolicy="no-referrer"
-    class="w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-white dark:bg-[#111]"
-    :style="{ height }"
+    :class="flush
+      ? 'block h-full w-full border-0 bg-white dark:bg-[#111]'
+      : 'w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-white dark:bg-[#111]'"
+    :style="flush ? undefined : { height }"
     @load="sync"
   />
 </template>
@@ -24,7 +26,12 @@ const props = withDefaults(defineProps<{
   src: string
   title: string
   height?: string
-}>(), { height: '70vh' })
+  /**
+   * Fill the parent edge to edge instead of sitting in a bordered card. Used by
+   * the share reader, where the document is the page rather than a preview.
+   */
+  flush?: boolean
+}>(), { height: '70vh', flush: false })
 
 const colorMode = useColorMode()
 const frame = ref<HTMLIFrameElement>()

@@ -275,4 +275,29 @@ test('shared HTML artifacts open in the reader with the app chrome', async () =>
   await assert.doesNotReject(() => page.locator('iframe').first().waitFor())
   assert.ok(await page.getByRole('link', { name: 'Serangkai home' }).isVisible())
   await assert.doesNotReject(() => page.frameLocator('iframe').getByText('Frame content').waitFor())
+
+  // The artifact is the page, not a card inside it: the sticky header is the
+  // only chrome, and the frame fills the rest of the viewport edge to edge.
+  const layout = await page.evaluate(() => {
+    const header = document.querySelector('header')
+    const frame = document.querySelector('iframe')
+    const rect = frame.getBoundingClientRect()
+    return {
+      headerPosition: getComputedStyle(header).position,
+      headerBottom: header.getBoundingClientRect().bottom,
+      frame: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      border: getComputedStyle(frame).borderTopWidth,
+      title: document.querySelectorAll('main h1').length,
+      footer: !!document.querySelector('footer'),
+      viewport: { width: innerWidth, height: innerHeight },
+    }
+  })
+  assert.equal(layout.headerPosition, 'sticky')
+  assert.equal(layout.frame.x, 0)
+  assert.equal(layout.frame.y, layout.headerBottom)
+  assert.equal(Math.round(layout.frame.width), layout.viewport.width)
+  assert.equal(Math.round(layout.frame.y + layout.frame.height), layout.viewport.height)
+  assert.equal(layout.border, '0px')
+  assert.equal(layout.title, 0)
+  assert.equal(layout.footer, false)
 })
