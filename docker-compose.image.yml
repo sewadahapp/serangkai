@@ -6,15 +6,16 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - serangkai-data:/app/data
+      # SQLite, uploaded artifacts, and versions all live here.
+      - serangkai-data:/data
     environment:
       NODE_ENV: production
       PORT: 3000
       HOST: 0.0.0.0
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?Set ADMIN_USERNAME before starting}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD before starting}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET before starting}
       SHARE_SECRET: ${SHARE_SECRET:?Set SHARE_SECRET before starting}
-      DATABASE_PATH: /app/data/serangkai.db
-      STORAGE_PATH: /app/data/files
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
     healthcheck:
       test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]

@@ -17,13 +17,15 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOST=0.0.0.0
-ENV DATABASE_PATH=/app/data/serangkai.db
-ENV STORAGE_PATH=/app/data/files
+# The conventional persistent volume path. InstaCloud mounts /data by default.
+ENV DATABASE_PATH=/data/serangkai.db
+ENV STORAGE_PATH=/data/files
+ENV STORAGE_DRIVER=local
 
-RUN mkdir -p /app/data
+RUN mkdir -p /data
 
 COPY --from=build /app/.output ./.output
-
+COPY --from=build /app/scripts/start.mjs /app/scripts/session-secret.mjs ./scripts/
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
@@ -33,4 +35,3 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 EXPOSE 3000
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["bun", ".output/server/index.mjs"]

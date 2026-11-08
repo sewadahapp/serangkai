@@ -12,7 +12,7 @@ the container path, not evidence of platform support.
 ## Docker image path
 
 Serangkai ships as a single container image and keeps SQLite plus uploaded files
-under `/app/data`. If InstaCloud can run a Docker image, that is the path to use.
+under `/data`. If InstaCloud can run a Docker image, that is the path to use.
 The platform does not need to understand the Nuxt build: it only needs to run
 the image, mount a persistent volume, and pass the required environment
 variables.
@@ -52,16 +52,16 @@ docker save serangkai:latest | gzip > serangkai-image.tar.gz
 
 - Image: the published or locally built `serangkai` image
 - Port: `3000`
-- Persistent mount: `/app/data`
+- Persistent mount: `/data`
 - Health endpoint: `/api/health`
 - Required environment variables:
-  - `JWT_SECRET`: random, stable secret
-  - `SHARE_SECRET`: random, stable secret
-  - `NODE_ENV=production`
-  - `HOST=0.0.0.0`
-  - `PORT=3000`
-  - `DATABASE_PATH=/app/data/serangkai.db`
-  - `STORAGE_PATH=/app/data/files`
+  - `ADMIN_USERNAME`: the single owner login name
+  - `ADMIN_PASSWORD`: the owner password (at least 8 characters)
+  - `JWT_SECRET`: random, stable session root secret
+  - `SHARE_SECRET`: random, stable share-link secret
+- Optional environment variables:
+  - `DATABASE_PATH` (defaults to `/data/serangkai.db`)
+  - `STORAGE_PATH` (defaults to `/data/files`)
 - Optional:
   - `PUBLIC_BASE_URL`: public origin used when generating share links. Set this
     when the platform terminates TLS or serves the app behind a proxy.
@@ -77,6 +77,7 @@ building:
 
 ```bash
 SERANGKAI_IMAGE=registry.example.com/OWNER/serangkai:latest \
+ADMIN_USERNAME=admin ADMIN_PASSWORD='...' \
 JWT_SECRET=... SHARE_SECRET=... \
 docker compose -f docker-compose.image.yml up -d
 ```
@@ -87,11 +88,11 @@ changes.
 ## Verification steps
 
 1. Build or pull the image and confirm the platform pulls the expected digest.
-2. Start the service with the persistent mount and required secrets.
+2. Start the service with the persistent mount and the four required variables.
 3. Confirm `/api/health` reports healthy on port 3000.
-4. Register a test account and create an artifact.
+4. Sign in at `/auth/login` with the configured owner credentials and create an artifact.
 5. Restart/redeploy the service without deleting its volume.
-6. Confirm the account, artifact, and uploaded file still exist.
+6. Confirm the owner can still sign in and the artifact and uploaded file still exist.
 7. Confirm private, public, and unlisted links behave correctly, including a
    signed `?k=` link for an unlisted artifact.
 8. Record the platform image reference, digest, date, and result here before
