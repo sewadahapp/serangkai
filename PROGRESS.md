@@ -113,6 +113,8 @@ documented as unverified rather than claimed as supported.
 - [x] Added opt-in Selaras HTML document theme generated from Selaras prose CSS and loaded only by meta tag
 - [x] Added MCP `get_artifact_capabilities`, authoring guides, component catalog, templates, and prompts
 - [x] Added MCP authoring integration coverage and documented the reproducible blind-agent limitation
+- [x] Login form works before hydration: native POST fallback signs in without reloading, and the hydrated path still uses JSON
+- [x] Fixed dark-mode scroll chrome: `color-scheme` and a canvas background keep native scrollbars, the scrollbar gutter, and overscroll dark instead of white
 - [x] Fixed folder pickers (`Parent`, artifact `Folder`, `Move under`, `Move to`) so Selaras options render; Reka UI rejects empty-string option values
 - [x] Replaced custom JWT/cookie sessions and `init-user.ts` with Nuxt Auth Utils (`useUserSession`, sealed `nuxt-auth-session`)
 - [x] Replaced registration with one environment-configured owner (`ADMIN_USERNAME` / `ADMIN_PASSWORD`), scrypt hashes, stable identity, credential rotation, and a safe multi-user migration policy

@@ -9,12 +9,18 @@
     </div>
 
     <div class="serangkai-panel p-6">
-      <form class="space-y-4" @submit.prevent="login">
+      <!--
+        The action/method pair is the no-hydration fallback. Before Vue attaches
+        the submit handler, a click would otherwise do a native GET of this page
+        and wipe the typed credentials. A native POST lets the server sign in
+        and redirect even when the client JS is still loading (or unavailable).
+      -->
+      <form class="space-y-4" method="post" action="/api/auth/login" @submit.prevent="login">
         <SFormField label="Username" required>
-          <SInput v-model="username" autocomplete="username" autocapitalize="none" spellcheck="false" required class="w-full" />
+          <SInput v-model="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required class="w-full" />
         </SFormField>
         <SFormField label="Password" required>
-          <SInput v-model="password" type="password" autocomplete="current-password" required class="w-full" />
+          <SInput v-model="password" name="password" type="password" autocomplete="current-password" required class="w-full" />
         </SFormField>
 
         <SAlert v-if="error" color="danger" variant="subtle" :title="error" />
@@ -36,9 +42,11 @@
 useHead({ title: 'Log in · Serangkai' })
 
 const { fetch: refreshSession } = useUserSession()
+const route = useRoute()
 const username = ref('')
 const password = ref('')
-const error = ref('')
+// Native form posts (before hydration) redirect here with a generic error.
+const error = ref(route.query.error ? 'Invalid credentials' : '')
 const loading = ref(false)
 
 const login = async () => {

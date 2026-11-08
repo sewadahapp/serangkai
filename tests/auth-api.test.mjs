@@ -74,6 +74,40 @@ test('rejects invalid credentials and accepts the configured owner', async () =>
   assert.equal(body.user.username, adminUsername)
 })
 
+test('the login form works as a native POST before hydration', async () => {
+  const native = await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ username: adminUsername, password: adminPassword }),
+    redirect: 'manual',
+  })
+  assert.equal(native.status, 303)
+  assert.match(native.headers.get('location') || '', /\/workspace$/)
+  const cookie = native.headers.get('set-cookie')
+  assert.ok(cookie, 'native login must set a session cookie')
+  assert.match(cookie, /HttpOnly/i)
+
+  const me = await fetch(`${base}/api/auth/me`, { headers: { cookie } })
+  assert.equal(me.status, 200)
+  assert.equal((await me.json()).user.username, adminUsername)
+
+  const bad = await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ username: adminUsername, password: 'definitely wrong' }),
+    redirect: 'manual',
+  })
+  assert.equal(bad.status, 303)
+  assert.match(bad.headers.get('location') || '', /\/auth\/login\?error=/)
+  // utf8/iron-session may still emit an empty session cookie, but it must not
+  // authenticate.
+  const badCookie = bad.headers.get('set-cookie')
+  if (badCookie) {
+    const rejected = await fetch(`${base}/api/auth/me`, { headers: { cookie: badCookie } })
+    assert.equal(rejected.status, 401)
+  }
+})
+
 test('session state is resolved on the server and exposed to the client', async () => {
   const me = await fetch(`${base}/api/auth/me`, { headers: { cookie: sessionCookie } })
   assert.equal(me.status, 200)

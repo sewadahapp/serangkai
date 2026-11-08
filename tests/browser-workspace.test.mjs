@@ -141,6 +141,27 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await assert.doesNotReject(() => page.getByRole('heading', { name: 'pixel (copy)' }).waitFor())
 })
 
+test('the login form works before client hydration', async () => {
+  const cold = await browser.newContext()
+  const coldPage = await cold.newPage()
+  try {
+    // Simulate a cold first load whose client JS has not arrived yet. The
+    // server-rendered form must sign in natively instead of doing a GET of the
+    // login page that wipes the typed credentials.
+    await coldPage.route('**/_nuxt/**', route =>
+      /\.(?:js|mjs)(?:\?|$)/.test(route.request().url()) ? route.abort() : route.continue(),
+    )
+    await coldPage.goto(`${base}/auth/login`)
+    await coldPage.getByLabel('Username').fill(adminUsername)
+    await coldPage.getByLabel('Password').fill(adminPassword)
+    await coldPage.getByRole('button', { name: 'Log in' }).click()
+    await coldPage.waitForURL('**/workspace')
+    await assert.doesNotReject(() => coldPage.getByRole('heading', { name: 'Workspace' }).waitFor())
+  } finally {
+    await cold.close()
+  }
+})
+
 test('Markdown renders Mermaid diagrams and JSON charts', async () => {
   await page.goto(`${base}/workspace`)
   const artifactId = await page.evaluate(async () => {
