@@ -1,6 +1,7 @@
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import * as schema from './schema'
 import { BOOTSTRAP_STATEMENTS } from './bootstrap'
+import { ensureGlobalSlugUniqueness } from './migrations'
 
 export type DatabaseProvider = 'sqlite' | 'd1'
 
@@ -18,6 +19,10 @@ export function createD1Database(client: D1Like) {
   return drizzleD1(client as any, { schema })
 }
 
+// Migrations must run once per isolate, not once per request. D1 has no
+// connection-level state to hold the flag, so it lives at module scope.
+let d1Migrated = false
+
 /**
  * Resolve the database for the current request.
  *
@@ -32,6 +37,10 @@ export async function getRequestDatabase(event: any) {
     if (!event.context.d1Database) {
       event.context.d1Database = createD1Database(binding)
       await initializeD1Schema(binding)
+      if (!d1Migrated) {
+        d1Migrated = true
+        await ensureGlobalSlugUniqueness(event.context.d1Database)
+      }
     }
     return event.context.d1Database
   }

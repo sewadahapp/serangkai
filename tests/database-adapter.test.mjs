@@ -24,10 +24,20 @@ test('uses D1 batch when the binding provides it', async () => {
 
 test('resolves and caches a request-scoped Cloudflare D1 binding', async () => {
   const calls = []
-  const binding = { prepare(sql) { calls.push(sql); return { run: async () => ({}) } } }
+  const binding = {
+    prepare(sql) {
+      calls.push(sql)
+      return {
+        run: async () => ({}),
+        bind: () => ({ run: async () => ({}), all: async () => ({ results: [] }) }),
+      }
+    },
+  }
   const event = { context: { cloudflare: { env: { DB: binding } } } }
   const first = await getRequestDatabase(event)
+  const afterFirstRequest = calls.length
   const second = await getRequestDatabase(event)
   assert.equal(first, second)
-  assert.equal(calls.length, 5)
+  assert.ok(afterFirstRequest >= 5, 'the bootstrap schema must run')
+  assert.equal(calls.length, afterFirstRequest, 'schema work must not repeat per request')
 })

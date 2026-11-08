@@ -16,6 +16,23 @@ function isTopLevelNavigation(event: Parameters<Parameters<typeof defineEventHan
   return getHeader(event, 'sec-fetch-dest') === 'document'
 }
 
+const imageTypes: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  avif: 'image/avif',
+  svg: 'image/svg+xml',
+}
+
+function resolveImageType(metadata: Record<string, any>) {
+  const declared = String(metadata.mimeType || '')
+  if (declared.startsWith('image/')) return declared
+  const extension = String(metadata.filename || '').toLowerCase().split('.').pop() || ''
+  return imageTypes[extension] || 'image/png'
+}
+
 export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug')
   if (!slug) throw createError({ statusCode: 400, message: 'Slug required' })
@@ -70,7 +87,7 @@ export default defineEventHandler(async (event) => {
     setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
     // `frame-ancestors 'self'` lets the reader frame this; the sandbox still
     // denies same-origin access, forms, popups, framing outsiders, and network.
-    setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src https: data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
+    setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' https: data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
     setHeader(event, 'X-Content-Type-Options', 'nosniff')
     // No parent frame to message, so bake the requested mode in and let the
     // client's prefers-color-scheme take over afterwards.
@@ -81,17 +98,34 @@ export default defineEventHandler(async (event) => {
 
   if (artifact.type === 'json') {
     setHeader(event, 'Content-Type', 'application/json')
+    setHeader(event, 'X-Content-Type-Options', 'nosniff')
     return content.toString()
   }
   if (artifact.type === 'pdf') {
     setHeader(event, 'Content-Type', 'application/pdf')
+    setHeader(event, 'X-Content-Type-Options', 'nosniff')
     return content
   }
   if (artifact.type === 'image') {
-    setHeader(event, 'Content-Type', artifact.metadata?.mimeType || 'image/png')
+    // Uploaded SVGs are documents, not inert bitmaps: opening one at the top
+    // level would execute its scripts on the app origin. The sandbox CSP keeps
+    // the bytes usable inside <img> while denying scripts and same-origin
+    // access when navigated to directly. `metadata.mimeType` is author-supplied
+    // on the REST path, so only an `image/*` value is honored; anything else
+    // falls back to the filename extension and finally to PNG so existing
+    // image artifacts keep rendering.
+    const declared = String(artifact.metadata?.mimeType || '')
+    const contentType = declared.startsWith('image/')
+      ? declared
+      : resolveImageType(artifact.metadata || {})
+    setHeader(event, 'Content-Type', contentType)
+    setHeader(event, 'Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'")
+    setHeader(event, 'X-Content-Type-Options', 'nosniff')
+    setHeader(event, 'Content-Disposition', 'inline')
     return content
   }
 
   setHeader(event, 'Content-Type', 'text/plain')
+  setHeader(event, 'X-Content-Type-Options', 'nosniff')
   return content.toString()
 })

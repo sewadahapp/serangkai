@@ -23,7 +23,13 @@ export default defineEventHandler(async (event) => {
     const content = await readArtifactBytes(`${artifact.userId}/${artifact.id}/bundle/${path}`)
     setHeader(event, 'Content-Type', bundleMimeType(path))
     setHeader(event, 'X-Content-Type-Options', 'nosniff')
-    if (path.endsWith('.html') || path === 'index.html') setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self'; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
+    // Bundle assets share the app origin, so every document-like file needs the
+    // sandbox policy. `endsWith('.html')` alone missed uppercase extensions
+    // (`EVIL.HTML`) and SVG, and both execute script when opened directly.
+    const kind = bundleMimeType(path)
+    if (kind.startsWith('text/html') || kind.startsWith('image/svg')) {
+      setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self'; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
+    }
     return content
   } catch {
     throw createError({ statusCode: 404, message: 'File not found' })

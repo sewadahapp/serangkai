@@ -78,7 +78,7 @@ Artifact {
   id: string
   userId: string
   folderId: string | null
-  slug: string // URL-friendly unique identifier per user or globally?
+  slug: string // globally unique public identifier (unique index)
   title: string
   type: 'markdown' | 'html' | 'javascript' | 'pdf' | 'image' | 'json' | 'bundle'
   visibility: 'private' | 'public' | 'unlisted'
@@ -111,7 +111,10 @@ filesystem layout and all existing artifacts remain compatible.
   `userId/artifactId/bundle/...`; no route reads the filesystem directly.
 
 `server/plugins/storage.ts` mounts the driver once at startup, and
-`server/utils/artifact-storage.ts` is the single read/write surface.
+`server/utils/artifact-storage.ts` is the single read/write surface. On
+Cloudflare, a missing R2 binding fails startup rather than mounting an in-memory
+driver; `SERANGKAI_ALLOW_EPHEMERAL_STORAGE=true` (non-production only) exists
+solely for tests and local previews.
 
 ### API Routes (Nitro)
 - `POST /api/auth/register` - Create account

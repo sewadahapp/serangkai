@@ -324,3 +324,30 @@ test('deletes extracted bundle files from the storage volume', async () => {
   assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'DELETE', headers: { cookie: cookieA } })).status, 200)
   assert.deepEqual(await filesUnder(bundleDirectory), [])
 })
+
+test('share identifiers are globally unique and cannot collide across users', async () => {
+  // Two accounts ask for the same explicit slug. Share URLs resolve by slug
+  // alone, so the second create must get a distinct identifier instead of
+  // shadowing the first account's artifact.
+  const create = (cookie, slug, content) => fetch(`${base}/api/artifacts`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Shared Slug', type: 'markdown', content, visibility: 'public', slug }),
+  })
+  const artifactA = (await (await create(cookieA, 'shared-slug', '# From A')).json()).artifact
+  const artifactB = (await (await create(cookieB, 'shared-slug', '# From B')).json()).artifact
+  assert.notEqual(artifactA.slug, artifactB.slug, 'the two artifacts must not share a public identifier')
+
+  const json = await (await fetch(`${base}/api/share/shared-slug?format=json`)).json()
+  assert.equal(json.title, 'Shared Slug', 'the original slug still resolves')
+
+  // Titles that naturally collide also get a distinct suffix.
+  const duplicate = (cookie) => fetch(`${base}/api/artifacts`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Same title', type: 'markdown', content: '# Same', visibility: 'public' }),
+  })
+  const first = (await (await duplicate(cookieA)).json()).artifact
+  const second = (await (await duplicate(cookieB)).json()).artifact
+  assert.notEqual(first.slug, second.slug)
+})

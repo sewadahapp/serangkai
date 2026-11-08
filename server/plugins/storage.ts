@@ -20,12 +20,18 @@ export default defineNitroPlugin(async () => {
     try {
       await driver.getInstance()
       storage.mount('artifacts', driver)
-    } catch {
-      // Local Workers tests may not define an R2 binding. Keep the app usable
-      // with an explicit ephemeral fallback instead of failing every request.
-      const { default: memoryDriver } = await import('unstorage/drivers/memory')
-      storage.mount('artifacts', memoryDriver())
-      console.warn(`[serangkai] R2 binding "${config.r2Binding}" is unavailable; using ephemeral memory storage.`)
+    } catch (error: any) {
+      // Silently accepting writes into an in-memory driver loses every artifact
+      // on the next isolate and makes a misconfigured deployment look healthy.
+      // Tests and local previews can opt in explicitly; production cannot.
+      if (config.allowEphemeralStorage) {
+        const { default: memoryDriver } = await import('unstorage/drivers/memory')
+        storage.mount('artifacts', memoryDriver())
+        console.warn(`[serangkai] R2 binding "${config.r2Binding}" is unavailable; SERANGKAI_ALLOW_EPHEMERAL_STORAGE is set, using ephemeral memory storage.`)
+        return
+      }
+      console.error(`[serangkai] R2 binding "${config.r2Binding}" is unavailable: ${error?.message || error}`)
+      throw new Error(`R2 binding "${config.r2Binding}" is required. Configure the binding, or set SERANGKAI_ALLOW_EPHEMERAL_STORAGE=true for local development and tests only.`)
     }
     return
   }

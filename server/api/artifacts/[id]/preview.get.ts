@@ -50,7 +50,7 @@ export default defineEventHandler(async (event) => {
     // Owner-only preview of untrusted HTML: same sandbox boundary as public
     // delivery, so the frame cannot reach the app origin, forms, or the network.
     setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
-    setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src https: data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
+    setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' https: data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
     setHeader(event, 'Vary', 'Sec-CH-Prefers-Color-Scheme')
     return withArtifactRuntime(withDocumentTheme(withColorMode(content.toString())))
   } else {

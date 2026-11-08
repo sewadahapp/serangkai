@@ -111,7 +111,7 @@ export const artifactComponents: ArtifactComponent[] = [
     support: 'restricted',
     description: 'Link button. Only navigation is allowed; event handlers and form actions are stripped.',
     props: {
-      label: { type: 'string' },
+      // SButton has no `label` prop: its text comes from the default slot.
       type: { type: 'enum', values: ['button'] },
       color: { type: 'color' },
       to: { type: 'url' },

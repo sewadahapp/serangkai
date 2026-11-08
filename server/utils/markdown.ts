@@ -86,12 +86,124 @@ function isElement(node: ComarkNode): node is [string, Record<string, any>, ...a
   return Array.isArray(node)
 }
 
+/**
+ * Keys that must never survive inside declarative component data.
+ *
+ * Selaras renders some nested item objects (timeline, tree, ...) by spreading
+ * them onto DOM elements (`v-bind="itemUi(...)"`, `:class="item.class"`).
+ * A `style`/`class`/`ui` key in author JSON therefore becomes live CSS in the
+ * application origin.
+ */
+const blockedDataKeys = new Set([
+  'class', 'classname', 'style', 'ui', 'as', 'is',
+  '__proto__', 'constructor', 'prototype', 'innerhtml', 'outerhtml', 'srcdoc', 'textcontent',
+])
+
+/**
+ * Real DOM event handler attribute names.
+ *
+ * A blanket `startsWith('on')` filter also deletes legitimate data columns
+ * such as `owner`, `onboarding`, or `online`. Components only spread the
+ * (already-blocked) `ui`/`class` members onto elements, so matching the actual
+ * DOM event names keeps the boundary without corrupting author data.
+ */
+const domEventAttributes = new Set([
+  'onabort', 'onafterprint', 'onauxclick', 'onbeforeinput', 'onbeforeprint', 'onbeforeunload',
+  'onblur', 'oncancel', 'oncanplay', 'oncanplaythrough', 'onchange', 'onclick', 'onclose',
+  'oncontextmenu', 'oncopy', 'oncut', 'ondblclick', 'ondrag', 'ondragend', 'ondragenter',
+  'ondragleave', 'ondragover', 'ondragstart', 'ondrop', 'ondurationchange', 'onemptied',
+  'onended', 'onerror', 'onfocus', 'onformdata', 'onhashchange', 'oninput', 'oninvalid',
+  'onkeydown', 'onkeypress', 'onkeyup', 'onlanguagechange', 'onload', 'onloadeddata',
+  'onloadedmetadata', 'onloadstart', 'onmessage', 'onmessageerror', 'onmousedown',
+  'onmouseenter', 'onmouseleave', 'onmousemove', 'onmouseout', 'onmouseover', 'onmouseup',
+  'onoffline', 'ononline', 'onpagehide', 'onpageshow', 'onpaste', 'onpause', 'onplay',
+  'onplaying', 'onpopstate', 'onprogress', 'onratechange', 'onrejectionhandled', 'onreset',
+  'onresize', 'onscroll', 'onscrollend', 'onsecuritypolicyviolation', 'onseeked', 'onseeking',
+  'onselect', 'onslotchange', 'onstalled', 'onstorage', 'onsubmit', 'onsuspend',
+  'ontimeupdate', 'ontoggle', 'onunhandledrejection', 'onunload', 'onvolumechange',
+  'onwaiting', 'onwheel', 'onanimationstart', 'onanimationend', 'onanimationiteration',
+  'ontransitionend', 'onpointerdown', 'onpointerup', 'onpointermove', 'onpointerenter',
+  'onpointerleave', 'onpointercancel', 'ontouchstart', 'ontouchend', 'ontouchmove',
+  'ontouchcancel', 'ongotpointercapture', 'onlostpointercapture',
+])
+
+const urlPropNames = new Set([
+  'to', 'href', 'src', 'srcset', 'url', 'uri', 'link', 'links', 'action', 'poster', 'cite', 'background', 'ping', 'formaction',
+])
+
+const safeUrlProtocols = new Set(['http:', 'https:', 'mailto:'])
+
+function normalizePropKey(name: string) {
+  return name.replace(/-([a-z0-9])/g, (_match, character: string) => character.toUpperCase())
+}
+
+function safeUrl(value: string) {
+  // Relative URLs and fragments stay local; absolute URLs must use a known
+  // safe scheme. `javascript:`, `vbscript:`, and `data:` are rejected.
+  const trimmed = value.trim()
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) return value
+  try {
+    return safeUrlProtocols.has(new URL(trimmed).protocol) ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Recursively sanitizes author JSON handed to a Selaras component.
+ *
+ * Top-level props are validated against the registry; this pass protects the
+ * nested arrays/objects that several components spread onto DOM nodes.
+ */
+function sanitizeDataValue(
+  value: unknown,
+  depth = 0,
+  budget = { nodes: 0, bytes: 0 },
+): unknown {
+  if (depth > 12) return undefined
+  if (typeof value === 'string') {
+    budget.bytes += value.length
+    return budget.bytes > 100_000 ? undefined : value
+  }
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
+  if (typeof value === 'boolean' || value === null) return value
+  if (Array.isArray(value)) {
+    const result = []
+    for (const item of value) {
+      if (++budget.nodes > 2_000) return undefined
+      const clean = sanitizeDataValue(item, depth + 1, budget)
+      if (clean !== undefined) result.push(clean)
+    }
+    return result
+  }
+  if (value && typeof value === 'object') {
+    const result: Record<string, unknown> = {}
+    for (const [key, child] of Object.entries(value)) {
+      if (++budget.nodes > 2_000) return undefined
+      const lower = key.toLowerCase()
+      if (blockedDataKeys.has(lower) || domEventAttributes.has(lower) || lower.startsWith('v-')) continue
+      const clean = sanitizeDataValue(child, depth + 1, budget)
+      if (clean === undefined) continue
+      if (typeof clean === 'string' && urlPropNames.has(key.toLowerCase())) {
+        const url = safeUrl(clean)
+        if (url === undefined) continue
+        result[key] = url
+        continue
+      }
+      if (typeof clean === 'string' && lower === 'icon' && !clean.startsWith('lucide:')) continue
+      result[key] = clean
+    }
+    return result
+  }
+  return undefined
+}
+
 function normalizeValue(prop: ComponentProp, value: unknown) {
   switch (prop.type) {
     case 'string':
       return typeof value === 'string' ? value : undefined
     case 'url':
-      return typeof value === 'string' ? value : undefined
+      return typeof value === 'string' ? safeUrl(value) : undefined
     case 'number': {
       const number = typeof value === 'number' ? value : Number(value)
       return Number.isFinite(number) ? number : undefined
@@ -112,14 +224,17 @@ function normalizeValue(prop: ComponentProp, value: unknown) {
       if (Array.isArray(value) && value.every(item => typeof item === 'string')) return value
       return undefined
     case 'stringOrFalse':
-      if (value === false || typeof value === 'string') return value
+      if (value === false) return false
+      // The registry documents this as an icon slot: only the locally bundled
+      // Lucide collection may be requested.
+      if (typeof value === 'string' && value.startsWith('lucide:')) return value
       return undefined
     case 'array':
-      return Array.isArray(value) && JSON.stringify(value).length <= 100_000 ? value : undefined
-    case 'object':
-      return value && typeof value === 'object' && !Array.isArray(value) && JSON.stringify(value).length <= 100_000
-        ? value
-        : undefined
+      return Array.isArray(value) ? sanitizeDataValue(value) : undefined
+    case 'object': {
+      const clean = sanitizeDataValue(value)
+      return clean && typeof clean === 'object' && !Array.isArray(clean) ? clean : undefined
+    }
     default:
       return undefined
   }
@@ -129,15 +244,63 @@ function sanitizeComponentProps(tag: string, props: Record<string, any>) {
   const component = findComponent(tag)
   if (!component) return null
   const clean: Record<string, any> = {}
-  for (const [name, value] of Object.entries(props)) {
+  for (const [name, rawValue] of Object.entries(props)) {
     if (name === '$' || name === 'class' || name === 'style' || name === 'ui' || name === 'as' || name === 'is') continue
-    if (name.startsWith(':') || name.startsWith('@') || name.startsWith('v-') || name.startsWith('on')) continue
-    const spec = component.props[name]
+    if (name.startsWith('@') || name.startsWith('v-') || name.startsWith('on')) continue
+
+    // Comark turns a bare attribute into a `:name` binding (`striped` ->
+    // `":striped": "true"`). Treat bindings as their literal JSON value, but
+    // only for registry props, so evaluation never reaches author input.
+    const isBinding = name.startsWith(':') || name.startsWith('v-bind:')
+    const propName = isBinding ? name.replace(/^(?::|v-bind:)/, '') : name
+    const spec = component.props[propName] || component.props[normalizePropKey(propName)]
     if (!spec) continue
+
+    let value: unknown = rawValue
+    if (isBinding && typeof rawValue === 'string') {
+      try { value = JSON.parse(rawValue) } catch { value = rawValue }
+    }
+
     const normalized = normalizeValue(spec, value)
-    if (normalized !== undefined) clean[name] = normalized
+    if (normalized === undefined) continue
+    const key = normalizePropKey(propName)
+
+    // Structured values are serialized until after Comark's security pass.
+    // That plugin re-validates nested object keys and deletes any key starting
+    // with "on" (it treats them as event handlers), which silently corrupts
+    // legitimate data such as `{ "onboarding": true }`. Passing a JSON string
+    // keeps the payload opaque to that pass; `restoreStructuredProps` parses it
+    // back once the tree is trusted.
+    if (spec.type === 'array' || spec.type === 'object') clean[key] = JSON.stringify(normalized)
+    else if (spec.type === 'stringOrArray' && Array.isArray(normalized)) clean[key] = JSON.stringify(normalized)
+    else clean[key] = normalized
   }
   return clean
+}
+
+/** Rehydrates structured props serialized for the Comark security pass. */
+function restoreStructuredProps(nodes: any[]) {
+  for (const node of nodes) {
+    if (!Array.isArray(node)) continue
+    const [tag, props, ...children] = node
+    const component = findComponent(tag)
+    if (component && props) {
+      for (const [name, value] of Object.entries(props)) {
+        const spec = component.props[name]
+        if (!spec || typeof value !== 'string') continue
+        const structured = spec.type === 'array' || spec.type === 'object'
+          || (spec.type === 'stringOrArray' && value.startsWith('['))
+        if (!structured) continue
+        try {
+          const parsed = JSON.parse(value)
+          if (spec.type === 'array') { if (Array.isArray(parsed)) props[name] = parsed }
+          else if (spec.type === 'object') { if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) props[name] = parsed }
+          else props[name] = parsed
+        } catch {}
+      }
+    }
+    restoreStructuredProps(children)
+  }
 }
 
 function slotName(props: Record<string, any>) {
@@ -201,9 +364,19 @@ function mermaidNode(source: string): ComarkNode {
 function alertNode(node: [string, Record<string, any>, ...any[]]): ComarkNode {
   const [, props, ...children] = node
   const type = props.type
-  const color = ({ note: 'info', tip: 'success', warning: 'warning', danger: 'danger' } as Record<string, string>)[type] || 'info'
+  const color = ({ note: 'info', tip: 'success', important: 'accent', warning: 'warning', caution: 'danger', danger: 'danger' } as Record<string, string>)[type] || 'info'
   const { type: _type, ...rest } = props
-  return [normalizeComponentTag('alert'), { ...rest, color }, ...children]
+  const clean = sanitizeComponentProps('s-alert', { ...rest, color })
+  return ['s-alert', clean || { color }, ...children.map(transformNode).filter(Boolean) as any[]]
+}
+
+/** Converts a GitHub alert blockquote (`> [!NOTE]`) to a Selaras callout. */
+function githubAlertNode(node: [string, Record<string, any>, ...any[]]): ComarkNode {
+  const [, props, ...children] = node
+  const marker = String(props.as)
+  const type = ({ note: 'note', tip: 'tip', important: 'note', warning: 'warning', caution: 'danger' } as Record<string, string>)[marker] || 'note'
+  const clean = sanitizeComponentProps('s-callout', { type })
+  return ['s-callout', clean || { type }, ...children.map(transformNode).filter(Boolean) as any[]]
 }
 
 function transformNode(node: ComarkNode): ComarkNode | null {
@@ -212,8 +385,11 @@ function transformNode(node: ComarkNode): ComarkNode | null {
   props = { ...props }
   delete props.$
 
-  // GitHub alert blockquotes become Selaras alerts.
+  // GitHub alert blockquotes become Selaras alerts. Comark's alert plugin
+  // marks them with `as="note|tip|important|warning|caution"`, which the
+  // security plugin would otherwise strip because it is not an allowed tag.
   if (tag === 'alert') return alertNode(node)
+  if (tag === 'blockquote' && props.as) return githubAlertNode(node)
 
   // Declarative chart/diagram components.
   if (tag === 'mermaid') return mermaidNode(textContent(node))
@@ -234,7 +410,8 @@ function transformNode(node: ComarkNode): ComarkNode | null {
 
   if (tag === 'template') {
     const name = slotName(props)
-    return name ? ['template', { name }, ...children.map(transformNode).filter(Boolean) as any[]] : null
+    const safe = name.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80)
+    return safe ? ['template', { name: safe }, ...children.map(transformNode).filter(Boolean) as any[]] : null
   }
 
   const canonical = normalizeComponentTag(tag)
@@ -252,6 +429,13 @@ function transformNode(node: ComarkNode): ComarkNode | null {
   delete props.style
   delete props.class
   delete props.className
+  // `as`/`is` turn any native element into a dynamic Vue component with raw,
+  // unvalidated props (`<div as="s-button" to="...">`). The registry is the
+  // only way to reach a Selaras component, so drop the escape hatch and the
+  // Selaras `ui` override along with it.
+  delete props.as
+  delete props.is
+  delete props.ui
   if (tag !== 'h1' && tag !== 'h2' && tag !== 'h3' && tag !== 'h4' && tag !== 'h5' && tag !== 'h6') delete props.id
   for (const key of Object.keys(props)) {
     if (key.startsWith(':') || key.startsWith('@') || key.startsWith('v-') || key.startsWith('on')) delete props[key]
@@ -292,6 +476,9 @@ export interface RenderedMarkdown {
 export async function renderMarkdownContent(source: string): Promise<RenderedMarkdown> {
   const parser = await getParser()
   const document = await parser(normalizeLegacyChartBlocks(source))
+  // Comark's security plugin has now run. Restore the structured props it
+  // cannot see safely as objects without dropping legitimate `on*` data keys.
+  restoreStructuredProps(document.nodes)
   const first = Array.isArray(document.nodes[0]) ? document.nodes[0][0] : null
 
   return {

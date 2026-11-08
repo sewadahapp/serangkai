@@ -15,6 +15,12 @@ export interface ServerConfig {
   storageDriver: StorageDriver
   storagePath: string
   r2Binding: string
+  /**
+   * Opt-in ephemeral object storage. Cloudflare Workers need a real R2 binding;
+   * falling back to memory in production would silently discard every artifact
+   * at the end of the isolate, so this is only for tests and local previews.
+   */
+  allowEphemeralStorage: boolean
   s3: {
     accessKeyId: string
     secretAccessKey: string
@@ -75,6 +81,7 @@ export function getServerConfig(): ServerConfig {
     storageDriver,
     storagePath: process.env.STORAGE_PATH || './data/files',
     r2Binding: process.env.R2_BINDING || 'ARTIFACTS',
+    allowEphemeralStorage: process.env.SERANGKAI_ALLOW_EPHEMERAL_STORAGE === 'true' && !production,
     s3,
     publicBaseUrl: process.env.PUBLIC_BASE_URL || '',
   }

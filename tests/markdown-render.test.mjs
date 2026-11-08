@@ -199,3 +199,122 @@ test('keeps GFM task-list checkboxes non-interactive', async () => {
   assert.equal(inputs.length, 2)
   assert.ok(inputs.every(input => input[1].type === 'checkbox' && input[1].disabled === true))
 })
+
+test('rejects unsafe URL schemes in top-level component props', async () => {
+  const { body } = await renderMarkdownContent([
+    '::s-button{to="javascript:alert(1)"}\nGo\n::',
+    '',
+    '::s-button{to="jav&#x61;script:alert(1)"}\nGo\n::',
+    '',
+    '::s-button{to="data:text/html,<script>alert(1)</script>"}\nGo\n::',
+    '',
+    '::s-avatar{src="javascript:alert(1)" text="X"}\n::',
+  ].join('\n'))
+
+  const buttons = findAll(body.nodes, node => node[0] === 's-button')
+  assert.equal(buttons.length, 3)
+  assert.ok(buttons.every(button => button[1].to === undefined))
+  const avatar = find(body.nodes, node => node[0] === 's-avatar')
+  assert.equal(avatar[1].src, undefined)
+})
+
+test('sanitizes nested URLs and CSS-bearing keys inside component arrays', async () => {
+  const { body } = await renderMarkdownContent([
+    `::s-breadcrumb{items='[{"label":"X","to":"javascript:alert(1)"},{"label":"Y","to":"https://ok.example"}]'}`,
+    '::',
+    '',
+    `::s-timeline{items='[{"id":"1","title":"T","src":"javascript:alert(1)","icon":"mdi:home","class":"fixed inset-0","ui":{"item":{"style":"position:fixed"}}}]'}`,
+    '::',
+    '',
+    `::s-table{data='[{"name":"Ada","style":"position:fixed"}]' columns='[{"field":"name","header":"Name"}]'}`,
+    '::',
+  ].join('\n'))
+
+  const serialized = JSON.stringify(body.nodes)
+  assert.doesNotMatch(serialized, /javascript:/)
+  assert.doesNotMatch(serialized, /position:fixed/)
+  assert.doesNotMatch(serialized, /"class"/)
+  assert.doesNotMatch(serialized, /mdi:home/)
+
+  const breadcrumb = find(body.nodes, node => node[0] === 's-breadcrumb')
+  assert.deepEqual(breadcrumb[1].items, [{ label: 'X' }, { label: 'Y', to: 'https://ok.example' }])
+})
+
+test('does not let a native element become an unvalidated dynamic component', async () => {
+  const { body } = await renderMarkdownContent([
+    '<div as="s-button" to="/workspace" ui="fixed inset-0">Injected</div>',
+    '',
+    '<div is="s-navigation-menu" items="[]"></div>',
+  ].join('\n\n'))
+
+  const serialized = JSON.stringify(body.nodes)
+  assert.doesNotMatch(serialized, /"as":/)
+  assert.doesNotMatch(serialized, /"is":/)
+  assert.doesNotMatch(serialized, /fixed inset-0/)
+})
+
+test('renders GitHub alert blockquotes as Selaras callouts', async () => {
+  const { body } = await renderMarkdownContent('> [!WARNING]\n> Warn body.')
+  const callout = find(body.nodes, node => node[0] === 's-callout')
+  assert.ok(callout, 'expected a callout node')
+  assert.equal(callout[1].type, 'warning')
+  assert.match(JSON.stringify(callout), /Warn body/)
+})
+
+test('accepts kebab-case props and bare boolean attributes', async () => {
+  const { body } = await renderMarkdownContent([
+    `::s-tabs{items='[{"label":"A","value":"a"}]' default-value="a"}`,
+    '#a',
+    'A',
+    '::',
+    '',
+    `::s-table{data='[{"n":1}]' columns='[{"field":"n"}]' striped}`,
+    '::',
+    '',
+    '::s-progress{model-value="68" max="100"}\n68%\n::',
+  ].join('\n'))
+
+  const tabs = find(body.nodes, node => node[0] === 's-tabs')
+  assert.equal(tabs[1].defaultValue, 'a')
+  const table = find(body.nodes, node => node[0] === 's-table')
+  assert.equal(table[1].striped, true)
+  const progress = find(body.nodes, node => node[0] === 's-progress')
+  assert.equal(progress[1].modelValue, 68)
+})
+
+test('preserves legitimate nested data keys such as owner/onboarding but blocks event handlers', async () => {
+  // These are real-world column names that must survive through Comark's security pass.
+  const { body } = await renderMarkdownContent([
+    `::s-table{data='[{"owner":"Ada","onboarding":true,"name":"A"}]' columns='[{"field":"owner","header":"Owner"}]'}\n::`,
+    '',
+    `::s-timeline{items='[{"id":"1","title":"x","onCall":"y","owner":"Ada"}]'}\n::`,
+    '',
+    `::s-navigation-menu{items='[{"label":"A","to":"/a","onboard":true}]'}\n::`,
+  ].join('\n'))
+
+  const table = find(body.nodes, node => node[0] === 's-table')
+  assert.deepEqual(table[1].data, [{ owner: 'Ada', onboarding: true, name: 'A' }])
+
+  const timeline = find(body.nodes, node => node[0] === 's-timeline')
+  assert.deepEqual(timeline[1].items, [{ id: '1', title: 'x', onCall: 'y', owner: 'Ada' }])
+
+  const nav = find(body.nodes, node => node[0] === 's-navigation-menu')
+  assert.deepEqual(nav[1].items, [{ label: 'A', to: '/a', onboard: true }])
+})
+
+test('blocks event handlers inside data structures while allowing safe properties', async () => {
+  const { body } = await renderMarkdownContent([
+    `::s-table{data='[{"onclick":"evil","onerror":"x","safe":1,"oncall":"y"}]' columns='[{"field":"safe","header":"Safe"}]'}\n::`,
+    '',
+    `::s-timeline{items='[{"id":"1","class":"fixed inset-0","ui":{"item":{"style":"position:fixed"}},"onclick":"z"}]'}\n::`,
+  ].join('\n'))
+
+  const serialized = JSON.stringify(body.nodes)
+  assert.doesNotMatch(serialized, /onclick/)
+  assert.doesNotMatch(serialized, /onerror/)
+  assert.doesNotMatch(serialized, /position:fixed/)
+  assert.doesNotMatch(serialized, /class.*fixed/)
+
+  const table = find(body.nodes, node => node[0] === 's-table')
+  assert.deepEqual(table[1].data, [{ safe: 1, oncall: 'y' }])
+})

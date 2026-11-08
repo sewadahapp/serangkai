@@ -11,11 +11,12 @@ function run(env) {
     process.env.NODE_ENV = 'production'
     process.env.JWT_SECRET = '${env.JWT_SECRET ?? ''}'
     process.env.SHARE_SECRET = '${env.SHARE_SECRET ?? ''}'
+    process.env.SERANGKAI_ALLOW_EPHEMERAL_STORAGE = '${env.SERANGKAI_ALLOW_EPHEMERAL_STORAGE ?? ''}'
     delete process.env.STORAGE_DRIVER
     try {
       const { getServerConfig } = await import('./server/utils/config.ts')
       const config = getServerConfig()
-      console.log(JSON.stringify({ ok: true, production: config.production }))
+      console.log(JSON.stringify({ ok: true, production: config.production, allowEphemeralStorage: config.allowEphemeralStorage }))
     } catch (error) {
       console.log(JSON.stringify({ ok: false, message: error.message }))
     }
@@ -37,4 +38,14 @@ test('production accepts strong secrets', () => {
   const result = run({ JWT_SECRET: 'j'.repeat(48), SHARE_SECRET: 's'.repeat(48) })
   assert.match(result.stdout, /"ok":true/)
   assert.match(result.stdout, /"production":true/)
+})
+
+test('production never allows the ephemeral storage fallback', () => {
+  const result = run({
+    JWT_SECRET: 'j'.repeat(48),
+    SHARE_SECRET: 's'.repeat(48),
+    SERANGKAI_ALLOW_EPHEMERAL_STORAGE: 'true',
+  })
+  assert.match(result.stdout, /"ok":true/)
+  assert.match(result.stdout, /"allowEphemeralStorage":false/)
 })

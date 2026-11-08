@@ -2,7 +2,8 @@ import { nanoid } from 'nanoid'
 import { artifactVersions, artifacts, folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { requireScope } from '../../utils/require-auth'
-import { artifactTypes, inferArtifactType, makeSlug, MAX_UPLOAD_BYTES } from '../../utils/artifacts'
+import { artifactTypes, inferArtifactType, reserveSlug, MAX_UPLOAD_BYTES } from '../../utils/artifacts'
+import { isSlugConflict } from '../../db/migrations'
 import { extractBundle } from '../../utils/bundles'
 import { and, eq } from 'drizzle-orm'
 import { writeArtifact } from '../../utils/artifact-storage'
@@ -42,7 +43,7 @@ export default defineEventHandler(async (event) => {
   if (type === 'image' && !file.type?.startsWith('image/')) throw createError({ statusCode: 415, message: 'Image uploads require an image MIME type' })
 
   const id = nanoid()
-  const slug = makeSlug(title)
+  const slug = await reserveSlug(db, title)
   const contentPath = `${user.id}/${id}/content`
   if (type === 'bundle') {
     try { await extractBundle(file.data, `${user.id}/${id}/bundle`) }
@@ -51,11 +52,16 @@ export default defineEventHandler(async (event) => {
   } else {
     await writeArtifact(contentPath, file.data)
   }
-  await db.insert(artifacts).values({
-    id, userId: user.id, folderId, slug, title, type,
-    visibility: visibility as 'private' | 'public' | 'unlisted', contentPath,
-    metadata: { filename: file.filename, mimeType: file.type, size: file.data.length }, createdAt: new Date(), updatedAt: new Date(),
-  })
+  try {
+    await db.insert(artifacts).values({
+      id, userId: user.id, folderId, slug, title, type,
+      visibility: visibility as 'private' | 'public' | 'unlisted', contentPath,
+      metadata: { filename: file.filename, mimeType: file.type, size: file.data.length }, createdAt: new Date(), updatedAt: new Date(),
+    })
+  } catch (error) {
+    if (isSlugConflict(error)) throw createError({ statusCode: 409, message: 'That share identifier is already in use. Retry the upload.' })
+    throw error
+  }
   await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version: 1, contentPath, metadata: {}, createdAt: new Date() })
   return { artifact: { id, slug, title, type, visibility, folderId, size: file.data.length } }
 })

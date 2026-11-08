@@ -60,7 +60,7 @@
 
       <template v-else-if="artifact">
         <!-- Markdown keeps its prose measure and contents rail. -->
-        <div v-if="artifact.type === 'markdown'" class="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,46rem)_13rem]">
+        <div v-if="artifact.type === 'markdown'" class="mx-auto grid max-w-5xl grid-cols-1 gap-10 lg:grid-cols-[minmax(0,46rem)_13rem]">
           <article>
             <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
             <h1 v-if="!startsWithHeading" class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>

@@ -91,6 +91,9 @@ documented as unverified rather than claimed as supported.
 - [x] HTML artifacts render Mermaid diagrams and TanStack charts through an opt-in same-origin runtime; markers stay declarative and author JavaScript is never evaluated
 - [x] Runtime bundles are built with Bun’s native bundler into gitignored `public/runtime/` and injected only when the matching marker is present, keeping the CSP network-denied
 - [x] Browser coverage proves a sandboxed HTML artifact renders one Mermaid SVG and four chart SVGs; share API coverage proves conditional injection and `script-src 'self'`
+- [x] Share delivery sandboxes every HTML/SVG response (including uppercase bundle paths) and ignores non-image MIME metadata
+- [x] Markdown component data is sanitized recursively; structured props are round-tripped through JSON so Comark's `on*` key filter cannot corrupt real columns
+- [x] Public artifacts resolve through a globally unique slug (unique index and reservation on every create path)
 - [x] Documented the HTML marker syntax in the agent guide and the runtime boundary in `ARCHITECTURE.md`
 - [x] Created and visually verified a private “Serangkai — Launch Review” HTML artifact in the real workspace with a Mermaid flow and bar, line, area, and horizontal bar charts
 - [x] Public share readers skip the session bootstrap, removing the anonymous `/api/auth/me` 401 console entry
@@ -110,6 +113,11 @@ documented as unverified rather than claimed as supported.
 - [x] Added opt-in Selaras HTML document theme generated from Selaras prose CSS and loaded only by meta tag
 - [x] Added MCP `get_artifact_capabilities`, authoring guides, component catalog, templates, and prompts
 - [x] Added MCP authoring integration coverage and documented the reproducible blind-agent limitation
+- [x] Independent review: hardened component prop sanitization (nested URLs, CSS/event keys, `as`/`is` bypass), fixed GitHub alert mapping, kebab-case props, and chart bounds
+- [x] Fixed same-origin script execution via image MIME metadata (REST `metadata.mimeType`) and non-lowercase/SVG bundle assets
+- [x] Enforced global share-slug uniqueness (startup migration + unique index) and removed the silent R2 memory fallback
+- [x] Restored legitimate `on*` data columns (`owner`, `onboarding`) through Comark's security pass
+- [x] Fixed the opt-in document theme webfont (CSP `font-src 'self'` + CORS) and mobile grid overflow
 - [x] Verified ordinary Markdown, tables, code, Mermaid, charts, Selaras cards/alerts/tables, and the opt-in HTML document theme in the real app
 - [x] Preserved existing Markdown/Comark syntax, artifact URLs, SQLite data, and Nitro storage mounts
 - [x] Standardized Selaras internal icons on Lucide via `shared/selaras-icons.ts` and `app/app.config.ts`, with a guard test for new registry keys and explicit Lucide file icons in code blocks

@@ -5,11 +5,24 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { test, before, after } from 'node:test'
+import yazl from 'yazl'
 import { serverRuntime } from './helpers/server.mjs'
 
 const port = 3620 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
 let child, dataDir, cookie, htmlArtifact, markdownArtifact, pinnedArtifact
+
+function makeZip(entries) {
+  const zip = new yazl.ZipFile()
+  for (const [name, content] of Object.entries(entries)) zip.addBuffer(Buffer.from(content), name)
+  const chunks = []
+  zip.end()
+  return new Promise((resolve, reject) => {
+    zip.outputStream.on('data', chunk => chunks.push(chunk))
+    zip.outputStream.on('end', () => resolve(Buffer.concat(chunks)))
+    zip.outputStream.on('error', reject)
+  })
+}
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-security-test-'))
@@ -85,4 +98,58 @@ test('an artifact that pins one color scheme is delivered untouched', async () =
   assert.equal(response.status, 200)
   assert.doesNotMatch(body, /data-serangkai-color-mode/, 'pinned artifacts opt out of the bridge')
   assert.match(body, /only light/)
+})
+
+test('shared images and bundle documents cannot execute scripts on the app origin', async () => {
+  // An SVG is an active document, and bundle paths are only checked for a
+  // lowercase `.html` suffix. Both must carry a sandbox policy when opened
+  // directly at `/api/share/...`.
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg"><script>document.title="x"</script></svg>'
+  const imageForm = new FormData()
+  imageForm.append('file', new Blob([svg], { type: 'image/svg+xml' }), 'image.svg')
+  imageForm.append('title', 'svg image')
+  imageForm.append('visibility', 'public')
+  const uploaded = await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie }, body: imageForm })
+  const image = (await uploaded.json()).artifact
+  const imageResponse = await fetch(`${base}/api/share/${image.slug}`)
+  assert.equal(imageResponse.status, 200)
+  assert.match(imageResponse.headers.get('content-security-policy'), /sandbox/)
+  assert.equal(imageResponse.headers.get('x-content-type-options'), 'nosniff')
+
+  const zip = await makeZip({
+    'index.html': '<!doctype html><html><body>ok</body></html>',
+    'EVIL.HTML': '<script>document.title="x"</script>',
+    'image.svg': svg,
+  })
+  const bundleForm = new FormData()
+  bundleForm.append('file', new Blob([zip], { type: 'application/zip' }), 'bundle.zip')
+  bundleForm.append('title', 'sandbox bundle')
+  bundleForm.append('type', 'bundle')
+  bundleForm.append('visibility', 'public')
+  const bundle = (await (await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie }, body: bundleForm })).json()).artifact
+
+  for (const path of ['EVIL.HTML', 'image.svg']) {
+    const response = await fetch(`${base}/api/share/${bundle.slug}/${path}`)
+    assert.equal(response.status, 200, path)
+    assert.match(response.headers.get('content-security-policy') || '', /sandbox allow-scripts/, path)
+  }
+})
+
+test('image metadata cannot upgrade a non-SVG artifact to an executable type', async () => {
+  const created = await fetch(`${base}/api/artifacts`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      title: 'sneaky image',
+      type: 'image',
+      visibility: 'public',
+      metadata: { mimeType: 'text/html' },
+      content: '<script>document.title="x"</script>',
+    }),
+  })
+  const artifact = (await created.json()).artifact
+  const response = await fetch(`${base}/api/share/${artifact.slug}`)
+  assert.equal(response.status, 200)
+  assert.doesNotMatch(response.headers.get('content-type') || '', /text\/html/)
+  assert.match(response.headers.get('content-security-policy') || '', /sandbox/)
 })

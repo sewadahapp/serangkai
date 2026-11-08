@@ -4,6 +4,8 @@ import { getRequestDatabase } from '../../db/adapter'
 import { z } from 'zod'
 import { requireScope } from '../../utils/require-auth'
 import { and, eq } from 'drizzle-orm'
+import { isSlugConflict } from '../../db/migrations'
+import { reserveSlug } from '../../utils/artifacts'
 import { writeArtifact } from '../../utils/artifact-storage'
 
 const schema = z.object({
@@ -28,7 +30,7 @@ export default defineEventHandler(async (event) => {
   }
   
   const { title, slug: providedSlug, type, content, folderId, visibility, metadata } = result.data
-  const slug = providedSlug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + nanoid(6)
+  const slug = await reserveSlug(db, providedSlug || title)
 
   if (folderId) {
     const folder = await db.select().from(folders)
@@ -42,20 +44,27 @@ export default defineEventHandler(async (event) => {
   const contentKey = `${user.id}/${artifactId}/content`
   await writeArtifact(contentKey, content)
   
-  await db.insert(artifacts).values({
-    id: artifactId,
-    userId: user.id,
-    folderId: folderId || null,
-    slug,
-    title,
-    type,
-    visibility,
-    contentPath: contentKey,
-    metadata: metadata || {},
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  })
-  
+  try {
+    await db.insert(artifacts).values({
+      id: artifactId,
+      userId: user.id,
+      folderId: folderId || null,
+      slug,
+      title,
+      type,
+      visibility,
+      contentPath: contentKey,
+      metadata: metadata || {},
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  } catch (error) {
+    // A concurrent create can win the unique slug index between the check and
+    // the insert; surface it as a retryable conflict instead of a 500.
+    if (isSlugConflict(error)) throw createError({ statusCode: 409, message: 'That share identifier is already in use. Retry with a different slug.' })
+    throw error
+  }
+
   await db.insert(artifactVersions).values({
     id: nanoid(),
     artifactId,

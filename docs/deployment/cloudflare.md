@@ -17,6 +17,12 @@ bunx wrangler deploy
 - R2 binding `ARTIFACTS`
 - `nodejs_compat`
 
+`ARTIFACTS` is mandatory. If the binding is missing, startup fails with a clear
+error instead of falling back to in-memory storage. That fallback is only
+available when `SERANGKAI_ALLOW_EPHEMERAL_STORAGE=true` is set **and** the app
+is not running in production; never set it on a deployed Worker, where every
+artifact would disappear at the end of the isolate.
+
 Set production secrets with Wrangler; never commit them to the config file:
 
 ```bash
@@ -48,6 +54,9 @@ bindings, and verifies:
 - Markdown artifact creation and listing
 - binary image upload and byte-for-byte download through R2
 - no fallback to ephemeral memory storage
+
+The test deliberately does **not** set `SERANGKAI_ALLOW_EPHEMERAL_STORAGE`; if
+the R2 binding ever regresses the run fails instead of passing on memory.
 
 The local test is not a remote deployment. A real Cloudflare deployment still
 requires a real D1 database, an R2 bucket, and production secrets. Record the

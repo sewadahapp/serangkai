@@ -57,7 +57,7 @@
 
       <SAlert v-if="deleteMessage" color="danger" variant="subtle" :title="deleteMessage" />
 
-      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section aria-labelledby="artifact-content" class="serangkai-panel overflow-hidden">
           <div class="flex items-center justify-between gap-3 border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
             <h2 id="artifact-content" class="text-sm font-semibold">Content</h2>

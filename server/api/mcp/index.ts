@@ -8,6 +8,8 @@ import { artifactVersions, artifacts, folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { requireScope } from '../../utils/require-auth'
 import { readArtifactBytes, writeArtifact } from '../../utils/artifact-storage'
+import { reserveSlug } from '../../utils/artifacts'
+import { isSlugConflict } from '../../db/migrations'
 import { capabilities, capabilitiesText, htmlGuide, markdownGuide, promptMessages, templates } from '../../utils/authoring'
 import { componentCatalogMarkdown } from '../../../shared/artifact-components'
 
@@ -134,7 +136,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
 
   server.registerTool('create_artifact', {
     title: 'Create artifact',
-    description: 'Create a private-by-default artifact. Before authoring, call get_artifact_capabilities or read serangkai://guides/markdown / serangkai://guides/html for supported syntax and components.',
+    description: 'Create a private-by-default artifact. Call get_artifact_capabilities for authoring syntax.',
     inputSchema: {
       title: z.string().min(1).max(200),
       type: artifactType,
@@ -147,17 +149,22 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
     if (!canWrite) return { isError: true, content: [{ type: 'text', text: 'This API token requires write scope.' }] }
     if (folderId && !(await findFolder(folderId))) return { isError: true, content: [{ type: 'text', text: 'Folder not found.' }] }
     const id = nanoid()
-    const slug = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80)}-${nanoid(6)}`
+    const slug = await reserveSlug(db, title)
     const contentPath = `${userId}/${id}/content`
     await writeArtifact(contentPath, content)
-    await db.insert(artifacts).values({ id, userId, folderId: folderId || null, slug, title, type, visibility: artifactVisibility, contentPath, metadata: {}, createdAt: new Date(), updatedAt: new Date() })
+    try {
+      await db.insert(artifacts).values({ id, userId, folderId: folderId || null, slug, title, type, visibility: artifactVisibility, contentPath, metadata: {}, createdAt: new Date(), updatedAt: new Date() })
+    } catch (error) {
+      if (isSlugConflict(error)) return { isError: true, content: [{ type: 'text', text: 'That share identifier is already in use. Retry with a slightly different title.' }] }
+      throw error
+    }
     await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version: 1, contentPath, metadata: {}, createdAt: new Date() })
     return textResult({ id, slug, title, type, visibility: artifactVisibility, folderId: folderId || null })
   })
 
   server.registerTool('update_artifact', {
     title: 'Update artifact',
-    description: 'Publish a new version of an artifact. baseVersion (the version you read with get_artifact) is required whenever content changes; a mismatch is refused with the current version so you can re-read and merge. Call get_artifact_capabilities for authoring syntax. Unchanged content creates no version.',
+    description: 'Publish a new version. baseVersion from get_artifact is required when content changes; a mismatch returns the current version. Call get_artifact_capabilities for authoring syntax. Unchanged content creates no version.',
     inputSchema: {
       id: z.string(),
       title: z.string().min(1).max(200).optional(),

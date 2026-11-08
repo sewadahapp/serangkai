@@ -50,7 +50,11 @@ export function resolveChart(definition: Record<string, unknown>, label = 'Data 
   const type = input.type === 'line' || input.type === 'area' ? input.type : 'bar'
   const horizontal = type === 'bar' && input.horizontal === true
   const title = typeof input.title === 'string' ? input.title : ''
-  const height = typeof input.height === 'number' && input.height > 0 ? input.height : 320
+  // `height` is a CSS pixel value; an unbounded number turns into a 33-million
+  // pixel page that freezes layout and scroll. Clamp to a sane chart range.
+  const height = typeof input.height === 'number' && input.height > 0
+    ? Math.min(Math.max(Math.round(input.height), 120), 1200)
+    : 320
   const xKey = typeof input.x === 'string' && input.x
     ? input.x
     : typeof input.xKey === 'string' && input.xKey
@@ -65,11 +69,26 @@ export function resolveChart(definition: Record<string, unknown>, label = 'Data 
   const fallbackJson = JSON.stringify(definition, null, 2)
   const ariaLabel = title || label
 
-  if (!rows.length) {
+  // Data rows are rendered as SVG text and chart geometry. Cap the row count so
+  // a hostile or accidental 100k-row array cannot exhaust the renderer, and
+  // keep the coordinates finite so NaN never reaches the scale.
+  const safeRows = rows
+    .filter(row => row && typeof row === 'object' && !Array.isArray(row))
+    .slice(0, 2_000)
+    .map(row => {
+      const clean: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(row)) {
+        clean[key] = typeof value === 'number' && !Number.isFinite(value) ? null : value
+      }
+      return clean
+    })
+  const numeric = safeRows.filter(row => typeof row[yKey] === 'number' && Number.isFinite(row[yKey]))
+
+  if (!numeric.length) {
     return { chart: null, title, height, ariaLabel, fallbackJson }
   }
 
-  const categories = rows.map(row => String(row[xKey] ?? ''))
+  const categories = numeric.map(row => String(row[xKey] ?? ''))
   const axis = {
     xLabel: input.xLabel || (horizontal ? yKey : xKey),
     yLabel: input.yLabel || (horizontal ? xKey : yKey),
@@ -80,7 +99,7 @@ export function resolveChart(definition: Record<string, unknown>, label = 'Data 
     let scales: Record<string, unknown>
 
     if (horizontal) {
-      mark = barX(rows, { x: yKey, y: xKey, inset: 1, ...(color ? { fill: color } : {}) })
+      mark = barX(numeric, { x: yKey, y: xKey, inset: 1, ...(color ? { fill: color } : {}) })
       scales = {
         x: { scale: scaleLinear, nice: true, grid: true, axis: { label: axis.xLabel } },
         y: {
@@ -89,7 +108,7 @@ export function resolveChart(definition: Record<string, unknown>, label = 'Data 
         },
       }
     } else if (type === 'bar') {
-      mark = barY(rows, { x: xKey, y: yKey, inset: 1, ...(color ? { fill: color } : {}) })
+      mark = barY(numeric, { x: xKey, y: yKey, inset: 1, ...(color ? { fill: color } : {}) })
       scales = {
         x: {
           scale: () => scaleBand<string>().domain(categories).padding(0.18),
@@ -98,7 +117,7 @@ export function resolveChart(definition: Record<string, unknown>, label = 'Data 
         y: { scale: scaleLinear, nice: true, grid: true, axis: { label: axis.yLabel } },
       }
     } else if (type === 'line') {
-      mark = lineY(rows, { x: xKey, y: yKey, points: true, ...(color ? { stroke: color } : {}) })
+      mark = lineY(numeric, { x: xKey, y: yKey, points: true, ...(color ? { stroke: color } : {}) })
       scales = {
         x: {
           scale: () => scalePoint<string>().domain(categories).padding(0.3),
@@ -107,7 +126,7 @@ export function resolveChart(definition: Record<string, unknown>, label = 'Data 
         y: { scale: scaleLinear, nice: true, grid: true, axis: { label: axis.yLabel } },
       }
     } else {
-      mark = areaY(rows, { x: xKey, y: yKey, ...(color ? { fill: color } : {}) })
+      mark = areaY(numeric, { x: xKey, y: yKey, ...(color ? { fill: color } : {}) })
       scales = {
         x: {
           scale: () => scalePoint<string>().domain(categories).padding(0.3),
