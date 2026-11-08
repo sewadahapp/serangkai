@@ -22,6 +22,7 @@ jobs:
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: bun run build:node
       - run: bun run test:markdown
+      - run: bun run test:icons
       - run: bun run test:runtime
       - run: bun run test:deployment-config
       - run: bun run test:deployment-files

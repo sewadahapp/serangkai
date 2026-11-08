@@ -112,6 +112,7 @@ documented as unverified rather than claimed as supported.
 - [x] Added MCP authoring integration coverage and documented the reproducible blind-agent limitation
 - [x] Verified ordinary Markdown, tables, code, Mermaid, charts, Selaras cards/alerts/tables, and the opt-in HTML document theme in the real app
 - [x] Preserved existing Markdown/Comark syntax, artifact URLs, SQLite data, and Nitro storage mounts
+- [x] Standardized Selaras internal icons on Lucide via `shared/selaras-icons.ts` and `app/app.config.ts`, with a guard test for new registry keys and explicit Lucide file icons in code blocks
 
 ## Verification
 - `bun run build` passes

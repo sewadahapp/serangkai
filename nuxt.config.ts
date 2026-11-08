@@ -1,5 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import { defineColorFromSeed } from '@sewadah/selaras/theme'
+import { selarasIconNames } from './shared/selaras-icons'
 
 // Design system generated with ui-ux-pro-max:
 //   Minimalism & Swiss Style · variance 3 / motion 3 / density 5
@@ -16,6 +17,12 @@ export default defineNuxtConfig({
   modules: ['@sewadah/selaras'],
   css: ['~/assets/css/main.css'],
   selaras: { theme: { colors: theme } },
+  // Selaras internal icons are overridden to Lucide in app.config.ts. Bundle
+  // that collection locally so no icon request reaches the Iconify API.
+  icon: {
+    serverBundle: { collections: ['lucide'] },
+    clientBundle: { scan: true, icons: [...selarasIconNames] },
+  },
   app: {
     head: {
       htmlAttrs: { lang: 'en' },

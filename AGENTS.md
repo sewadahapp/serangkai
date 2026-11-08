@@ -9,6 +9,7 @@ Serangkai is a production-minded, open-source, self-hosted artifact and knowledg
 - **Framework**: Nuxt 4 + TypeScript, running on **Nitro 2 / H3 v1**
 - **Toolchain**: **Bun 1.4+** for install, scripts, tests, builds, and the Docker runtime
 - **UI/Styling**: `@sewadah/selaras` for UI, layouts, and document styling
+- **Icons**: Lucide only; Selaras internal icon defaults are overridden in `shared/selaras-icons.ts` and `app/app.config.ts`
 - **Markdown**: Comark (`comark` + `@comark/vue`) parsed once on the server into a sanitized document and rendered with `MarkdownDocument`; Mermaid and TanStack Charts are Vue components
 - **Backend**: Nuxt/Nitro server routes, REST APIs, MCP integration
 - **Database**: Drizzle ORM; `bun:sqlite` under Bun, `better-sqlite3` under Node, request-scoped D1 on Cloudflare

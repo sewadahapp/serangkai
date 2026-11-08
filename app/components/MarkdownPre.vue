@@ -3,6 +3,7 @@
     :code="code"
     :language="language"
     :filename="filename"
+    icon="lucide:file-code"
   >
     <span class="serangkai-shiki"><slot /></span>
   </SProsePre>
