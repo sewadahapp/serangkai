@@ -10,6 +10,7 @@ import { serverRuntime } from './helpers/server.mjs'
 import { adminPassword, adminUsername, login, seedUser } from './helpers/auth.mjs'
 
 const root = join(import.meta.dirname, '..')
+const basePort = 4600 + Math.floor(Math.random() * 200)
 
 async function waitForHealth(base) {
   for (let i = 0; i < 120; i++) {
@@ -48,7 +49,7 @@ async function stop(child) {
 async function withServer(options, run) {
   const { child, base } = await startServer(options)
   try {
-    assert.equal(await waitForHealth(base), true, 'server did not become healthy')
+    assert.equal(await waitForHealth(base), true, `${options.label || 'test'} server did not become healthy`)
     return await run(base)
   } finally {
     await stop(child)
@@ -63,7 +64,7 @@ async function countUsers(databasePath) {
 
 test('owner credentials and identity survive restarts, and rotations take effect', async () => {
   const dataDir = await mkdtemp(join(tmpdir(), 'serangkai-auth-rotate-'))
-  const port = 4510
+  const port = basePort
   try {
     let ownerId
     let token
@@ -116,7 +117,7 @@ test('owner credentials and identity survive restarts, and rotations take effect
 
 test('an existing single-user database is adopted without losing data', async () => {
   const dataDir = await mkdtemp(join(tmpdir(), 'serangkai-auth-legacy-'))
-  const port = 4511
+  const port = basePort + 1
   const databasePath = join(dataDir, 'serangkai.db')
   try {
     const { Database } = await import('bun:sqlite')
@@ -155,26 +156,30 @@ test('an existing single-user database is adopted without losing data', async ()
 
 test('a multi-user database fails safely unless an owner is chosen explicitly', async () => {
   const dataDir = await mkdtemp(join(tmpdir(), 'serangkai-auth-multi-'))
-  const port = 4512
+  const port = basePort + 2
   const databasePath = join(dataDir, 'serangkai.db')
   try {
     let ownerId
-    await withServer({ dataDir, port }, async (base) => {
+    await withServer({ dataDir, port, label: 'multi:create-owner' }, async (base) => {
       const { user } = await login(base)
       ownerId = user.id
     })
     await seedUser(databasePath, { id: 'second-owner', username: 'second' })
 
     const blocked = await startServer({ dataDir, port })
-    assert.equal(await waitForHealth(blocked.base), false, 'an ambiguous database must not serve requests')
-    const response = await fetch(`${blocked.base}/api/health`)
-    assert.equal(response.status, 500)
+    let response
+    for (let i = 0; i < 60; i++) {
+      try { response = await fetch(`${blocked.base}/api/health`); break } catch {}
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    assert.ok(response, 'the ambiguous database did not start at all')
+    assert.equal(response.status, 500, 'an ambiguous database must not serve requests')
     const body = await response.json()
     assert.match(body.message, /contains 2 users/)
     assert.match(body.message, /SERANGKAI_MIGRATION_OWNER_USER_ID/)
     await stop(blocked.child)
 
-    await withServer({ dataDir, port, extraEnv: { SERANGKAI_MIGRATION_OWNER_USER_ID: ownerId } }, async (base) => {
+    await withServer({ dataDir, port, label: 'multi:explicit-migration', extraEnv: { SERANGKAI_MIGRATION_OWNER_USER_ID: ownerId } }, async (base) => {
       const { user } = await login(base)
       assert.equal(user.id, ownerId)
       const secondary = await fetch(`${base}/api/auth/login`, {
@@ -185,6 +190,13 @@ test('a multi-user database fails safely unless an owner is chosen explicitly', 
       assert.equal(secondary.status, 401, 'non-owner accounts are excluded from authentication')
       assert.equal(await countUsers(databasePath), 2, 'no user row is deleted')
     })
+
+    // The migration variable is a one-time choice: the disabled account keeps
+    // its rows, and later restarts adopt the single active username without it.
+    await withServer({ dataDir, port, label: 'multi:restart-without-var' }, async (base) => {
+      const { user } = await login(base)
+      assert.equal(user.id, ownerId)
+    })
   } finally {
     await rm(dataDir, { recursive: true, force: true })
   }
@@ -192,7 +204,7 @@ test('a multi-user database fails safely unless an owner is chosen explicitly', 
 
 test('concurrent first requests create exactly one owner', async () => {
   const dataDir = await mkdtemp(join(tmpdir(), 'serangkai-auth-race-'))
-  const port = 4513
+  const port = basePort + 3
   const databasePath = join(dataDir, 'serangkai.db')
   try {
     await withServer({ dataDir, port }, async (base) => {

@@ -31,27 +31,35 @@ async function initializeOwner(db: any) {
 
   let owner: typeof users.$inferSelect | undefined
   if (rows.length > 1) {
-    if (!config.ownerMigrationUserId) {
-      const ids = rows.map((row: any) => row.id).join(', ')
-      throw createError({
-        statusCode: 500,
-        statusMessage: 'Owner migration required',
-        message: `This database contains ${rows.length} users, so Serangkai cannot choose a single owner automatically. `
-          + `Set SERANGKAI_MIGRATION_OWNER_USER_ID to one of these ids, restart, and the other accounts will be left untouched: ${ids}`,
-      })
+    if (config.ownerMigrationUserId) {
+      owner = rows.find((row: any) => row.id === config.ownerMigrationUserId)
+      if (!owner) {
+        throw createError({
+          statusCode: 500,
+          statusMessage: 'Owner migration failed',
+          message: `SERANGKAI_MIGRATION_OWNER_USER_ID="${config.ownerMigrationUserId}" does not match any user in this database.`,
+        })
+      }
+      // Explicit migration policy: the chosen account becomes the only one that
+      // can authenticate. Other accounts keep every row they own, but their
+      // username is cleared so sessions and tokens can no longer resolve them.
+      await db.update(users).set({ username: null }).where(ne(users.id, owner.id))
+    } else {
+      // An already-migrated database keeps the disabled accounts (no data is
+      // deleted). Exactly one account has a username; adopt it without asking
+      // for the migration variable on every restart.
+      const active = rows.filter((row: any) => row.username)
+      if (active.length !== 1) {
+        const ids = rows.map((row: any) => row.id).join(', ')
+        throw createError({
+          statusCode: 500,
+          statusMessage: 'Owner migration required',
+          message: `This database contains ${rows.length} users, so Serangkai cannot choose a single owner automatically. `
+            + `Set SERANGKAI_MIGRATION_OWNER_USER_ID to one of these ids, restart, and the other accounts will be left untouched: ${ids}`,
+        })
+      }
+      owner = active[0]
     }
-    owner = rows.find((row: any) => row.id === config.ownerMigrationUserId)
-    if (!owner) {
-      throw createError({
-        statusCode: 500,
-        statusMessage: 'Owner migration failed',
-        message: `SERANGKAI_MIGRATION_OWNER_USER_ID="${config.ownerMigrationUserId}" does not match any user in this database.`,
-      })
-    }
-    // Explicit migration policy: the chosen account becomes the only one that
-    // can authenticate. Other accounts keep every row they own, but their
-    // username is cleared so sessions and tokens can no longer resolve them.
-    await db.update(users).set({ username: null }).where(ne(users.id, owner.id))
   } else if (rows.length === 1) {
     owner = rows[0]
   } else {
