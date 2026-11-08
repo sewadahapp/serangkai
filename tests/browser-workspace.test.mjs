@@ -570,3 +570,25 @@ test('anonymous readers still see the login action after leaving a share link', 
     await context.close()
   }
 })
+
+test('dark mode sets a dark color scheme and canvas for scrollbars and overscroll', async () => {
+  const context = await browser.newContext({ colorScheme: 'dark' })
+  const dark = await context.newPage()
+  try {
+    await dark.goto(`${base}/`)
+    await dark.waitForTimeout(1200)
+    const style = await dark.evaluate(() => ({
+      dark: document.documentElement.classList.contains('dark'),
+      scheme: getComputedStyle(document.documentElement).colorScheme,
+      htmlBackground: getComputedStyle(document.documentElement).backgroundColor,
+      bodyBackground: getComputedStyle(document.body).backgroundColor,
+    }))
+    assert.equal(style.dark, true, 'the color-mode class must be applied')
+    assert.equal(style.scheme, 'dark', 'native scrollbars/controls must use the dark scheme')
+    assert.notEqual(style.htmlBackground, 'rgba(0, 0, 0, 0)', 'the canvas must be painted')
+    assert.notEqual(style.htmlBackground, 'rgb(255, 255, 255)', 'the canvas must not stay white')
+    assert.equal(style.bodyBackground, style.htmlBackground)
+  } finally {
+    await context.close()
+  }
+})

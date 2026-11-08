@@ -44,6 +44,32 @@
 html {
   font-family: var(--font-sans);
   -webkit-text-size-adjust: 100%;
+  /* Native UI (scrollbars, the scrollbar gutter, form controls) follows the
+     app color mode. Without this the page computes `color-scheme: normal`, so
+     dark mode still painted a white scrollbar track and overscroll canvas. */
+  color-scheme: light;
+  /* Match the canvas so overscroll and short pages never show white. */
+  background-color: var(--selaras-resolved-surface-canvas);
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--selaras-resolved-surface-canvas);
+  color: var(--selaras-resolved-text-default);
+}
+
+/* Keep scrollbars consistent with the surface instead of the browser default,
+   which is especially visible on the horizontal mobile section nav and on
+   long Markdown pages. */
+* {
+  scrollbar-color: var(--selaras-resolved-border-hover) transparent;
+}
+
+html.dark * {
+  scrollbar-color: var(--selaras-resolved-border-hover) transparent;
 }
 
 /* One consistent, always-visible focus treatment for keyboard users.
