@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { test, before, after } from 'node:test'
 import { serverRuntime } from './helpers/server.mjs'
+import { adminEnv, login } from './helpers/auth.mjs'
 
 const port = 3220 + Math.floor(Math.random() * 200)
 const baseUrl = `http://127.0.0.1:${port}`
@@ -57,6 +58,7 @@ before(async () => {
     cwd: join(import.meta.dirname, '..'),
     env: {
       ...process.env,
+      ...adminEnv(),
       PORT: String(port),
       JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'),
       DATABASE_PATH: join(dataDir, 'serangkai.db'),
@@ -65,17 +67,11 @@ before(async () => {
     stdio: 'ignore',
   })
   await waitForServer()
-  const email = `mcp-${randomBytes(4).toString('hex')}@example.com`
-  const register = await jsonRequest('/api/auth/register', { method: 'POST', body: JSON.stringify({ email, password: 'correct horse battery' }) })
-  assert.equal(register.user.email, email)
-  const cookie = register
-  // Login with a cookie jar is intentionally avoided; use the session cookie from a direct request below.
-  const loginResponse = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: 'correct horse battery' }) })
-  const session = loginResponse.headers.get('set-cookie')
-  const tokenResponse = await jsonRequest('/api/tokens', { method: 'POST', headers: { cookie: session || '' }, body: JSON.stringify({ name: 'test', scopes: ['read', 'write'] }) })
+  const { cookie } = await login(baseUrl)
+  const tokenResponse = await jsonRequest('/api/tokens', { method: 'POST', headers: { cookie }, body: JSON.stringify({ name: 'test', scopes: ['read', 'write'] }) })
   token = tokenResponse.token
   assert.ok(token)
-  const readOnlyResponse = await jsonRequest('/api/tokens', { method: 'POST', headers: { cookie: session || '' }, body: JSON.stringify({ name: 'read-only', scopes: ['read'] }) })
+  const readOnlyResponse = await jsonRequest('/api/tokens', { method: 'POST', headers: { cookie }, body: JSON.stringify({ name: 'read-only', scopes: ['read'] }) })
   readOnlyToken = readOnlyResponse.token
 })
 

@@ -28,6 +28,7 @@ jobs:
       - run: bun run test:deployment-files
       - run: bun run test:release-readiness
       - run: bun run test:database
+      - run: bun run test:session-secret
       - run: bun run test:ci-workflow
-      - run: bun test --timeout 30000 tests/mcp-protocol.test.mjs tests/upload-api.test.mjs tests/share-api.test.mjs tests/tokens-api.test.mjs tests/folders-api.test.mjs tests/artifacts-lifecycle.test.mjs tests/security-api.test.mjs tests/bundle-api.test.mjs tests/browser-workspace.test.mjs tests/local-runtime.test.mjs
+      - run: bun test --timeout 30000 tests/mcp-protocol.test.mjs tests/upload-api.test.mjs tests/share-api.test.mjs tests/tokens-api.test.mjs tests/folders-api.test.mjs tests/artifacts-lifecycle.test.mjs tests/security-api.test.mjs tests/bundle-api.test.mjs tests/browser-workspace.test.mjs tests/local-runtime.test.mjs tests/auth-api.test.mjs tests/auth-migration.test.mjs
       - run: SERANGKAI_TEST_RUNTIME=node bun test tests/local-runtime.test.mjs

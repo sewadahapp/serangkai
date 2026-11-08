@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { test, before, after } from 'node:test'
 import { serverRuntime } from './helpers/server.mjs'
+import { adminEnv, login } from './helpers/auth.mjs'
 
 const port = 4120 + Math.floor(Math.random() * 200)
 const base = `http://127.0.0.1:${port}`
@@ -29,6 +30,7 @@ before(async () => {
     cwd: join(import.meta.dirname, '..'),
     env: {
       ...process.env,
+      ...adminEnv(),
       PORT: String(port),
       JWT_SECRET: randomBytes(32).toString('hex'),
       SHARE_SECRET: randomBytes(32).toString('hex'),
@@ -42,11 +44,7 @@ before(async () => {
     await new Promise(resolve => setTimeout(resolve, 100))
   }
 
-  const email = `mcp-authoring-${randomBytes(2).toString('hex')}@example.com`
-  const registered = await fetch(`${base}/api/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: 'correct horse battery' }) })
-  cookie = registered.headers.get('set-cookie')
-  const login = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: 'correct horse battery' }) })
-  cookie = login.headers.get('set-cookie') || cookie
+  cookie = (await login(base)).cookie
   const tokenResponse = await fetch(`${base}/api/tokens`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'authoring-test', scopes: ['read', 'write'] }) })
   token = (await tokenResponse.json()).token
   assert.ok(token)

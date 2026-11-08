@@ -13,13 +13,13 @@ For every provider, record the date, deployment URL, image/build identifier,
 runtime version, and result for:
 
 1. `/api/health` returns `200` and `{ "status": "ok" }`.
-2. Registration and login work.
+2. Owner login works with ADMIN_USERNAME / ADMIN_PASSWORD; registration is absent.
 3. A private Markdown artifact can be created, read, and updated.
 4. A public artifact is shareable while a private artifact is denied anonymously.
 5. An unlisted artifact requires its signed capability link.
 6. A binary upload can be downloaded unchanged.
-7. Restart/redeploy preserves the user and artifact when durable storage is
-   configured.
+7. Restart/redeploy preserves the owner, artifacts, uploads, API tokens, and
+   unlisted share links when durable storage is configured.
 8. Logs contain no secrets or password material.
 
 ## Cloudflare Workers + D1 + R2
@@ -29,7 +29,11 @@ Required before verification:
 - A Cloudflare account and Wrangler authentication.
 - A real D1 database bound as `DB`.
 - A real R2 bucket bound as `ARTIFACTS`.
-- `JWT_SECRET` and `SHARE_SECRET` set with `wrangler secret put`.
+- `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET`, and `SHARE_SECRET` set with
+  `wrangler secret put`.
+- `NUXT_APP_SECRET` set to the output of
+  `bun scripts/derive-session-secret.mjs "$JWT_SECRET"` (the Worker entry cannot
+  run `scripts/start.mjs`).
 
 Commands:
 
@@ -48,7 +52,8 @@ name, R2 bucket name, and test date.
 Required before verification:
 
 - A linked Vercel project and authenticated CLI.
-- `JWT_SECRET` and `SHARE_SECRET` project secrets.
+- `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET`, and `SHARE_SECRET` project
+  secrets, plus `NUXT_APP_SECRET` derived from `JWT_SECRET`.
 - A durable external database (not implemented in this repository yet).
 - `STORAGE_DRIVER=s3` and all `S3_*` variables configured.
 
@@ -66,19 +71,22 @@ and S3 storage are both verified remotely.
 ## Docker Engine
 
 ```bash
+export ADMIN_USERNAME=admin
+export ADMIN_PASSWORD='choose-a-strong-password'
 export JWT_SECRET="$(openssl rand -base64 32)"
 export SHARE_SECRET="$(openssl rand -base64 32)"
 docker compose up -d --build
 curl -fsS http://localhost:3000/api/health
 ```
 
-Verify the named volume survives `docker compose down` followed by
-`docker compose up -d` without deleting the volume.
+The named volume is mounted at `/data`. Verify it survives
+`docker compose down` followed by `docker compose up -d` without deleting the
+volume, and run `bun run test:docker` for the automated replacement check.
 
 ## InstaCloud
 
 The InstaCloud deployment contract is not verified. Do not mark it supported
 until the platform's current Docker/template documentation or an official
 emulator is available and the common acceptance checks pass with persistent
-`/app/data` storage. Record the platform template URL and deployment ID before
+`/data` storage. Record the platform template URL and deployment ID before
 changing the status in `verification-matrix.md`.

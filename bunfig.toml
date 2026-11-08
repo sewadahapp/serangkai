@@ -1,0 +1,5 @@
+[test]
+# Tests run the built server over plain HTTP on 127.0.0.1. Provide a fixed
+# session secret and turn off the Secure cookie flag for that local transport.
+# These values are test-only and never used by a deployment.
+preload = ["./tests/setup.ts"]

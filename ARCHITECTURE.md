@@ -38,7 +38,8 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
   Cloudflare R2 binding, or S3-compatible storage
 - **Toolchain**: Bun 1.4 for install, scripts, tests, builds, and the Docker
   runtime; Node 24 remains an explicit fallback for Vercel/Node deployments
-- **Auth**: Session cookies signed with `jose` + scoped API tokens
+- **Auth**: Nuxt Auth Utils sealed browser sessions + scoped API tokens; one
+  environment-configured owner account (no public registration)
 - **MCP**: Official `@modelcontextprotocol/sdk` Streamable HTTP transport
 
 ## System Design
@@ -46,9 +47,10 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
 ### Data Model
 ```typescript
 User {
-  id: string (uuid)
-  email: string
-  passwordHash: string
+  id: string
+  email: string // internal, preserved for legacy rows
+  username: string | null // owner login name; null for migrated-away accounts
+  passwordHash: string // auth-utils scrypt hash
   createdAt: Date
   updatedAt: Date
 }
@@ -117,10 +119,10 @@ driver; `SERANGKAI_ALLOW_EPHEMERAL_STORAGE=true` (non-production only) exists
 solely for tests and local previews.
 
 ### API Routes (Nitro)
-- `POST /api/auth/register` - Create account
-- `POST /api/auth/login` - Login
+- `POST /api/auth/login` - Owner login (username + password)
 - `POST /api/auth/logout` - Logout
-- `GET /api/auth/me` - Current user
+- `GET /api/auth/me` - Current user (session or bearer token)
+- `GET|DELETE /api/_auth/session` - Nuxt Auth Utils session state
 - `POST /api/tokens` - Create API token
 - `GET /api/tokens` - List tokens
 - `DELETE /api/tokens/:id` - Revoke token
@@ -168,7 +170,7 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 
 ### Frontend Routes
 - `/` - Landing page with capability, agent-setup, and CTA sections
-- `/auth/login`, `/auth/register` - Auth pages with labeled `SFormField` inputs
+- `/auth/login` - Owner login with labeled `SFormField` inputs; registration does not exist
 - `/dashboard` - Workspace overview: counts, storage total, recent activity, types
 - `/workspace` - Artifact workspace with folder tree, scoped search, create/upload panels
 - `/artifacts/[id]` - Artifact preview/edit. Markdown, HTML, JSON, and JavaScript
@@ -274,8 +276,9 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - The owner preview and public HTML share CSP allow `script-src 'self'` in
   addition to the inline bridge, so the runtime can load. `connect-src 'none'`
   still prevents network calls, and the runtime itself only reads declarative
-  markers. Share pages skip the session bootstrap entirely, so anonymous
-  readers do not generate a `/api/auth/me` 401.
+  markers. Nuxt Auth Utils resolves the sealed session on every page, including
+  the public reader, so navigation between a share link and the app keeps the
+  correct signed-in state.
 - Source editing uses CodeMirror 6 directly rather than a wrapper component.
   `SerangkaiEditor.client.vue` owns the editor view, language compartment, a
   Selaras-token theme (so light/dark needs no foreign theme), JSON parse linting,
@@ -297,9 +300,27 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   Form controls are excluded because Selaras draws its own focus ring, and an
   extra outline stacked a second ring on every focused field.
 
+### Authentication
+- Nuxt Auth Utils seals the browser session in `nuxt-auth-session`, an
+  HttpOnly/Secure/SameSite=Lax cookie. `useUserSession()` is the single client
+  source of truth, so SSR, hydration, client navigation, and public reader pages
+  agree on the signed-in state.
+- The session secret is derived from `JWT_SECRET` with HKDF-SHA256 and a fixed
+  purpose (`scripts/session-secret.mjs`), then injected as `NUXT_APP_SECRET`
+  before the server module loads (`scripts/start.mjs`). NUXT_APP_SECRET remains
+  an explicit override for edge runtimes.
+- Passwords use auth-utils' scrypt helper. Browser sessions and REST bearer
+  tokens are separate: an Authorization header is validated on its own and never
+  falls back to a cookie, and MCP refuses to run on a session alone.
+- The single owner is created or adopted at first request
+  (`server/utils/owner.ts`). The owner id is stable; username/password changes
+  rotate credentials in place. A multi-user database fails with instructions
+  unless `SERANGKAI_MIGRATION_OWNER_USER_ID` explicitly selects the owner.
+- There is no registration route or page.
+
 ### Security Considerations
-- **Auth**: Secure password hashing (argon2/bcrypt), HttpOnly secure cookies for sessions
-- **API Tokens**: Hashed with SHA-256 or similar, prefixed for identification
+- **Auth**: scrypt password hashes; sealed HttpOnly session cookies; rotated by changing ADMIN_PASSWORD or JWT_SECRET
+- **API Tokens**: SHA-256 hashed, scoped (`read`/`write`/`full`), optional expiry
 - **Authorization**: All private resources check ownership; API tokens checked for scopes
 - **XSS/Sanitization**: Sanitize user input; careful with HTML rendering
 - **Sandboxing**: HTML/JS artifacts rendered in sandboxed iframes with restrictive CSP; the opt-in Mermaid/chart runtime is same-origin, declarative, and network-denied
@@ -309,7 +330,16 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - **Private Content**: Never leak private artifacts in public endpoints
 
 ## Deployment
-- **Docker**: Single container with volume for /data (SQLite DB + files)
-- **Environment Variables**: Config via env vars
+- **Docker**: Single container with a persistent volume at `/data`
+  (`DATABASE_PATH=/data/serangkai.db`, `STORAGE_PATH=/data/files`).
+- **Required variables**: `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET`,
+  `SHARE_SECRET`. Everything else has a working default.
+- **Entrypoint**: creates the configured database/storage directories, fixes
+  permissions for the `bun` user, and fails with an actionable error when the
+  mount is missing or read-only.
 - **Ports**: Expose 3000 by default
 - **Healthcheck**: /api/health endpoint
+- **Persistence**: `bun run test:docker` replaces a container on the same volume
+  and checks the owner, artifacts, uploads, tokens, and share links.
+- **Edge**: Cloudflare uses D1/R2; Vercel uses Node + S3 for durable data. Edge
+  entry points set `NUXT_APP_SECRET` explicitly because they cannot be wrapped.

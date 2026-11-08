@@ -449,7 +449,13 @@ const loadWorkspace = async () => {
   artifacts.value = artifactsRes.artifacts || []
 }
 
+const { loggedIn } = useUserSession()
+
 onMounted(async () => {
+  if (!loggedIn.value) {
+    await navigateTo('/auth/login')
+    return
+  }
   try {
     await loadWorkspace()
   } catch (e) {

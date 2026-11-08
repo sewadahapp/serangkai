@@ -42,11 +42,41 @@ on the server and does not run build jobs for uploaded bundles.
 - Session resolution runs during SSR via request-forwarded cookies, so signed-in
   pages never flash logged-out chrome (or expose a different header) before hydration.
 
+## Authentication and accounts
+
+- Serangkai has exactly one owner account, configured with `ADMIN_USERNAME` and
+  `ADMIN_PASSWORD`. There is no registration API or page.
+- Passwords are hashed with Nuxt Auth Utils' scrypt helper; plaintext is never
+  stored. Existing bcrypt hashes are replaced with a scrypt hash on the first
+  startup after the upgrade, using the configured `ADMIN_PASSWORD`.
+- Browser sessions are sealed by Nuxt Auth Utils in an HttpOnly, SameSite=Lax
+  cookie (`Secure` in production). The sealing key is derived from `JWT_SECRET`
+  with HKDF-SHA256 and a versioned purpose, so no fifth secret is needed for
+  Docker/Node deployments. Edge entry points set `NUXT_APP_SECRET` explicitly.
+- Logout clears the cookie. Because the session is sealed rather than stored in
+  a database, a copied cookie remains valid until it expires or until
+  `JWT_SECRET` (and therefore the derived session key) is rotated.
+- REST and MCP bearer tokens are separate from browser sessions. A request that
+  sends an `Authorization: Bearer` header is validated as a token and never
+  falls back to the owner's cookie; MCP rejects a cookie-only request.
+- The owner identity is stable across restarts. Changing `ADMIN_USERNAME` or
+  `ADMIN_PASSWORD` rotates credentials in place without creating or deleting a
+  user. Changing `JWT_SECRET` signs every browser out; changing `SHARE_SECRET`
+  invalidates signed unlisted links.
+- A database with multiple users is not merged automatically. Startup fails with
+  instructions; `SERANGKAI_MIGRATION_OWNER_USER_ID` selects one account, and
+  the other accounts keep their rows but lose authentication (username cleared).
+
 ## Storage durability
 
 On Cloudflare, a missing or misconfigured R2 binding fails startup instead of
 silently mounting an in-memory driver. `SERANGKAI_ALLOW_EPHEMERAL_STORAGE=true`
 is honored only outside production and only for tests/local previews.
+
+The Docker image keeps SQLite, uploads, and versions under `/data`. The
+entrypoint refuses to start when the configured paths are missing or read-only.
+Running without a persistent volume is supported only as a non-durable smoke
+test.
 
 ## Verified negative cases
 

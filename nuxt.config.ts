@@ -14,9 +14,24 @@ const theme = {
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
-  modules: ['@sewadah/selaras'],
+  modules: ['@sewadah/selaras', 'nuxt-auth-utils'],
   css: ['~/assets/css/main.css'],
   selaras: { theme: { colors: theme } },
+  runtimeConfig: {
+    // Nuxt Auth Utils seals the browser session with a key derived from
+    // appSecret. Production derives it from JWT_SECRET before startup (see
+    // scripts/start.mjs); NUXT_APP_SECRET stays available as an explicit
+    // override. Declared here so the runtime env override is honored.
+    appSecret: '',
+    session: {
+      // Keep the previous seven-day browser session lifetime.
+      maxAge: 60 * 60 * 24 * 7,
+      // Secure by default. nuxt.config is evaluated in development for
+      // `bun run dev`, while the production start wrapper sets the env
+      // override. Declaring the key is required for NUXT_SESSION_COOKIE_SECURE.
+      cookie: { secure: process.env.NODE_ENV !== 'development' },
+    },
+  },
   // Selaras internal icons are overridden to Lucide in app.config.ts. Bundle
   // that collection locally so no icon request reaches the Iconify API.
   icon: {

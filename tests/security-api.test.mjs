@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process'
 import { test, before, after } from 'node:test'
 import yazl from 'yazl'
 import { serverRuntime } from './helpers/server.mjs'
+import { adminEnv, login } from './helpers/auth.mjs'
 
 const port = 3620 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
@@ -26,10 +27,9 @@ function makeZip(entries) {
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-security-test-'))
-  child = spawn(serverRuntime, ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
+  child = spawn(serverRuntime, ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, ...adminEnv(), PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
   for (let i = 0; i < 60; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break } catch {} await new Promise(resolve => setTimeout(resolve, 100)) }
-  const registered = await fetch(`${base}/api/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: `security-${randomBytes(3).toString('hex')}@example.com`, password: 'correct horse battery' }) })
-  cookie = registered.headers.get('set-cookie')
+  cookie = (await login(base)).cookie
   htmlArtifact = (await (await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Unsafe HTML', type: 'html', content: '<script>fetch(\"https://evil.example\")</script>', visibility: 'public' }) })).json()).artifact
   markdownArtifact = (await (await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: '</title><script>alert(1)</script>', type: 'markdown', content: '[bad](javascript:alert(1))', visibility: 'public' }) })).json()).artifact
   pinnedArtifact = (await (await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Pinned light', type: 'html', content: '<!DOCTYPE html><html><head><meta name="color-scheme" content="only light"></head><body>pinned</body></html>', visibility: 'public' }) })).json()).artifact

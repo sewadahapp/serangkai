@@ -11,8 +11,8 @@
         </p>
 
         <div class="mt-8 flex flex-wrap items-center gap-3">
-          <SButton :to="user ? '/workspace' : '/auth/register'" size="lg">
-            {{ user ? 'Open workspace' : 'Create your workspace' }}
+          <SButton :to="loggedIn ? '/workspace' : '/auth/login'" size="lg">
+            {{ loggedIn ? 'Open workspace' : 'Log in' }}
           </SButton>
           <SButton to="/agent" size="lg" variant="outline">Connect an agent</SButton>
         </div>
@@ -94,13 +94,13 @@
         <h2 class="text-xl font-semibold tracking-tight sm:text-2xl">Run it yourself in one container.</h2>
         <p class="mt-1.5 max-w-xl text-sm opacity-80">SQLite and the filesystem by default, with portable adapters when you need them. No external services required.</p>
       </div>
-      <SButton :to="user ? '/workspace' : '/auth/register'" size="lg">Get started</SButton>
+      <SButton :to="loggedIn ? '/workspace' : '/auth/login'" size="lg">Get started</SButton>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-const user = useState<any>('user')
+const { loggedIn } = useUserSession()
 
 const facts = ['Single container', 'SQLite + filesystem', 'MCP + REST', 'Signed unlisted links']
 

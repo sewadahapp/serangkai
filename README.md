@@ -8,22 +8,45 @@ A production-minded, open-source, self-hosted artifact and knowledge workspace f
 - ✨ **Beautiful by Default** - Markdown renders with polished Selaras styling
 - 🎨 **Interactive Artifacts** - HTML, JavaScript, Mermaid diagrams, TanStack charts, and static web apps
 - 🤖 **Agent-Ready** - MCP and REST APIs for AI agents to create and update artifacts
-- 🔒 **Private by Default** - Artifacts are private to their creator with explicit public sharing
+- 🔒 **Private by Default** - Artifacts are private to the workspace owner with explicit public sharing
+- 👤 **Single-owner, zero-registration** - One account configured from environment variables; no sign-up flow
 - 🚀 **Simple Self-Hosting** - One container, SQLite + local filesystem by default, Bun runtime
 
 ## Quick Start with Docker
 
 ```bash
 docker run -d -p 3000:3000 \
-  -v serangkai-data:/app/data \
+  -v serangkai-data:/data \
+  -e ADMIN_USERNAME=admin \
+  -e ADMIN_PASSWORD='choose-a-strong-password' \
   -e JWT_SECRET=$(openssl rand -base64 32) \
   -e SHARE_SECRET=$(openssl rand -base64 32) \
-  -e NODE_ENV=production \
   ghcr.io/yourusername/serangkai:latest
 ```
 
-The image runs the Nitro server output under Bun and stores all state under
-`/app/data`.
+Open `http://localhost:3000/auth/login` and sign in with those credentials.
+Registration is intentionally disabled: a self-hosted Serangkai instance has a
+single owner account. The image runs the Nitro server output under Bun and
+stores SQLite plus uploaded files under `/data`, so a volume mounted there is
+the only persistence you need.
+
+These four values must stay configured across redeployments:
+
+| Variable | Purpose |
+| --- | --- |
+| `ADMIN_USERNAME` | The owner login name. Changing it renames the same account. |
+| `ADMIN_PASSWORD` | The owner password. Changing it rotates the stored hash on restart. |
+| `JWT_SECRET` | Stable root secret for the sealed browser session. Rotating it signs everyone out. |
+| `SHARE_SECRET` | Signs unlisted share links. Rotating it invalidates existing signed links. |
+
+`SERANGKAI_ALLOW_EPHEMERAL_STORAGE` is test-only and must not be set in
+production.
+
+Upgrading from the earlier custom-session build signs browsers out once (the
+cookie format changed) and replaces email login with `ADMIN_USERNAME`. Existing
+artifacts, folders, versions, and API tokens are preserved. If the database has
+more than one user, startup lists the ids; choose one with
+`SERANGKAI_MIGRATION_OWNER_USER_ID` as described in the deployment guide.
 
 ## Development
 
@@ -50,19 +73,20 @@ prebuilt Node binary remains available for the Node fallback.
 
 ### Docker verification status
 
-The image is designed for a single container with `/app/data` as the persistent
+The image is designed for a single container with `/data` as the persistent
 volume. The repository includes a healthcheck at `/api/health`. The Bun image was
-verified locally with Podman (Docker-compatible): image build, health endpoint,
-registration, artifact creation, restart, and persistence all passed. Docker
-itself is not installed in the development environment, so a Docker Engine run
-remains to be confirmed separately.
+verified locally with Podman (Docker-compatible): image build, owner login,
+artifact creation, binary upload, API-token use, unlisted sharing, and a full
+container replacement on the same `/data` volume all passed. Docker Engine was
+not available in the development environment; run
+`bun run test:docker` to repeat the check with Podman or Docker.
 
 ### InstaCloud status
 
 An InstaCloud-specific deployment contract has not yet been independently
 verified. Until the platform's current Docker/template documentation is
 available, deploy the generated container using the platform's generic Docker
-service with persistent storage mounted at `/app/data`; verify health and data
+service with persistent storage mounted at `/data`; verify health and data
 persistence before calling the deployment supported. See
 `docs/deployment/instacloud.md` for the verification checklist.
 
@@ -77,7 +101,7 @@ bun run build:vercel
 
 Cloudflare uses Nitro's `cloudflare_module` preset, a request-scoped Drizzle D1
 adapter, and a native R2 binding for artifact storage. The local
-Wrangler/Miniflare test covers registration, artifact creation, binary upload,
+Wrangler/Miniflare test covers owner login, artifact creation, binary upload,
 and download. A remote Cloudflare deployment still requires a real D1 database,
 R2 bucket, and `wrangler secret put` values.
 

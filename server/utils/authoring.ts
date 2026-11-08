@@ -8,7 +8,7 @@ import { artifactComponents, applicationOnlyComponents, componentCatalogMarkdown
  * guides are exposed as MCP resources.
  */
 
-export const artifactTypes = [
+export const authoringArtifactTypes = [
   { type: 'markdown', description: 'Comark Markdown with Selaras components, Mermaid, TanStack Charts, and syntax-highlighted code.' },
   { type: 'html', description: 'Standalone HTML. Self-styled by default; opt into the Selaras document theme with a meta tag.' },
   { type: 'javascript', description: 'Standalone JavaScript source, displayed with syntax highlighting. No server execution.' },
@@ -33,7 +33,7 @@ export const chartSchema = {
 
 export const capabilities = {
   version: 1,
-  artifactTypes,
+  artifactTypes: authoringArtifactTypes,
   markdown: {
     engine: 'Comark',
     styling: 'Selaras prose by default',

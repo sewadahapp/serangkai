@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import * as schema from './schema'
 import { BOOTSTRAP_SQL } from './bootstrap'
-import { ensureGlobalSlugUniqueness } from './migrations'
+import { ensureGlobalSlugUniqueness, ensureUserSchema } from './migrations'
 import { getServerConfig } from '../utils/config'
 
 /**
@@ -25,6 +25,7 @@ async function createDatabase() {
     sqlite.exec('PRAGMA foreign_keys = ON;')
     sqlite.exec(BOOTSTRAP_SQL)
     const db = drizzle(sqlite, { schema })
+    await ensureUserSchema(db)
     await ensureGlobalSlugUniqueness(db)
     return db
   }
@@ -35,6 +36,7 @@ async function createDatabase() {
   sqlite.pragma('foreign_keys = ON')
   sqlite.exec(BOOTSTRAP_SQL)
   const db = drizzle(sqlite, { schema })
+  await ensureUserSchema(db)
   await ensureGlobalSlugUniqueness(db)
   return db
 }

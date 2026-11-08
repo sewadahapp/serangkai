@@ -5,9 +5,9 @@ portable provider presets. The status below is intentionally conservative.
 
 | Provider | Local verification | Remote status |
 | --- | --- | --- |
-| Docker-compatible container | Bun image build, health, registration, artifact creation, restart persistence | Docker Engine not run here |
-| Cloudflare Workers | Nitro build, Wrangler dry-run, Miniflare D1 + R2 registration/artifact/binary upload/download | Not deployed remotely |
-| Vercel | Nitro Build Output and local Node runtime registration/artifact/listing | Not deployed remotely; durable database adapter still missing |
+| Docker-compatible container | Bun image build, health, owner login, artifact/upload/token/share persistence across container replacement on `/data` | Docker Engine not run here |
+| Cloudflare Workers | Nitro build, Wrangler dry-run, Miniflare D1 + R2 owner login/artifact/binary upload/download | Not deployed remotely |
+| Vercel | Nitro Build Output and local Node runtime owner login/artifact/listing | Not deployed remotely; durable database adapter still missing |
 | InstaCloud | Generic container checklist | **Not verified** |
 
 ## Before claiming a provider is verified
@@ -29,7 +29,7 @@ See the provider-specific documents:
 ## Container image
 
 Any provider that runs a Docker image can host Serangkai: the image exposes port
-`3000`, stores runtime state under `/app/data`, and needs `JWT_SECRET` and
+`3000`, stores runtime state under `/data`, and needs `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET`, and
 `SHARE_SECRET`. The runtime is Bun 1.4 running Nitro's node-server output.
 Tagged releases publish multi-arch images to GHCR through
 `.github/workflows/docker.yml`. See [InstaCloud](./instacloud.md) for the

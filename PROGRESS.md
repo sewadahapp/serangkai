@@ -37,7 +37,7 @@ documented as unverified rather than claimed as supported.
 - [x] Edge-safe API token hashing via Web Crypto, covered by the Cloudflare D1 runtime test
 - [x] Token scope enforcement tests: read cannot write, read/write cannot mint or revoke tokens
 - [x] Multi-arch GHCR image publish workflow plus published-image Compose file
-- [x] Re-verify the built image path: health, registration, artifact creation, restart persistence
+- [x] Re-verify the built image path: health, owner login, artifact creation, restart persistence
 - [x] Nested folder tree in the workspace with folder filtering and artifact counts
 - [x] Create artifacts directly in a folder and move existing artifacts between folders
 - [x] Cross-tenant folder ownership checks for folder creation, artifact creation, and artifact moves
@@ -113,6 +113,12 @@ documented as unverified rather than claimed as supported.
 - [x] Added opt-in Selaras HTML document theme generated from Selaras prose CSS and loaded only by meta tag
 - [x] Added MCP `get_artifact_capabilities`, authoring guides, component catalog, templates, and prompts
 - [x] Added MCP authoring integration coverage and documented the reproducible blind-agent limitation
+- [x] Replaced custom JWT/cookie sessions and `init-user.ts` with Nuxt Auth Utils (`useUserSession`, sealed `nuxt-auth-session`)
+- [x] Replaced registration with one environment-configured owner (`ADMIN_USERNAME` / `ADMIN_PASSWORD`), scrypt hashes, stable identity, credential rotation, and a safe multi-user migration policy
+- [x] Derived the Auth Utils session key from `JWT_SECRET` with HKDF-SHA256; Docker/Node need only the four documented variables
+- [x] Moved Docker defaults and entrypoint to `/data`, with configurable `DATABASE_PATH`/`STORAGE_PATH`, writability checks, and a `/app/data` migration guide
+- [x] Verified owner, artifact, upload, token, and unlisted-share persistence across a real Podman container replacement
+- [x] Added auth API, migration, SSR/navigation, and container-persistence coverage
 - [x] Independent review: hardened component prop sanitization (nested URLs, CSS/event keys, `as`/`is` bypass), fixed GitHub alert mapping, kebab-case props, and chart bounds
 - [x] Fixed same-origin script execution via image MIME metadata (REST `metadata.mimeType`) and non-lowercase/SVG bundle assets
 - [x] Enforced global share-slug uniqueness (startup migration + unique index) and removed the silent R2 memory fallback
@@ -123,20 +129,24 @@ documented as unverified rather than claimed as supported.
 - [x] Standardized Selaras internal icons on Lucide via `shared/selaras-icons.ts` and `app/app.config.ts`, with a guard test for new registry keys and explicit Lucide file icons in code blocks
 
 ## Verification
+- `bun run build` and `bun run build:cloudflare` pass
+- `bun run test:auth` passes: login/logout, invalid credentials, registration rejection, SSR state, session/token separation, rotation, legacy adoption, multi-user safety, concurrent owner creation
+- `bun run test:docker` passes: container replacement on the same `/data` volume preserves owner login, artifacts, uploaded bytes, API tokens, and unlisted share links
+- `bun run test:ci` passes, including the auth suites
 - `bun run build` passes
 - `bun run test:provider-local` passes and exits cleanly: Bun SQLite, local Bun runtime, D1/R2 through Wrangler/Miniflare, and Vercel Node runtime
 - Fresh SQLite database smoke test passes
-- Health, registration, session auth, folder creation, artifact creation and listing pass
+- Health, owner login, session auth, folder creation, artifact creation and listing pass
 - Artifact update creates version 2 and version history lists versions 2 and 1
 - Public Markdown returns a sanitized MDC body, heading ids, and a nested TOC
-- Browser test covers registration, artifact creation, and switching to an unlisted signed link
+- Browser test covers owner login, artifact creation, public-share navigation state, and switching to an unlisted signed link
 - Full API suite passes: MCP, upload, share, tokens, folders, security, bundles, Markdown, local runtime
 - Browser tests cover creating through the CodeMirror editor, HTML syntax highlighting, `Mod-S` saving, and inline JSON parse errors
-- Browser tests cover Mermaid and TanStack chart rendering inside a sandboxed HTML artifact (10/10 passing)
+- Browser tests cover Mermaid and TanStack chart rendering inside a sandboxed HTML artifact (13/13 passing)
 - Share API tests cover conditional runtime injection and the updated CSP (2/2 passing)
 - The real workspace demo artifact was checked in light and dark mode: one Mermaid SVG, four chart SVGs, zero runtime errors
 - Cloudflare Worker deploy dry-run, Vercel build, and local provider runtime tests pass; remote provider deployments remain unverified
-- Bun Docker image built with Podman; health, registration, artifact creation, restart, and persistence verified
+- Bun Docker image built with Podman; health, owner login, artifact/upload/token/share persistence verified across container replacement on `/data`
 - Node fallback verified against the same node-server build (`SERANGKAI_TEST_RUNTIME=node`)
 - Existing `data/` database and files remain readable through the Nitro storage mount without migration
 - Search returns matching artifacts
@@ -150,7 +160,7 @@ documented as unverified rather than claimed as supported.
 - [x] Add share settings UI and signed unlisted links
 - [x] Add Cloudflare/Vercel deployment adapters after local verification (real remote deployments remain unverified)
 - [x] Dockerfile healthcheck, non-root runtime, persistent-volume settings, and deployment checklist
-- [x] Verify Docker-compatible image/container with Podman: build, health, registration, restart persistence
+- [x] Verify Docker-compatible image/container with Podman: build, health, owner login, restart persistence
 - [x] InstaCloud real-container verification explicitly deferred out of MVP scope (no account/emulator; documented as unverified, not claimed as supported)
 - [x] Add Nitro `cloudflare_module` and `vercel` preset configuration
 - [x] Add Wrangler/Vercel provider templates and deployment documentation
@@ -163,11 +173,11 @@ documented as unverified rather than claimed as supported.
 - [x] Add SQLite/D1 provider-selection and D1-compatible mock integration tests
 - [x] Refactor API and auth route database access through request-aware provider resolution
 - [x] Add local SQLite end-to-end runtime test after provider refactor
-- [x] Add Wrangler/Miniflare local D1 runtime test for registration, creation, and listing
+- [x] Add Wrangler/Miniflare local D1 runtime test for owner login, creation, and listing
 - [x] Make Wrangler/Miniflare D1 runtime test green and shut down deterministically (process-group teardown)
 - [x] Capture the real Wrangler/Miniflare startup blocker without masking it in tests
 - [x] Diagnose Node built-in leakage and reject the broken dynamic-import workaround
-- [x] Pass Wrangler/Miniflare D1 runtime test for registration, artifact creation, and listing
+- [x] Pass Wrangler/Miniflare D1 runtime test for owner login, artifact creation, and listing
 - [x] Replace Node JWT dependency with Web Crypto-compatible `jose` for edge runtime
 - [x] Add durable R2 adapter contract and binary storage test
 - [x] Verify Cloudflare R2 through a local Wrangler binding, including binary upload/download
@@ -178,7 +188,7 @@ documented as unverified rather than claimed as supported.
 - [x] Add CI workflow structure test covering build and integration checks
 - [x] Add deployment documentation index with conservative provider status matrix
 - [x] Add remote deployment verification runbook without claiming provider support
-- [x] Add passing Vercel Node runtime integration test for registration and artifact listing
+- [x] Add passing Vercel Node runtime integration test for owner login and artifact listing
 - [x] Verify local provider runtime suite: Bun SQLite, D1/Miniflare with R2, Vercel Node
 - [x] Use Nitro storage mounts for every artifact file, including static bundles
 - [x] Add deployment verification matrix separating local evidence from real-provider claims

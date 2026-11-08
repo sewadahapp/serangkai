@@ -9,8 +9,18 @@ bunx vercel deploy --prebuilt
 
 ## Configuration
 
-Set `JWT_SECRET` and `SHARE_SECRET` as Vercel project secrets. The app validates
-both at startup in production.
+Set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET`, and `SHARE_SECRET` as
+Vercel project secrets. The app validates them at startup in production.
+
+Vercel's serverless entry point is not wrapped by `scripts/start.mjs`, so also
+set `NUXT_APP_SECRET` to the value printed by:
+
+```bash
+bun scripts/derive-session-secret.mjs "$JWT_SECRET"
+```
+
+Registration is disabled; the owner account comes from `ADMIN_USERNAME` /
+`ADMIN_PASSWORD`.
 
 Artifact storage uses Nitro's storage layer. Set `STORAGE_DRIVER=s3` and the
 `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_ENDPOINT`, `S3_REGION`, and

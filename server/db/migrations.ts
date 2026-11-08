@@ -54,10 +54,49 @@ export async function ensureGlobalSlugUniqueness(db: any) {
   await db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS artifacts_slug_unique ON artifacts (slug)`)
 }
 
+/** Flattens a Drizzle error and its causes into one searchable string. */
+function errorText(error: any) {
+  const parts: string[] = []
+  let current = error
+  for (let depth = 0; current && depth < 5; depth++) {
+    parts.push(String(current.message || current))
+    current = current.cause
+  }
+  return parts.join(' | ')
+}
+
 /** True when a unique-constraint error came from the slug index. */
 export function isSlugConflict(error: any) {
-  const message = String(error?.message || error || '')
+  const message = errorText(error)
   return /unique constraint failed.*artifacts\.slug/i.test(message)
     || /UNIQUE constraint failed: artifacts\.slug/i.test(message)
     || /artifacts_slug_unique/i.test(message)
+}
+
+/**
+ * Adds the single-owner username column to databases created before this
+ * milestone. `ALTER TABLE` failures for an existing column are ignored, so the
+ * function is safe to call from every isolate/process at startup.
+ */
+export async function ensureUserSchema(db: any) {
+  let hasUsername = false
+  try {
+    const columns = await db.all<{ name: string }>(sql`PRAGMA table_info(users)`)
+    hasUsername = columns.some(column => String(column.name) === 'username')
+  } catch {
+    // Some edge runtimes restrict PRAGMA; fall through to a guarded ALTER.
+  }
+
+  if (!hasUsername) {
+    try {
+      await db.run(sql`ALTER TABLE users ADD COLUMN username TEXT`)
+    } catch (error) {
+      if (!/duplicate column|already exists/i.test(errorText(error))) throw error
+    }
+  }
+
+  await db.run(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS users_username_unique ON users (username)
+    WHERE username IS NOT NULL
+  `)
 }

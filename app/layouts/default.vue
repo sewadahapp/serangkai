@@ -10,7 +10,7 @@
             <span class="truncate text-base font-semibold tracking-tight">Serangkai</span>
           </NuxtLink>
 
-          <div v-if="user" class="hidden lg:block">
+          <div v-if="loggedIn" class="hidden lg:block">
             <SNavigationMenu :items="workspaceLinks" variant="link" />
           </div>
         </div>
@@ -18,17 +18,20 @@
         <div class="flex items-center gap-1.5">
           <SColorModeToggle />
 
-          <template v-if="!user">
+          <template v-if="!ready">
+            <span class="h-8 w-24 animate-pulse rounded-md bg-[var(--selaras-resolved-surface-elevated)]" aria-hidden="true" />
+          </template>
+
+          <template v-else-if="!loggedIn">
             <SButton to="/agent" variant="ghost" size="sm" icon="lucide:bot" class="hidden sm:inline-flex">Agents</SButton>
-            <SButton to="/auth/login" variant="ghost" size="sm">Log in</SButton>
-            <SButton to="/auth/register" size="sm" trailing-icon="lucide:arrow-right">Register</SButton>
+            <SButton to="/auth/login" size="sm">Log in</SButton>
           </template>
 
           <template v-else>
             <SDropdown :items="accountItems">
               <template #default>
                 <SButton variant="ghost" size="sm" icon="lucide:user-round" aria-haspopup="menu" class="gap-1.5">
-                  <span class="hidden max-w-40 truncate sm:inline">{{ user.email }}</span>
+                  <span class="hidden max-w-40 truncate sm:inline">{{ user?.username }}</span>
                   <span class="sm:hidden">Menu</span>
                 </SButton>
               </template>
@@ -37,7 +40,7 @@
         </div>
       </div>
 
-      <nav v-if="user" aria-label="Workspace sections" class="border-t border-[var(--selaras-resolved-border-muted)] lg:hidden">
+      <nav v-if="loggedIn" aria-label="Workspace sections" class="border-t border-[var(--selaras-resolved-border-muted)] lg:hidden">
         <div class="serangkai-shell flex gap-1 overflow-x-auto py-1.5">
           <NuxtLink
             v-for="link in workspaceLinks"
@@ -69,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-const user = useState<any>('user')
+const { loggedIn, user, ready, clear } = useUserSession()
 
 const workspaceLinks = [
   { to: '/dashboard', label: 'Overview', icon: 'lucide:layout-dashboard' },
@@ -84,8 +87,7 @@ const accountItems = computed(() => [
 ])
 
 const logout = async () => {
-  await $fetch('/api/auth/logout', { method: 'POST' })
-  user.value = null
+  await clear()
   await navigateTo('/')
 }
 </script>

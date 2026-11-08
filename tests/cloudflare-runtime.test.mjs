@@ -4,6 +4,7 @@ import { rm } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { test, before, after } from 'node:test'
+import { adminEnv, adminPassword, adminUsername, login } from './helpers/auth.mjs'
 
 const port = 4020 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
@@ -35,7 +36,7 @@ async function stopChild() {
 before(async () => {
   const jwtSecret = randomBytes(32).toString('hex')
   const shareSecret = randomBytes(32).toString('hex')
-  child = spawn('bunx', ['wrangler', 'dev', '.output/server/index.mjs', '--assets', '.output/public', '--local', '--port', String(port), '--show-interactive-dev-session=false', '--var', `JWT_SECRET:${jwtSecret}`, '--var', `SHARE_SECRET:${shareSecret}`], { cwd: process.cwd(), env: { ...process.env }, stdio: ['ignore', 'pipe', 'pipe'], detached: true })
+  child = spawn('bunx', ['wrangler', 'dev', '.output/server/index.mjs', '--assets', '.output/public', '--local', '--port', String(port), '--show-interactive-dev-session=false', '--var', `JWT_SECRET:${jwtSecret}`, '--var', `SHARE_SECRET:${shareSecret}`, '--var', `ADMIN_USERNAME:${adminUsername}`, '--var', `ADMIN_PASSWORD:${adminPassword}`, '--var', `NUXT_APP_SECRET:${process.env.NUXT_APP_SECRET}`, '--var', 'NUXT_SESSION_COOKIE_SECURE:false'], { cwd: process.cwd(), env: { ...process.env }, stdio: ['ignore', 'pipe', 'pipe'], detached: true })
   child.stdout.on('data', chunk => { stderr += chunk.toString() })
   child.stderr.on('data', chunk => { stderr += chunk.toString() })
   for (let i = 0; i < 90; i++) { try { if ((await fetch(`${base}/api/health`)).ok) return } catch {} await new Promise(resolve => setTimeout(resolve, 200)) }
@@ -44,11 +45,8 @@ before(async () => {
 
 after(async () => { await stopChild(); await rm('.wrangler', { recursive: true, force: true }) })
 
-test('Cloudflare local D1 runtime supports registration, artifact creation, and listing', async () => {
-  const email = `d1-${randomBytes(3).toString('hex')}@example.com`
-  const registered = await fetch(`${base}/api/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: 'correct horse battery' }) })
-  assert.equal(registered.status, 200, `${await registered.text()}\n${stderr}`)
-  const cookie = registered.headers.get('set-cookie')
+test('Cloudflare local D1 runtime supports owner login, artifact creation, and listing', async () => {
+  const { cookie } = await login(base)
   const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'D1 runtime artifact', type: 'markdown', content: '# D1' }) })
   assert.equal(created.status, 200, await created.text())
   const listed = await fetch(`${base}/api/artifacts`, { headers: { cookie } })

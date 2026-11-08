@@ -2,7 +2,7 @@
   <div class="space-y-6">
     <SerangkaiPageHeader title="Settings" description="Manage API tokens for agents and scripts." />
 
-    <SAlert v-if="!user" color="info" variant="subtle" title="Sign in required" description="Sign in to manage API tokens." />
+    <SAlert v-if="!loggedIn" color="info" variant="subtle" title="Sign in required" description="Sign in to manage API tokens." />
 
     <template v-else>
       <section class="serangkai-panel p-5" aria-labelledby="new-token">
@@ -102,7 +102,7 @@ import { getLocalTimeZone } from '@internationalized/date'
 
 useHead({ title: 'Settings · Serangkai' })
 
-const user = useState<any>('user')
+const { loggedIn } = useUserSession()
 const tokens = ref<any[]>([])
 const tokenName = ref('')
 const scopes = ref<string[]>(['read', 'write'])
@@ -207,5 +207,5 @@ const revokeToken = async (token: any) => {
   }
 }
 
-onMounted(() => { if (user.value) loadTokens() })
+onMounted(() => { if (loggedIn.value) loadTokens() })
 </script>

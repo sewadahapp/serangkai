@@ -28,10 +28,17 @@ Set production secrets with Wrangler; never commit them to the config file:
 ```bash
 bunx wrangler secret put JWT_SECRET
 bunx wrangler secret put SHARE_SECRET
+bunx wrangler secret put ADMIN_USERNAME
+bunx wrangler secret put ADMIN_PASSWORD
+# Edge entry points cannot be wrapped by scripts/start.mjs, so set the
+# session secret explicitly. Derive it from the same JWT_SECRET:
+bunx wrangler secret put NUXT_APP_SECRET
+#   value: bun scripts/derive-session-secret.mjs "$JWT_SECRET"
 ```
 
-The app validates both secrets at startup in production and refuses to serve
-with development defaults.
+The app validates the four owner/session values at startup in production and
+refuses to serve with development defaults. Registration is disabled; the owner
+account comes from `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
 
 ## Schema
 
@@ -50,7 +57,7 @@ bun run test:cloudflare-runtime
 This builds the Worker with Bun, starts Wrangler/Miniflare with local D1 and R2
 bindings, and verifies:
 
-- registration and token creation
+- owner login and token creation
 - Markdown artifact creation and listing
 - binary image upload and byte-for-byte download through R2
 - no fallback to ephemeral memory storage

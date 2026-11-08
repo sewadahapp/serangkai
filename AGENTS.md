@@ -12,9 +12,12 @@ Serangkai is a production-minded, open-source, self-hosted artifact and knowledg
 - **Icons**: Lucide only; Selaras internal icon defaults are overridden in `shared/selaras-icons.ts` and `app/app.config.ts`
 - **Markdown**: Comark (`comark` + `@comark/vue`) parsed once on the server into a sanitized document and rendered with `MarkdownDocument`; Mermaid and TanStack Charts are Vue components
 - **Backend**: Nuxt/Nitro server routes, REST APIs, MCP integration
+- **Auth**: Nuxt Auth Utils sealed browser sessions for one environment-configured
+  owner account (`ADMIN_USERNAME` / `ADMIN_PASSWORD`); scoped SHA-256 API tokens
+  are separate and never fall back to a browser session
 - **Database**: Drizzle ORM; `bun:sqlite` under Bun, `better-sqlite3` under Node, request-scoped D1 on Cloudflare
 - **Storage**: Nitro `useStorage()` over unstorage; filesystem by default, R2 binding on Cloudflare, S3-compatible storage on Vercel
-- **Deployment**: Docker (primary), Cloudflare Workers, Vercel; InstaCloud remains unverified
+- **Deployment**: Docker (primary, persistent volume at `/data`), Cloudflare Workers, Vercel; InstaCloud remains unverified
 
 ## Core Principles
 - **Agent-first**: Agents create/update/publish via MCP and REST APIs
@@ -37,10 +40,18 @@ Serangkai is a production-minded, open-source, self-hosted artifact and knowledg
 ### Commands
 ```bash
 bun install --frozen-lockfile --ignore-scripts
-bun run dev
+bun run dev                 # admin / serangkai-dev in development
 bun run build
-bun test tests/markdown-render.test.mjs tests/toc-extract.test.mjs
+bun run start               # derives NUXT_APP_SECRET from JWT_SECRET
+bun run test:auth
+bun run test:docker         # real container replacement persistence check
+bun run test:ci
 ```
+
+Production requires `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET`, and
+`SHARE_SECRET`. There is no registration route. Do not add a fifth required
+variable for Docker/Node: the session key is derived from `JWT_SECRET`. Edge
+platforms that cannot use `scripts/start.mjs` set `NUXT_APP_SECRET` explicitly.
 
 Node 24 is retained only for the Node fallback and for Vercel/Node runtime
 verification. Do not make npm the default.
@@ -65,6 +76,8 @@ Maintain: AGENTS.md, ARCHITECTURE.md, PROGRESS.md.
 ## Security Notes
 - Isolate untrusted HTML/JS execution (sandboxed iframes, CSP)
 - Auth required for writes; scoped API tokens for agents
+- Never let a browser session authorize MCP, and never fall back to a session when a bearer token is present
+- Never add public registration; the single owner comes from the environment
 - Private artifacts must not be accessible without auth/permission
 - Markdown is sanitized server-side; never evaluate author expressions or template code
 - No secrets in code/logs

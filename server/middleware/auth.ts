@@ -1,52 +1,63 @@
-import { getCookie } from 'h3'
-import { verifySessionToken, hashToken } from '../utils/auth'
 import { users, apiTokens } from '../db/schema'
 import { getRequestDatabase } from '../db/adapter'
+import { ensureOwnerAccount } from '../utils/owner'
+import { hashToken } from '../utils/auth'
 import { eq } from 'drizzle-orm'
 
+// Static assets and the auth module's own session route do not need the owner
+// bootstrap or a database round-trip on every request.
+const staticPrefixes = ['/_nuxt', '/__nuxt', '/fonts/', '/runtime/', '/artifact-themes/']
+const SESSION_ROUTE = '/api/_auth/session'
+
+function isStatic(path: string) {
+  return staticPrefixes.some(prefix => path.startsWith(prefix))
+}
+
 export default defineEventHandler(async (event) => {
-  const db = await getRequestDatabase(event)
-  // Skip for auth routes that don't need auth
   const path = event.path
-  if (path.startsWith('/api/auth/register') || path.startsWith('/api/auth/login')) {
-    return
-  }
+  if (isStatic(path)) return
 
-  // Check session cookie
-  const sessionCookie = getCookie(event, 'session')
-  if (sessionCookie) {
-    const verified = await verifySessionToken(sessionCookie)
-    if (verified) {
-      const user = await db.select().from(users).where(eq(users.id, verified.userId)).get()
-      if (user) {
-        event.context.user = user
-        return
-      }
-    }
-  }
+  const db = await getRequestDatabase(event)
 
-  // Check API token
+  // Create/adopt/rotate the single owner before any request that may read it.
+  // The work is cached per process/isolate; a failure stays visible instead of
+  // starting an account-less server.
+  await ensureOwnerAccount(db)
+
+  // A request that explicitly presents a bearer token is an agent request. Do
+  // not let a browser cookie authorize it as a fallback: an invalid/expired
+  // token must fail, not silently inherit the owner's session.
   const authHeader = getHeader(event, 'authorization')
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7)
     const tokenHash = await hashToken(token)
     const apiToken = await db.select().from(apiTokens).where(eq(apiTokens.tokenHash, tokenHash)).get()
-    if (apiToken) {
-      // Check expiration
-      if (apiToken.expiresAt && apiToken.expiresAt < new Date()) {
-        return
-      }
-      const user = await db.select().from(users).where(eq(users.id, apiToken.userId)).get()
-      if (user) {
-        event.context.user = user
-        event.context.apiToken = apiToken
-        // Update last used
-        await db.update(apiTokens).set({ lastUsedAt: new Date() }).where(eq(apiTokens.id, apiToken.id))
-        return
-      }
-    }
+    if (!apiToken) return
+    if (apiToken.expiresAt && apiToken.expiresAt < new Date()) return
+
+    const user = await db.select().from(users).where(eq(users.id, apiToken.userId)).get()
+    // Accounts excluded by the owner migration keep their data but lose the
+    // username, which makes their tokens inert.
+    if (!user?.username) return
+
+    event.context.user = user
+    event.context.apiToken = apiToken
+    await db.update(apiTokens).set({ lastUsedAt: new Date() }).where(eq(apiTokens.id, apiToken.id))
+    return
   }
 
-  // For API routes that require auth, we'll handle in route handlers
-  // For now, just attach if available
+  if (path === SESSION_ROUTE) return
+
+  // Nuxt Auth Utils owns the sealed session cookie.
+  let session: Awaited<ReturnType<typeof getUserSession>> | undefined
+  try {
+    session = await getUserSession(event)
+  } catch {
+    return
+  }
+  const userId = session?.user?.id
+  if (!userId) return
+
+  const user = await db.select().from(users).where(eq(users.id, userId)).get()
+  if (user?.username) event.context.user = user
 })

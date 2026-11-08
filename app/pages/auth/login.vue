@@ -1,17 +1,17 @@
 <template>
   <div class="mx-auto w-full max-w-md">
     <div class="mb-6">
-      <p class="serangkai-eyebrow">Welcome back</p>
+      <p class="serangkai-eyebrow">Owner sign-in</p>
       <h1 class="mt-2 text-2xl font-semibold tracking-tight">Log in to Serangkai</h1>
       <p class="mt-1.5 text-sm text-[var(--selaras-resolved-text-muted)]">
-        Your artifacts stay private to this account.
+        This workspace has a single owner account configured on the server.
       </p>
     </div>
 
     <div class="serangkai-panel p-6">
       <form class="space-y-4" @submit.prevent="login">
-        <SFormField label="Email" required>
-          <SInput v-model="email" type="email" autocomplete="email" required class="w-full" />
+        <SFormField label="Username" required>
+          <SInput v-model="username" autocomplete="username" autocapitalize="none" spellcheck="false" required class="w-full" />
         </SFormField>
         <SFormField label="Password" required>
           <SInput v-model="password" type="password" autocomplete="current-password" required class="w-full" />
@@ -26,8 +26,8 @@
     </div>
 
     <p class="mt-5 text-center text-sm text-[var(--selaras-resolved-text-muted)]">
-      Don't have an account?
-      <NuxtLink to="/auth/register" class="font-medium text-[var(--selaras-resolved-color-primary-text)] underline-offset-4 hover:underline">Register</NuxtLink>
+      Credentials are managed with <code class="font-mono text-xs">ADMIN_USERNAME</code> and
+      <code class="font-mono text-xs">ADMIN_PASSWORD</code> on the server.
     </p>
   </div>
 </template>
@@ -35,21 +35,23 @@
 <script setup lang="ts">
 useHead({ title: 'Log in · Serangkai' })
 
-const email = ref('')
+const { fetch: refreshSession } = useUserSession()
+const username = ref('')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)
-const user = useState<any>('user')
 
 const login = async () => {
   loading.value = true
   error.value = ''
   try {
-    const res = await $fetch('/api/auth/login', {
+    await $fetch('/api/auth/login', {
       method: 'POST',
-      body: { email: email.value, password: password.value }
+      body: { username: username.value.trim(), password: password.value },
     })
-    user.value = res.user
+    // Update the shared session state before navigating so the header and
+    // layout render the signed-in view immediately.
+    await refreshSession()
     await navigateTo('/workspace')
   } catch (e: any) {
     error.value = e.data?.message || 'Login failed'

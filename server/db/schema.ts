@@ -4,6 +4,9 @@ import { sql } from 'drizzle-orm'
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
+  // Nullable only for databases created before the single-owner migration.
+  // The startup owner bootstrap always fills it in.
+  username: text('username'),
   passwordHash: text('password_hash').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),

@@ -69,7 +69,7 @@
 <script setup lang="ts">
 useHead({ title: 'Overview · Serangkai' })
 
-const user = useState<any>('user')
+const { loggedIn } = useUserSession()
 const summary = ref<any>(null)
 const recent = ref<any[]>([])
 const error = ref('')
@@ -115,5 +115,5 @@ const loadOverview = async () => {
   }
 }
 
-onMounted(() => { if (user.value) loadOverview() })
+onMounted(() => { if (loggedIn.value) loadOverview() })
 </script>

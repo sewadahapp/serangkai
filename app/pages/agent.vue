@@ -2,11 +2,11 @@
   <div class="space-y-6">
     <SerangkaiPageHeader title="Connect an agent" description="Agents use scoped API tokens against the REST API or the MCP endpoint.">
       <template #actions>
-        <SButton v-if="user" to="/settings" variant="outline" icon="lucide:key-round">Manage tokens</SButton>
+        <SButton v-if="loggedIn" to="/settings" variant="outline" icon="lucide:key-round">Manage tokens</SButton>
       </template>
     </SerangkaiPageHeader>
 
-    <SAlert v-if="!user" color="info" variant="subtle" title="Sign in to generate tokens" description="You can read the reference now; token creation requires an account." />
+    <SAlert v-if="!loggedIn" color="info" variant="subtle" title="Sign in to generate tokens" description="You can read the reference now; token creation requires an account." />
 
     <div class="grid gap-6 lg:grid-cols-[1fr_20rem]">
       <div class="space-y-6">
@@ -124,7 +124,7 @@
 <script setup lang="ts">
 useHead({ title: 'Connect an agent · Serangkai' })
 
-const user = useState<any>('user')
+const { loggedIn } = useUserSession()
 
 const origin = computed(() => (import.meta.client ? window.location.origin : ''))
 const mcpUrl = computed(() => `${origin.value}/api/mcp`)

@@ -6,10 +6,10 @@ deployment is supported.
 
 | Target | Local evidence | Real deployment | Boundary |
 | --- | --- | --- | --- |
-| Docker-compatible container | Podman build of the Bun image; health, registration, artifact creation, restart persistence | Docker Engine unavailable here | Docker Engine, registry publishing, and host verification remain separate |
-| Cloudflare Workers + D1 | Nitro build and Wrangler/Miniflare registration, artifact creation, and listing pass | Not deployed | Requires real D1 database, secrets, and production config |
+| Docker-compatible container | Podman build of the Bun image; health, owner login, artifact/upload/token/share persistence across container replacement on `/data` | Docker Engine unavailable here | Docker Engine, registry publishing, and host verification remain separate |
+| Cloudflare Workers + D1 | Nitro build and Wrangler/Miniflare owner login, artifact creation, and listing pass | Not deployed | Requires real D1 database, secrets, and production config |
 | Cloudflare R2 | Local Wrangler R2 binding: binary upload/download byte-for-byte; no memory fallback | Not deployed | Requires a real R2 bucket and durable object verification |
-| Vercel | Nitro Build Output and local Node runtime registration/artifact/listing pass | Not deployed | Requires a Vercel project, secrets, durable external database, and S3 storage |
+| Vercel | Nitro Build Output and local Node runtime owner login/artifact/listing pass | Not deployed | Requires a Vercel project, secrets, durable external database, and S3 storage |
 | InstaCloud | Generic Docker checklist and image run path only | Not verified | Requires platform documentation/account or official emulator |
 
 The Wrangler `deploy --dry-run` check also passes locally and validates the

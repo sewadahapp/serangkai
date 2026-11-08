@@ -3,5 +3,5 @@ export default defineEventHandler(async (event) => {
   if (!user) {
     throw createError({ statusCode: 401, message: 'Unauthorized' })
   }
-  return { user: { id: user.id, email: user.email } }
+  return { user: { id: user.id, username: user.username || '' } }
 })

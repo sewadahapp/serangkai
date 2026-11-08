@@ -14,11 +14,14 @@ test('CI workflow uses Bun for install, build, and integration coverage', async 
     'bun run test:deployment-files',
     'bun run test:release-readiness',
     'bun run test:database',
+    'bun run test:session-secret',
     'tests/mcp-protocol.test.mjs',
     'tests/tokens-api.test.mjs',
     'tests/folders-api.test.mjs',
     'tests/artifacts-lifecycle.test.mjs',
     'tests/browser-workspace.test.mjs',
+    'tests/auth-api.test.mjs',
+    'tests/auth-migration.test.mjs',
   ]) assert.match(workflow, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   assert.doesNotMatch(workflow, /npm (ci|run)/)
   assert.doesNotMatch(workflow, /package-lock\.json/)

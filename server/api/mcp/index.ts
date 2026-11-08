@@ -270,6 +270,11 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
 }
 
 export default defineEventHandler(async (event) => {
+  // Agents authenticate with a scoped bearer token. A browser session must not
+  // open the MCP endpoint, so there is no session fallback here.
+  if (!event.context.apiToken) {
+    throw createError({ statusCode: 401, message: 'MCP requires an Authorization: Bearer <token> header.' })
+  }
   const user = requireScope(event, 'read')
   const db = await getRequestDatabase(event)
   const transport = new WebStandardStreamableHTTPServerTransport({
@@ -278,7 +283,7 @@ export default defineEventHandler(async (event) => {
     maxRequestBodySize: 10_000_000,
   })
   const token = event.context.apiToken
-  const canWrite = !token || token.scopes.includes('write') || token.scopes.includes('full')
+  const canWrite = token.scopes.includes('write') || token.scopes.includes('full')
   const server = createMcpServer(user.id, canWrite, db)
   await server.connect(transport)
   return transport.handleRequest(toWebRequest(event))

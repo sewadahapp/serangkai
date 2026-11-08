@@ -8,6 +8,7 @@ import { request as httpRequest } from 'node:http'
 import { test, before, after } from 'node:test'
 import { chromium } from 'playwright-core'
 import { serverRuntime } from './helpers/server.mjs'
+import { adminEnv, adminPassword, adminUsername } from './helpers/auth.mjs'
 
 const port = 3720 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
@@ -15,7 +16,7 @@ let child, dataDir, browser, page
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-browser-test-'))
-  child = spawn(serverRuntime, ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
+  child = spawn(serverRuntime, ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, ...adminEnv(), PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
   for (let i = 0; i < 60; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break } catch {} await new Promise(resolve => setTimeout(resolve, 100)) }
   browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] })
   page = await browser.newPage()
@@ -23,15 +24,15 @@ before(async () => {
 
 after(async () => { await browser?.close(); child?.kill('SIGTERM'); await rm(dataDir, { recursive: true, force: true }) })
 
-test('human browser workflow registers and creates an artifact', async () => {
+test('human browser workflow logs in and creates an artifact', async () => {
   await page.goto(`${base}/`)
   await assert.doesNotReject(() => page.getByText('Serangkai').first().waitFor())
   // The landing page's own snippets are highlighted, not only artifact Markdown.
   await assert.doesNotReject(() => page.locator('.serangkai-shiki span[style*="--shiki-light"]').first().waitFor())
-  await page.getByRole('link', { name: 'Register' }).click()
-  await page.getByLabel('Email').fill(`browser-${randomBytes(3).toString('hex')}@example.com`)
-  await page.getByLabel('Password').fill('correct horse battery')
-  await page.getByRole('button', { name: 'Create workspace' }).click()
+  await page.getByRole('banner').getByRole('link', { name: 'Log in' }).click()
+  await page.getByLabel('Username').fill(adminUsername)
+  await page.getByLabel('Password').fill(adminPassword)
+  await page.getByRole('button', { name: 'Log in' }).click()
   await page.waitForURL('**/workspace')
   await assert.doesNotReject(() => page.getByRole('heading', { name: 'Workspace' }).waitFor())
   await page.getByRole('button', { name: 'New folder' }).click()
@@ -522,4 +523,45 @@ test('shared source files use the full page, with the footer at the end', async 
   }))
   assert.equal(scrolled.headerTop, 0)
   assert.ok(Math.abs(scrolled.footerBottom - scrolled.viewportHeight) < 1, `footer bottom ${scrolled.footerBottom}`)
+})
+
+test('navigating from a public artifact to the homepage keeps the signed-in state', async () => {
+  const slug = await page.evaluate(async () => {
+    const res = await fetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Public navigation check', type: 'markdown', content: '# Shared', visibility: 'public' }),
+    })
+    return (await res.json()).artifact.slug
+  })
+
+  await page.goto(`${base}/share/${slug}`)
+  await page.getByRole('link', { name: 'Serangkai home' }).click()
+  await page.waitForURL(`${base}/`)
+  await assert.doesNotReject(() => page.getByRole('link', { name: 'Workspace', exact: true }).first().waitFor())
+  assert.equal(await page.getByRole('banner').getByRole('link', { name: 'Log in' }).count(), 0)
+  await assert.doesNotReject(() => page.getByRole('button', { name: new RegExp(adminUsername) }).waitFor())
+})
+
+test('anonymous readers still see the login action after leaving a share link', async () => {
+  const slug = await page.evaluate(async () => {
+    const res = await fetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Anonymous navigation check', type: 'markdown', content: '# Public', visibility: 'public' }),
+    })
+    return (await res.json()).artifact.slug
+  })
+
+  const context = await browser.newContext()
+  const anon = await context.newPage()
+  try {
+    await anon.goto(`${base}/share/${slug}`)
+    await anon.getByRole('link', { name: 'Serangkai home' }).click()
+    await anon.waitForURL(`${base}/`)
+    await assert.doesNotReject(() => anon.getByRole('banner').getByRole('link', { name: 'Log in' }).waitFor())
+    assert.equal(await anon.getByRole('link', { name: 'Workspace', exact: true }).count(), 0)
+  } finally {
+    await context.close()
+  }
 })
