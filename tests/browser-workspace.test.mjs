@@ -37,6 +37,11 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await assert.doesNotReject(() => page.getByRole('heading', { name: 'Workspace' }).waitFor())
   await page.getByRole('button', { name: 'New folder' }).click()
   await page.getByLabel('Folder name').fill('Projects')
+  // The folder picker must open real options (Reka rejects an empty-string
+  // option value, which previously left the parent list empty).
+  await page.getByRole('combobox', { name: 'Parent' }).click()
+  await assert.doesNotReject(() => page.getByRole('option', { name: 'Top level' }).waitFor())
+  await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Create folder' }).click()
   await assert.doesNotReject(() => page.getByRole('button', { name: /Projects/ }).waitFor())
   await page.getByRole('button', { name: /Projects/ }).click()

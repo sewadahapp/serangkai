@@ -191,6 +191,7 @@
 </template>
 
 <script setup lang="ts">
+import { NO_FOLDER, folderIdFromSelection, folderSelection } from '~/utils/folders'
 import type { EditorLanguage } from '~/utils/editor'
 
 const route = useRoute()
@@ -209,7 +210,7 @@ const shareUrl = ref('')
 const shareMessage = ref('')
 const savingVisibility = ref(false)
 const folders = ref<any[]>([])
-const draftFolderId = ref('')
+const draftFolderId = ref<string | undefined>(NO_FOLDER)
 const savingFolder = ref(false)
 const folderMessage = ref('')
 const deleting = ref(false)
@@ -229,7 +230,7 @@ const visibilityOptions = [
 ]
 
 const folderOptions = computed(() => [
-  { label: 'No folder', value: '' },
+  { label: 'No folder', value: NO_FOLDER },
   ...folders.value.map((folder: any) => ({ label: folder.path || folder.name, value: folder.id })),
 ])
 
@@ -350,7 +351,7 @@ const reloadArtifact = async () => {
   draftTitle.value = res.artifact.title
   draftContent.value = res.content
   draftVisibility.value = res.artifact.visibility
-  draftFolderId.value = res.artifact.folderId || ''
+  draftFolderId.value = folderSelection(res.artifact.folderId)
   shareMessage.value = ''
   versions.value = (await $fetch<any>(`/api/artifacts/${route.params.id}/versions`)).versions || []
 }
@@ -380,7 +381,7 @@ const saveVisibility = async () => {
 const saveFolder = async () => {
   savingFolder.value = true; folderMessage.value = ''
   try {
-    const res = await $fetch<any>(`/api/artifacts/${route.params.id}`, { method: 'PUT', body: { folderId: draftFolderId.value || null } })
+    const res = await $fetch<any>(`/api/artifacts/${route.params.id}`, { method: 'PUT', body: { folderId: folderIdFromSelection(draftFolderId.value) } })
     artifact.value = res.artifact
     folderMessage.value = 'Folder updated.'
   } catch (e: any) { folderMessage.value = e.data?.message || 'Could not move artifact' }
@@ -431,7 +432,7 @@ onMounted(async () => {
     draftTitle.value = res.artifact.title
     draftContent.value = res.content
     draftVisibility.value = res.artifact.visibility
-    draftFolderId.value = res.artifact.folderId || ''
+    draftFolderId.value = folderSelection(res.artifact.folderId)
     await loadShareLink()
     const [history, folderList] = await Promise.all([
       $fetch<any>(`/api/artifacts/${route.params.id}/versions`),

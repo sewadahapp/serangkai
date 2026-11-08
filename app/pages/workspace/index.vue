@@ -230,6 +230,7 @@
 </template>
 
 <script setup lang="ts">
+import { NO_FOLDER, folderIdFromSelection, folderSelection } from '~/utils/folders'
 import type { EditorLanguage } from '~/utils/editor'
 
 useHead({ title: 'Workspace · Serangkai' })
@@ -254,15 +255,15 @@ const folders = ref<Folder[]>([])
 const artifacts = ref<Artifact[]>([])
 const searchQuery = ref('')
 const folderName = ref('')
-const parentFolderId = ref('')
-const artifactFolderId = ref('')
+const parentFolderId = ref<string | undefined>(NO_FOLDER)
+const artifactFolderId = ref<string | undefined>(NO_FOLDER)
 const artifactTitle = ref('')
 const artifactType = ref('markdown')
 const artifactVisibility = ref('private')
 const artifactContent = ref('# New artifact\n\nStart writing here.')
 const selectedFolderId = ref<string | null>(null)
 const renameValue = ref('')
-const moveParentId = ref('')
+const moveParentId = ref<string | undefined>(NO_FOLDER)
 const saving = ref(false)
 const savingFolder = ref(false)
 const folderMessage = ref('')
@@ -280,7 +281,7 @@ const MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 const acceptTypes = '.md,.markdown,.txt,.html,.htm,.js,.json,.pdf,.png,.jpg,.jpeg,.gif,.webp,.svg,.zip' 
 const uploadTitle = ref('')
 const uploadVisibility = ref('private')
-const uploadFolderId = ref('')
+const uploadFolderId = ref<string | undefined>(NO_FOLDER)
 const uploading = ref(false)
 
 const folderMap = computed(() => new Map(folders.value.map(folder => [folder.id, folder])))
@@ -347,9 +348,9 @@ const moveTargets = computed(() => {
   return folderRows.value.filter(row => !blocked.has(row.id))
 })
 
-const parentOptions = computed(() => [{ label: 'Top level', value: '' }, ...folderRows.value.map(folderOption)])
-const artifactFolderOptions = computed(() => [{ label: 'No folder', value: '' }, ...folderRows.value.map(folderOption)])
-const moveTargetOptions = computed(() => [{ label: 'Top level', value: '' }, ...moveTargets.value.map(folderOption)])
+const parentOptions = computed(() => [{ label: 'Top level', value: NO_FOLDER }, ...folderRows.value.map(folderOption)])
+const artifactFolderOptions = computed(() => [{ label: 'No folder', value: NO_FOLDER }, ...folderRows.value.map(folderOption)])
+const moveTargetOptions = computed(() => [{ label: 'Top level', value: NO_FOLDER }, ...moveTargets.value.map(folderOption)])
 
 const selectedFolder = computed(() => selectedFolderId.value ? folderMap.value.get(selectedFolderId.value) || null : null)
 
@@ -404,21 +405,21 @@ const closePanels = () => { showNewFolder.value = false; showNewArtifact.value =
 
 const openNewFolder = () => {
   closePanels()
-  parentFolderId.value = selectedFolderId.value || ''
+  parentFolderId.value = folderSelection(selectedFolderId.value)
   showNewFolder.value = true
   error.value = ''
 }
 
 const openNewArtifact = () => {
   closePanels()
-  artifactFolderId.value = selectedFolderId.value || ''
+  artifactFolderId.value = folderSelection(selectedFolderId.value)
   showNewArtifact.value = true
   error.value = ''
 }
 
 const openUpload = () => {
   closePanels()
-  uploadFolderId.value = selectedFolderId.value || ''
+  uploadFolderId.value = folderSelection(selectedFolderId.value)
   uploadFiles.value = []
   uploadError.value = ''
   uploadTitle.value = ''
@@ -437,7 +438,7 @@ watch(uploadFiles, (files) => {
 const selectFolder = (folderId: string | null) => {
   selectedFolderId.value = folderId
   renameValue.value = folderId ? folderMap.value.get(folderId)?.name || '' : ''
-  moveParentId.value = folderId ? folderMap.value.get(folderId)?.parentId || '' : ''
+  moveParentId.value = folderSelection(folderId ? folderMap.value.get(folderId)?.parentId : null)
   folderMessage.value = ''
   closePanels()
   if (searchQuery.value.trim()) search()
@@ -478,9 +479,10 @@ const clearSearch = async () => {
 const createFolder = async () => {
   saving.value = true; error.value = ''
   try {
-    const res = await $fetch('/api/folders', { method: 'POST', body: { name: folderName.value, ...(parentFolderId.value ? { parentId: parentFolderId.value } : {}) } })
+    const parentId = folderIdFromSelection(parentFolderId.value)
+    const res = await $fetch('/api/folders', { method: 'POST', body: { name: folderName.value, ...(parentId ? { parentId } : {}) } })
     folderName.value = ''
-    parentFolderId.value = ''
+    parentFolderId.value = NO_FOLDER
     showNewFolder.value = false
     await loadWorkspace()
     selectFolder(res.folder.id)
@@ -503,6 +505,7 @@ const createArtifact = async () => {
   }
   saving.value = true; error.value = ''
   try {
+    const folderId = folderIdFromSelection(artifactFolderId.value)
     await $fetch('/api/artifacts', {
       method: 'POST',
       body: {
@@ -510,7 +513,7 @@ const createArtifact = async () => {
         type: artifactType.value,
         visibility: artifactVisibility.value,
         content: artifactContent.value,
-        ...(artifactFolderId.value ? { folderId: artifactFolderId.value } : {}),
+        ...(folderId ? { folderId } : {}),
       },
     })
     artifactTitle.value = ''
@@ -535,7 +538,8 @@ const uploadArtifact = async () => {
     form.append('file', uploadFiles.value[0])
     if (uploadTitle.value.trim()) form.append('title', uploadTitle.value.trim())
     form.append('visibility', uploadVisibility.value)
-    if (uploadFolderId.value) form.append('folderId', uploadFolderId.value)
+    const uploadFolder = folderIdFromSelection(uploadFolderId.value)
+    if (uploadFolder) form.append('folderId', uploadFolder)
     await $fetch('/api/artifacts/upload', { method: 'POST', body: form })
     showUpload.value = false
     uploadFiles.value = []
@@ -569,7 +573,7 @@ const moveFolder = async () => {
   if (!selectedFolderId.value) return
   savingFolder.value = true; folderMessage.value = ''
   try {
-    const res = await $fetch(`/api/folders/${selectedFolderId.value}`, { method: 'PUT', body: { parentId: moveParentId.value || null } })
+    const res = await $fetch(`/api/folders/${selectedFolderId.value}`, { method: 'PUT', body: { parentId: folderIdFromSelection(moveParentId.value) } })
     const movedId = res.folder.id
     await loadWorkspace()
     selectFolder(movedId)
