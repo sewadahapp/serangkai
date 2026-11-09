@@ -4,9 +4,33 @@ Two ways to connect this repo's own agent to its own MCP server at
 `http://localhost:6969/api/mcp`:
 
 - **OAuth (recommended):** no token file, no pasted secret. `mcp-remote`
-  discovers the authorization server and opens a browser for approval.
+  discovers the authorization server and opens a browser for approval. On a
+  headless machine, use the device-code variant instead.
 - **Bearer token:** a scoped API token in a gitignored file. Useful for
   headless shells and CI, where a browser is not available.
+
+## Connecting over SSH (device code)
+
+The browser flow needs a loopback callback, which an SSH session or container
+cannot receive. Use the device grant instead: the client prints a short code and
+a URL, and you approve it from whichever machine has a browser.
+
+```bash
+SERANGKAI_MCP_AUTH=oauth-device bash scripts/serangkai-mcp.sh
+```
+
+The client prints something like:
+
+```
+To authorize this client, visit:
+  http://localhost:6969/oauth/device?user_code=NVWT-RVWF
+
+Waiting for approval...
+```
+
+Open that URL anywhere, sign in, and approve. The terminal finishes on its own —
+no port forwarding and no callback reachability needed. The grant then appears
+under Settings → Connected agents like any other connection.
 
 ## OAuth setup
 
@@ -69,4 +93,5 @@ header at all.
 - Rotate the token in `/settings` and update `.env.serangkai-mcp` if it leaks.
 - `scripts/serangkai-mcp.sh` is committed; `.env.serangkai-mcp` is not.
 - Dogfooded against the built server with `mcp-remote` 0.16.5: discovery,
-  registration, PKCE, consent, and a tool call all completed.
+  registration, PKCE, consent, and a tool call all completed, over both the
+  browser flow and `--device-code`.

@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, lt, notInArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
-import { apiTokens, oauthClients, oauthCodes, oauthTokens } from '../db/schema'
+import { apiTokens, oauthClients, oauthCodes, oauthDeviceCodes, oauthTokens } from '../db/schema'
 import { generateToken, hashToken } from './auth'
 
 /**
@@ -353,4 +353,140 @@ export async function pruneAbandonedClients(db: any, olderThanMs = 7 * 24 * 60 *
   const ids = stale.map((row: { id: string }) => row.id)
   await db.delete(oauthClients).where(inArray(oauthClients.id, ids))
   return ids.length
+}
+
+/**
+ * RFC 8628 device authorization grant.
+ *
+ * The point is to move the browser off the machine running the client: an SSH
+ * session, container, or cron job cannot receive a loopback callback, but it
+ * can print a short code that the owner types on a page opened anywhere.
+ *
+ * Security properties:
+ *  - The device code is stored hashed and is single use.
+ *  - The user code is short by design, so it is only accepted while pending,
+ *    within its lifetime, and after a single approval; guessing it yields
+ *    `authorization_pending` rather than a token.
+ *  - Approval always requires the owner's browser session, exactly like the
+ *    consent page.
+ */
+const DEVICE_CODE_TTL_MS = 10 * 60 * 1000
+
+/** Ambiguous characters (0/O, 1/I/L) are omitted so a human can read it back. */
+const USER_CODE_ALPHABET = 'BCDFGHJKMNPQRSTVWXZ'
+
+/** A short, human-readable code like `WDJB-MJHT`. */
+export function generateUserCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(8))
+  const chars = Array.from(bytes, byte => USER_CODE_ALPHABET[byte % USER_CODE_ALPHABET.length])
+  return `${chars.slice(0, 4).join('')}-${chars.slice(4).join('')}`
+}
+
+/** Normalize what a human typed: case and separators do not matter. */
+export function normalizeUserCode(input: string): string {
+  return String(input || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
+export function formatUserCode(normalized: string): string {
+  return normalized.length === 8 ? `${normalized.slice(0, 4)}-${normalized.slice(4)}` : normalized
+}
+
+export interface DeviceAuthorizationInput {
+  clientId: string
+  scopes: string[]
+  resource?: string | null
+}
+
+export async function createDeviceAuthorization(db: any, input: DeviceAuthorizationInput) {
+  // Opportunistic cleanup, same rationale as authorization codes.
+  await db.delete(oauthDeviceCodes).where(lt(oauthDeviceCodes.expiresAt, new Date()))
+
+  const deviceCode = generateToken()
+  // Collisions are possible in principle; retry a few times rather than
+  // surfacing a unique-constraint error to the client.
+  let userCode = normalizeUserCode(generateUserCode())
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const clash = await db.select({ id: oauthDeviceCodes.id })
+      .from(oauthDeviceCodes).where(eq(oauthDeviceCodes.userCode, userCode)).get()
+    if (!clash) break
+    userCode = normalizeUserCode(generateUserCode())
+  }
+
+  await db.insert(oauthDeviceCodes).values({
+    id: await sha256Hex(deviceCode),
+    clientId: input.clientId,
+    userCode,
+    scopes: input.scopes,
+    resource: input.resource || null,
+    expiresAt: new Date(Date.now() + DEVICE_CODE_TTL_MS),
+    createdAt: new Date(),
+  })
+
+  return { deviceCode, userCode: formatUserCode(userCode), expiresIn: Math.floor(DEVICE_CODE_TTL_MS / 1000) }
+}
+
+/** Look up a pending device authorization by the code the owner typed. */
+export async function findDeviceByUserCode(db: any, input: string) {
+  const userCode = normalizeUserCode(input)
+  if (userCode.length !== 8) return undefined
+  return db.select().from(oauthDeviceCodes)
+    .where(eq(oauthDeviceCodes.userCode, userCode)).get()
+}
+
+/** Owner approval. Sets the user and marks the request approved. */
+export async function approveDeviceAuthorization(db: any, id: string, userId: string, scopes: string[]) {
+  const row = await db.select().from(oauthDeviceCodes).where(eq(oauthDeviceCodes.id, id)).get()
+  if (!row) return { ok: false as const, error: 'not_found' as const }
+  if (row.approvedAt || row.deniedAt) return { ok: false as const, error: 'already_decided' as const }
+  if (row.expiresAt.getTime() < Date.now()) return { ok: false as const, error: 'expired' as const }
+
+  await db.update(oauthDeviceCodes)
+    .set({ userId, approvedAt: new Date(), scopes })
+    .where(and(eq(oauthDeviceCodes.id, id), isNull(oauthDeviceCodes.approvedAt), isNull(oauthDeviceCodes.deniedAt)))
+  return { ok: true as const }
+}
+
+export async function denyDeviceAuthorization(db: any, id: string) {
+  const row = await db.select().from(oauthDeviceCodes).where(eq(oauthDeviceCodes.id, id)).get()
+  if (!row) return { ok: false as const, error: 'not_found' as const }
+  if (row.approvedAt || row.deniedAt) return { ok: false as const, error: 'already_decided' as const }
+  await db.update(oauthDeviceCodes)
+    .set({ deniedAt: new Date() })
+    .where(and(eq(oauthDeviceCodes.id, id), isNull(oauthDeviceCodes.approvedAt), isNull(oauthDeviceCodes.deniedAt)))
+  return { ok: true as const }
+}
+
+/**
+ * Poll result for the token endpoint.
+ *
+ * Returns the RFC 8628 error code the client expects while the owner has not
+ * decided yet, and consumes the row exactly once when they have.
+ */
+export async function pollDeviceAuthorization(db: any, deviceCode: string) {
+  const id = await sha256Hex(deviceCode)
+  const row = await db.select().from(oauthDeviceCodes).where(eq(oauthDeviceCodes.id, id)).get()
+  if (!row) return { ok: false as const, error: 'invalid_grant' as const }
+  if (row.consumedAt) return { ok: false as const, error: 'invalid_grant' as const }
+  if (row.expiresAt.getTime() < Date.now()) return { ok: false as const, error: 'expired_token' as const }
+  if (row.deniedAt) return { ok: false as const, error: 'access_denied' as const }
+  if (!row.approvedAt || !row.userId) return { ok: false as const, error: 'authorization_pending' as const }
+
+  // Claim it: the conditional update means two concurrent polls cannot both
+  // receive tokens. An unrecognized shape fails closed.
+  const result = await db.update(oauthDeviceCodes)
+    .set({ consumedAt: new Date() })
+    .where(and(eq(oauthDeviceCodes.id, id), isNull(oauthDeviceCodes.consumedAt)))
+  const affected = Number(result?.changes ?? result?.rowsAffected ?? result?.meta?.changes)
+  if (!Number.isFinite(affected) || affected <= 0) {
+    return { ok: false as const, error: 'invalid_grant' as const }
+  }
+
+  const client = await findClient(db, row.clientId)
+  const issued = await issueTokens(db, {
+    clientId: row.clientId,
+    userId: row.userId,
+    scopes: row.scopes,
+    label: client?.clientName || 'OAuth client',
+  })
+  return { ok: true as const, tokens: issued }
 }

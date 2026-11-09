@@ -17,10 +17,13 @@ export default defineEventHandler((event) => {
     token_endpoint: absoluteUrl(event, '/oauth/token').href,
     registration_endpoint: absoluteUrl(event, '/oauth/register').href,
     revocation_endpoint: absoluteUrl(event, '/oauth/revoke').href,
+    // RFC 8628: lets a client without a browser (SSH, container, cron) sign in
+    // with a short code instead of a loopback callback.
+    device_authorization_endpoint: absoluteUrl(event, '/oauth/device-authorization').href,
     scopes_supported: [...OAUTH_SCOPES],
     response_types_supported: ['code'],
     response_modes_supported: ['query'],
-    grant_types_supported: ['authorization_code', 'refresh_token'],
+    grant_types_supported: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
     // MCP clients are public clients using PKCE, so no client secret is
     // required at the token endpoint. `client_secret_post` stays available for
     // confidential clients that prefer it.

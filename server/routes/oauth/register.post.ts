@@ -17,6 +17,13 @@ import { clientBucketKey, createRateLimiter } from '../../utils/rate-limit'
  */
 const registrationLimiter = createRateLimiter({ limit: 20, windowMs: 60 * 60 * 1000 })
 
+/** The grant types this server implements. */
+const SUPPORTED_GRANTS = [
+  'authorization_code',
+  'refresh_token',
+  'urn:ietf:params:oauth:grant-type:device_code',
+]
+
 function registrationError(event: any, status: number, error: string, description: string) {
   setResponseStatus(event, status)
   return { error, error_description: description }
@@ -61,7 +68,9 @@ export default defineEventHandler(async (event) => {
   const grantTypes = Array.isArray(body.grant_types) && body.grant_types.length
     ? body.grant_types.map(String)
     : ['authorization_code', 'refresh_token']
-  const unsupportedGrant = grantTypes.find((value: string) => !['authorization_code', 'refresh_token'].includes(value))
+  // A client using the device flow registers with the device grant type, so
+  // rejecting it would break exactly the headless path this exists for.
+  const unsupportedGrant = grantTypes.find((value: string) => !SUPPORTED_GRANTS.includes(value))
   if (unsupportedGrant) {
     return registrationError(event, 400, 'invalid_client_metadata', `Unsupported grant type: ${unsupportedGrant}`)
   }

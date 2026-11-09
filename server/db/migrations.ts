@@ -145,6 +145,19 @@ export async function ensureOAuthSchema(db: any) {
       refresh_expires_at INTEGER NOT NULL,
       created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
     )`,
+    `CREATE TABLE IF NOT EXISTS oauth_device_codes (
+      id TEXT PRIMARY KEY NOT NULL,
+      client_id TEXT NOT NULL REFERENCES oauth_clients(id) ON DELETE CASCADE,
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      user_code TEXT NOT NULL UNIQUE,
+      scopes TEXT NOT NULL DEFAULT '[]',
+      resource TEXT,
+      approved_at INTEGER,
+      denied_at INTEGER,
+      consumed_at INTEGER,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+    )`,
     `CREATE INDEX IF NOT EXISTS oauth_codes_expires_idx ON oauth_codes (expires_at)`,
     `CREATE INDEX IF NOT EXISTS oauth_tokens_client_idx ON oauth_tokens (client_id)`,
   ]

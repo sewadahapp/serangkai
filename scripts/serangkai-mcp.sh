@@ -4,8 +4,10 @@
 # Registers `serangkai` with an MCP client as a stdio->HTTP bridge to the app's
 # Streamable HTTP endpoint. Two auth modes:
 #
-#   SERANGKAI_MCP_AUTH=oauth   no secret on disk; mcp-remote opens a browser
-#   (default)                  bearer token from .env.serangkai-mcp
+#   SERANGKAI_MCP_AUTH=oauth          no secret on disk; opens a browser
+#   SERANGKAI_MCP_AUTH=oauth-device   same, but prints a code for approval on
+#                                     another machine (SSH, container, cron)
+#   (default)                         bearer token from .env.serangkai-mcp
 #
 # The token is never written into opencode.json (which is committed).
 set -euo pipefail
@@ -15,10 +17,15 @@ ENV_FILE="$PROJECT_ROOT/.env.serangkai-mcp"
 BASE_URL="${SERANGKAI_MCP_URL:-http://localhost:6969}"
 AUTH_MODE="${SERANGKAI_MCP_AUTH:-token}"
 
-if [[ "$AUTH_MODE" == "oauth" ]]; then
-  # OAuth needs the callback to reach a browser-local port, so the bridge is
-  # always driven over loopback. --allow-http is for localhost only.
-  exec bunx mcp-remote "$BASE_URL/api/mcp" --allow-http
+if [[ "$AUTH_MODE" == "oauth" || "$AUTH_MODE" == "oauth-device" ]]; then
+  # --allow-http is for localhost only; a deployed instance must be HTTPS.
+  extra=()
+  if [[ "$AUTH_MODE" == "oauth-device" ]]; then
+    # No callback server and no port binding: the client prints a short code
+    # that can be approved from any machine. This is the SSH/headless path.
+    extra+=(--device-code)
+  fi
+  exec bunx mcp-remote "$BASE_URL/api/mcp" --allow-http "${extra[@]}"
 fi
 
 if [[ ! -f "$ENV_FILE" ]]; then

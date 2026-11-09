@@ -396,6 +396,14 @@ adding a second system to configure would buy nothing.
   `/oauth/register` (RFC 7591 dynamic registration, rate-limited),
   `/oauth/token` (authorization code + refresh rotation), `/oauth/revoke`
   (RFC 7009). PKCE `S256` is mandatory and the implicit flow does not exist.
+- **Headless sign-in (RFC 8628).** `/oauth/device-authorization` issues a device
+  code plus a short `WDJB-MJHT`-style user code; `/oauth/device` is the
+  activation page where the owner types or follows it. The token endpoint
+  accepts `urn:ietf:params:oauth:grant-type:device_code` and answers
+  `authorization_pending` while the owner has not decided. This is what makes
+  OAuth usable from an SSH session or container: no callback server and no port
+  binding, so the browser can be on a different machine entirely. Device codes
+  are stored hashed, single-use, and expire in ten minutes.
 - **Rate limits.** Registration, consent, and token exchange are throttled per
   client address (`server/utils/rate-limit.ts`). The limiter is per process, so
   on Workers it bounds one isolate rather than the whole deployment; it raises

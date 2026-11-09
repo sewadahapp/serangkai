@@ -75,6 +75,35 @@ export const oauthTokens = sqliteTable('oauth_tokens', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
 })
 
+/**
+ * Pending device authorizations (RFC 8628).
+ *
+ * This exists so a client on a headless machine — an SSH session, a container,
+ * a cron job — can sign in without a loopback callback. The client receives a
+ * short `user_code`, prints it, and polls the token endpoint; the owner types
+ * that code on a page they open on whatever machine has a browser.
+ *
+ * `id` is the SHA-256 of the `device_code`, so a leaked database row cannot be
+ * polled with. `userId` stays null until the owner approves, which is what
+ * separates "issued" from "granted".
+ */
+export const oauthDeviceCodes = sqliteTable('oauth_device_codes', {
+  id: text('id').primaryKey(),
+  clientId: text('client_id').notNull().references(() => oauthClients.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  /** Short human-typed code, normalized to uppercase without separators. */
+  userCode: text('user_code').notNull().unique(),
+  scopes: text('scopes', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  resource: text('resource'),
+  /** Set when the owner approves or denies; null while pending. */
+  approvedAt: integer('approved_at', { mode: 'timestamp' }),
+  deniedAt: integer('denied_at', { mode: 'timestamp' }),
+  /** Set once the client has exchanged the device code; makes it single-use. */
+  consumedAt: integer('consumed_at', { mode: 'timestamp' }),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
+})
+
 
 export const apiTokens = sqliteTable('api_tokens', {
   id: text('id').primaryKey(),

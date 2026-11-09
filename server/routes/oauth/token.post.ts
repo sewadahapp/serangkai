@@ -5,6 +5,7 @@ import {
   consumeAuthorizationCode,
   findClient,
   issueTokens,
+  pollDeviceAuthorization,
   rotateRefreshToken,
   verifyPkce,
 } from '../../utils/oauth'
@@ -149,5 +150,32 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  return tokenError(event, 400, 'unsupported_grant_type', 'Only authorization_code and refresh_token are supported.')
+  if (grantType === 'urn:ietf:params:oauth:grant-type:device_code') {
+    const deviceCode = String(body.device_code || '')
+    if (!deviceCode) return tokenError(event, 400, 'invalid_request', 'device_code is required.')
+
+    const polled = await pollDeviceAuthorization(db, deviceCode)
+    if (!polled.ok) {
+      // RFC 8628 error codes are what a polling client branches on:
+      // authorization_pending means "keep waiting", the rest are terminal.
+      const description = polled.error === 'authorization_pending'
+        ? 'The owner has not approved this code yet.'
+        : polled.error === 'access_denied'
+          ? 'The owner declined this connection.'
+          : polled.error === 'expired_token'
+            ? 'The device code expired before it was approved.'
+            : 'The device code is invalid.'
+      return tokenError(event, 400, polled.error, description)
+    }
+    tokenLimiter.reset(bucket)
+    return {
+      access_token: polled.tokens.accessToken,
+      token_type: 'Bearer',
+      expires_in: polled.tokens.expiresIn,
+      refresh_token: polled.tokens.refreshToken,
+      scope: polled.tokens.scopes.join(' '),
+    }
+  }
+
+  return tokenError(event, 400, 'unsupported_grant_type', 'Only authorization_code, refresh_token, and device_code are supported.')
 })

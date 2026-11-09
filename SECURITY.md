@@ -75,6 +75,11 @@ on the server and does not run build jobs for uploaded bundles.
   `Access-Control-Allow-Origin: *` is never combined with
   `Access-Control-Allow-Credentials`, and MCP rejects cookie-only requests, so a
   cross-origin page gains nothing without already holding a bearer token.
+- The device grant (RFC 8628) lets a headless client sign in without a callback
+  port. Device codes are stored hashed and single use; the short user code is
+  accepted only while pending, within its ten-minute lifetime, and approval
+  still requires the owner's session. Polling an undecided code returns
+  `authorization_pending`, never a token.
 - Credential management (`/api/tokens`, `/api/oauth/clients`) is session-only. A
   bearer token can never list, mint, or revoke credentials — including an OAuth
   grant trying to enumerate or disconnect its siblings.

@@ -89,6 +89,19 @@ export const BOOTSTRAP_STATEMENTS = [
     refresh_expires_at INTEGER NOT NULL,
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
   )`,
+  `CREATE TABLE IF NOT EXISTS oauth_device_codes (
+    id TEXT PRIMARY KEY NOT NULL,
+    client_id TEXT NOT NULL REFERENCES oauth_clients(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    user_code TEXT NOT NULL UNIQUE,
+    scopes TEXT NOT NULL DEFAULT '[]',
+    resource TEXT,
+    approved_at INTEGER,
+    denied_at INTEGER,
+    consumed_at INTEGER,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+  )`,
 ]
 
 export const BOOTSTRAP_SQL = BOOTSTRAP_STATEMENTS.map(statement => `${statement};`).join('\n')

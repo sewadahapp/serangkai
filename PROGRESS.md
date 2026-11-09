@@ -148,13 +148,14 @@ documented as unverified rather than claimed as supported.
 - [x] Pruned abandoned client registrations and expired codes opportunistically, leaving approved clients untouched
 - [x] Distinguished an expired OAuth access token in the MCP 401 so a client refreshes instead of restarting authorization
 - [x] Answered CORS preflight on the OAuth and MCP paths so browser-based clients work, without ever allowing credentials
+- [x] Added the RFC 8628 device grant so a client on a headless machine signs in with a short code typed on any browser, verified end to end with `mcp-remote --device-code`
 - [x] Fixed the checked-in `wrangler.jsonc` to declare the `ASSETS` binding and rewrote the Cloudflare guide as a working step-by-step (`wrangler d1 create`, real `database_id`, secrets); the test suite now guards the assets block
 
 ## Verification
 - `bun run build` and `bun run build:cloudflare` pass
 - `bun run test:auth` passes: login/logout, invalid credentials, registration rejection, SSR state, session/token separation, rotation, legacy adoption, multi-user safety, concurrent owner creation
 - `bun run test:docker` passes: container replacement on the same `/data` volume preserves owner login, artifacts, uploaded bytes, API tokens, and unlisted share links
-- `bun run test:ci` passes (112 tests across 20 files), including the error-page, share-error, preview-height, page-head, OAuth flow, OAuth utility, and rate-limit suites
+- `bun run test:ci` passes (116 tests across 20 files), including the error-page, share-error, preview-height, page-head, OAuth flow, OAuth utility, and rate-limit suites
 - The browser suite passes (23 tests), including 404 recovery, missing-artifact errors, missing-share errors, footer positioning, HTML preview page-scroll, inline workspace retry, and error-boundary recovery
 - The integration suite passes (43 tests across MCP, upload, share, tokens, folders, lifecycle, security, bundles, authoring, and local runtime)
 - The OAuth flow is verified end to end with the MCP SDK's own client helpers (`discoverOAuthServerInfo`, `registerClient`, `startAuthorization`, `exchangeAuthorization`) against the built server, plus a real-browser check of the login round-trip, consent narrowing, denial, and the open-redirect guard

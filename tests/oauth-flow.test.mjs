@@ -622,3 +622,136 @@ test('browser-based clients can pass CORS preflight on the OAuth surface', async
   const unrelated = await fetch(`${base}/api/health`, { method: 'OPTIONS' })
   assert.equal(unrelated.headers.get('access-control-allow-origin'), null)
 })
+
+test('the device flow connects a client that has no browser callback', async () => {
+  // RFC 8628: the client prints a short code and polls, while the owner
+  // approves from any machine. This is the SSH/container path.
+  const { body: client } = await registerClient('https://unused.example/cb')
+
+  const start = await fetch(`${base}/oauth/device-authorization`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: client.client_id, scope: 'read write' }),
+  })
+  assert.equal(start.status, 200)
+  const device = await start.json()
+  assert.match(device.user_code, /^[A-Z]{4}-[A-Z]{4}$/)
+  assert.ok(device.device_code)
+  assert.ok(device.verification_uri.endsWith('/oauth/device'))
+  assert.match(device.verification_uri_complete, /user_code=/)
+  assert.equal(device.interval, 5)
+  assert.ok(device.expires_in > 0)
+
+  const poll = (code) => fetch(`${base}/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      device_code: code,
+      client_id: client.client_id,
+    }),
+  })
+
+  // Before approval the client must keep waiting, not fail.
+  const pending = await poll(device.device_code)
+  assert.equal(pending.status, 400)
+  assert.equal((await pending.json()).error, 'authorization_pending')
+
+  // The activation page asks a signed-out owner to sign in first.
+  const signedOut = await fetch(`${base}/oauth/device?user_code=${encodeURIComponent(device.user_code)}`, { redirect: 'manual' })
+  assert.equal(signedOut.status, 302)
+  assert.match(signedOut.headers.get('location') || '', /^\/auth\/login\?redirect=/)
+
+  // Signed in: the code resolves to a consent view naming the client.
+  const consent = await fetch(`${base}/oauth/device?user_code=${encodeURIComponent(device.user_code)}`, { headers: { cookie } })
+  assert.equal(consent.status, 200)
+  const consentHtml = await consent.text()
+  assert.match(consentHtml, /Allow Test MCP client to access your workspace\?/)
+
+  // Approve with only `read` checked.
+  const approval = await fetch(`${base}/oauth/device`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ user_code: device.user_code, decision: 'approve', scopes: 'read' }),
+  })
+  assert.equal(approval.status, 200)
+  assert.match(await approval.text(), /Device connected/)
+
+  // Now the poll succeeds, with the narrowed scope.
+  const granted = await poll(device.device_code)
+  assert.equal(granted.status, 200)
+  const tokens = await granted.json()
+  assert.equal(tokens.token_type, 'Bearer')
+  assert.equal(tokens.scope, 'read')
+  assert.ok(tokens.refresh_token)
+
+  // The device code is single use.
+  const replay = await poll(device.device_code)
+  assert.equal(replay.status, 400)
+  assert.equal((await replay.json()).error, 'invalid_grant')
+
+  // The token works against MCP.
+  const mcp = await fetch(`${base}/api/mcp`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${tokens.access_token}`,
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+  })
+  assert.equal(mcp.status, 200)
+
+  // And it is listed for the owner to revoke.
+  const listed = await (await fetch(`${base}/api/oauth/clients`, { headers: { cookie } })).json()
+  assert.ok(listed.clients.some(entry => entry.clientId === client.client_id))
+})
+
+test('a denied device authorization returns access_denied', async () => {
+  const { body: client } = await registerClient('https://unused.example/cb')
+  const start = await fetch(`${base}/oauth/device-authorization`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: client.client_id, scope: 'read' }),
+  })
+  const device = await start.json()
+
+  await fetch(`${base}/oauth/device`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ user_code: device.user_code, decision: 'deny' }),
+  })
+
+  const polled = await fetch(`${base}/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      device_code: device.device_code,
+      client_id: client.client_id,
+    }),
+  })
+  assert.equal(polled.status, 400)
+  assert.equal((await polled.json()).error, 'access_denied')
+})
+
+test('an unknown device code is rejected without leaking whether it existed', async () => {
+  const { body: client } = await registerClient('https://unused.example/cb')
+  const polled = await fetch(`${base}/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      device_code: 'not-a-real-device-code',
+      client_id: client.client_id,
+    }),
+  })
+  assert.equal(polled.status, 400)
+  assert.equal((await polled.json()).error, 'invalid_grant')
+})
+
+test('discovery advertises the device authorization endpoint', async () => {
+  const metadata = await (await fetch(`${base}/.well-known/oauth-authorization-server`)).json()
+  assert.equal(metadata.device_authorization_endpoint, `${base}/oauth/device-authorization`)
+  assert.ok(metadata.grant_types_supported.includes('urn:ietf:params:oauth:grant-type:device_code'))
+})
