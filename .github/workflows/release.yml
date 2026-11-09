@@ -1,0 +1,174 @@
+name: Release
+
+# Manual, one-click release: bump the version from conventional commits, write
+# CHANGELOG.md, then build and publish the multi-arch image — all in one run.
+#
+# The image is built here rather than by .github/workflows/docker.yml on the tag,
+# because a tag pushed with GITHUB_TOKEN does not trigger `on: push: tags`
+# workflows. Chaining the two would create a green release with no image and no
+# error anywhere. docker.yml still builds on pull requests and on manually pushed
+# tags.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump to apply
+        type: choice
+        default: auto
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+      version:
+        description: Exact version (must advance; overrides the bump)
+        required: false
+        type: string
+
+# A release mutates version, changelog, tag, and image. Overlapping runs would
+# race on all four, so queue them instead of cancelling.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    # Releases only ever run from the default branch, so a run started from a
+    # stale branch cannot tag a commit that is not on master.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          # changelogen derives the version from the last tag, so the full
+          # history and all tags have to be present.
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Test
+        run: bun run test:ci
+
+      - name: Verify the requested version
+        if: inputs.version != ''
+        run: node scripts/check-release-version.mjs "${{ inputs.version }}"
+
+      - name: Create changelog, bump version, and tag
+        env:
+          REQUESTED: ${{ inputs.version }}
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # --release is what performs the bump and writes CHANGELOG.md; the
+          # --no-* flags stop it committing, tagging, and calling GitHub, so the
+          # commit only happens after the image has been published. With no
+          # explicit version, changelogen derives the bump from the commits.
+          args=(--release --no-github --no-commit --no-tag)
+          if [[ -n "$REQUESTED" ]]; then
+            args+=(-r "$REQUESTED")
+          elif [[ "$BUMP" != "auto" ]]; then
+            args+=("--$BUMP")
+          fi
+
+          bunx changelogen "${args[@]}"
+
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "--- changelog:"; head -12 CHANGELOG.md
+
+          # Re-validate whatever changelogen actually produced: an auto bump
+          # must still produce a valid version with no existing tag. The bump is
+          # already applied, so compare against the tag rather than package.json.
+          node scripts/check-release-version.mjs "$VERSION" --verify-result
+        
+      - name: Commit and describe the release
+        id: release
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          git add package.json CHANGELOG.md
+          git commit -m "chore(release): $TAG"
+          git tag -a "$TAG" -m "$TAG"
+
+          # Release notes are the changelog section for this version.
+          awk -v tag="$TAG" '
+            $0 == "## " tag { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+
+          if [[ ! -s "$RUNNER_TEMP/release-notes.md" ]]; then
+            echo "::error::CHANGELOG.md has no section for $TAG"
+            exit 1
+          fi
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ steps.release.outputs.version }}
+            type=raw,value=latest
+
+      # The tag is only pushed after the image exists, so a failed build does
+      # not leave a release tag pointing at an unpublished version.
+      - name: Build and publish image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Push the release commit and tag
+        run: git push origin "HEAD:${{ github.ref_name }}" --follow-tags
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
+
+      - name: Remind about package visibility
+        # GitHub publishes new packages as private, even from a public repo, so
+        # anonymous `docker pull` answers 401 until this is flipped once. It is
+        # deliberately manual: making a package public cannot be undone.
+        run: |
+          echo "### Image published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "If this is the first release, set the package to public once:" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://github.com/orgs/${{ github.repository_owner }}/packages/container/package/${{ github.event.repository.name }}/settings" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Until then, anonymous pulls return 401. Public packages cannot be made private again." >> "$GITHUB_STEP_SUMMARY"

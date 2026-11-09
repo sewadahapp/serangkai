@@ -1,5 +1,10 @@
 name: Docker image
 
+# Builds the image on pull requests (amd64, not pushed) and on tags pushed by
+# hand. Releases do NOT rely on this workflow: a tag pushed with GITHUB_TOKEN
+# does not trigger `on: push: tags`, so .github/workflows/release.yml publishes
+# the image itself. Keeping this trigger is still useful for a tag pushed
+# manually from a checkout.
 on:
   push:
     tags:

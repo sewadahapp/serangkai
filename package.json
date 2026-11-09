@@ -1,8 +1,13 @@
 {
   "name": "serangkai",
+  "version": "0.0.0",
   "type": "module",
   "private": true,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sewadahapp/serangkai.git"
+  },
   "scripts": {
     "build": "bun run build:runtime && bun --bun run nuxt build",
     "build:node": "bun run build:runtime && NITRO_PRESET=node-server bun --bun run nuxt build",
@@ -28,13 +33,14 @@
     "test:deployment-files": "bun test tests/deployment-files.test.mjs",
     "test:release-readiness": "bun test tests/release-readiness.test.mjs",
     "test:ci-workflow": "bun test tests/ci-workflow.test.mjs",
+    "test:release-version": "bun test tests/release-version.test.mjs",
     "test:database": "bun test tests/database-adapter.test.mjs",
     "test:local-runtime": "bun run build && bun test --timeout 30000 tests/local-runtime.test.mjs",
     "test:node-runtime": "SERANGKAI_TEST_RUNTIME=node bun run build:node && SERANGKAI_TEST_RUNTIME=node bun test tests/local-runtime.test.mjs",
     "test:cloudflare-runtime": "bun run build:cloudflare && bun test --timeout 30000 tests/cloudflare-runtime.test.mjs",
     "test:vercel-runtime": "bun run build:node && bun test --timeout 30000 tests/vercel-runtime.test.mjs",
     "test:provider-local": "bun run test:config && bun run test:database && bun run test:local-runtime && bun run test:cloudflare-runtime && bun run test:vercel-runtime",
-    "test:ci": "bun run build:node && bun test --timeout 30000 tests/markdown-render.test.mjs tests/selaras-icons.test.mjs tests/artifact-theme.test.mjs tests/artifact-preview-height.test.mjs tests/artifact-runtime.test.mjs tests/config.test.mjs tests/deployment-config.test.mjs tests/deployment-files.test.mjs tests/release-readiness.test.mjs tests/ci-workflow.test.mjs tests/database-adapter.test.mjs tests/session-secret.test.mjs tests/folder-selection.test.mjs tests/auth-api.test.mjs tests/auth-migration.test.mjs tests/error-pages.test.mjs tests/page-head.test.mjs tests/oauth-flow.test.mjs tests/oauth-utils.test.mjs tests/rate-limit.test.mjs",
+    "test:ci": "bun run build:node && bun test --timeout 30000 tests/markdown-render.test.mjs tests/selaras-icons.test.mjs tests/artifact-theme.test.mjs tests/artifact-preview-height.test.mjs tests/artifact-runtime.test.mjs tests/config.test.mjs tests/deployment-config.test.mjs tests/deployment-files.test.mjs tests/release-readiness.test.mjs tests/ci-workflow.test.mjs tests/release-version.test.mjs tests/database-adapter.test.mjs tests/session-secret.test.mjs tests/folder-selection.test.mjs tests/auth-api.test.mjs tests/auth-migration.test.mjs tests/error-pages.test.mjs tests/page-head.test.mjs tests/oauth-flow.test.mjs tests/oauth-utils.test.mjs tests/rate-limit.test.mjs",
     "postinstall": "bun --bun run nuxt prepare",
     "test:config": "bun test tests/config.test.mjs",
     "test:theme": "bun test tests/artifact-theme.test.mjs",
@@ -86,6 +92,7 @@
     "@types/yauzl": "^3.4.0",
     "@types/yazl": "^3.3.1",
     "bcryptjs": "^3.0.3",
+    "changelogen": "0.6.2",
     "drizzle-kit": "^0.31.11",
     "playwright-core": "^1.64.1",
     "wrangler": "^4.156.1",

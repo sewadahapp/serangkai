@@ -111,6 +111,28 @@ Cloudflare have likewise only been exercised locally. Run
 health plus persistence after any real deployment before treating it as
 supported.
 
+### Publishing an image
+
+Images are published by the **Release** workflow, run manually from the Actions
+tab: *Actions → Release → Run workflow*. It takes an optional exact version and a
+bump, then in one run:
+
+1. Runs `bun run test:ci`.
+2. Bumps `package.json` from the conventional commits and writes `CHANGELOG.md`.
+3. Builds `linux/amd64` and `linux/arm64` images.
+4. Pushes the release commit and an annotated `vX.Y.Z` tag.
+5. Publishes a GitHub release with the changelog section as its notes.
+
+A version is required to advance, tags are checked for collisions, and the tag is
+pushed only after the image is published, so a failed build cannot leave a tag
+pointing at a version that was never released. Until the first release there is
+no `:latest` image; build from source with `docker compose up --build` instead.
+
+The first published package is private by default, even from a public
+repository, so anonymous `docker pull` returns 401 until it is set to public once
+under *Package settings → Danger Zone → Change visibility*. That cannot be undone,
+which is why the workflow does not do it automatically.
+
 ## Authoring
 
 Markdown is rendered with Comark and styled by Selaras. Agents can create

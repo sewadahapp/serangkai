@@ -52,6 +52,38 @@ test('Docker image workflow publishes multi-arch images without deploying', asyn
   assert.doesNotMatch(workflow, /wrangler deploy|vercel deploy/)
 })
 
+test('the release workflow publishes the image in the same run as the tag', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8')
+
+  // Manual trigger only, from the default branch.
+  assert.match(workflow, /workflow_dispatch:/)
+  assert.match(workflow, /github\.event\.repository\.default_branch/)
+
+  // A tag pushed with GITHUB_TOKEN cannot trigger `on: push: tags`, so building
+  // the image in a separate workflow would silently produce no image.
+  assert.match(workflow, /docker\/build-push-action@v6/)
+  assert.match(workflow, /push: true/)
+  assert.match(workflow, /linux\/amd64,linux\/arm64/)
+  assert.match(workflow, /changelogen/)
+
+  // The tag is pushed only after the image exists.
+  assert.ok(
+    workflow.indexOf('Build and publish image') < workflow.indexOf('Push the release commit and tag'),
+    'the image must be published before the tag is pushed',
+  )
+
+  // The release must not deploy anywhere.
+  assert.doesNotMatch(workflow, /wrangler deploy|vercel deploy/)
+})
+
+test('the release workflow verifies the version before tagging', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8')
+  assert.match(workflow, /check-release-version\.mjs/)
+  assert.match(workflow, /--verify-result/)
+  // Tests must gate publication, not run after it.
+  assert.ok(workflow.indexOf('bun run test:ci') < workflow.indexOf('docker/build-push-action@v6'))
+})
+
 test('the checked-in Wrangler config serves static assets', async () => {
   // Nitro's Cloudflare preset would generate an `assets` binding, but a
   // checked-in wrangler config takes precedence. Without this block

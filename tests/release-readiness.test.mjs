@@ -36,6 +36,23 @@ test('the README only names commands and images that actually resolve', async ()
   assert.doesNotMatch(readme, /yourusername|OWNER\/REPO/)
 })
 
+test('the README documents how images are actually published', async () => {
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
+
+  // The release workflow exists and is manual.
+  const workflow = await readFile(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8')
+  assert.match(workflow, /workflow_dispatch:/)
+
+  // The README must explain that images come from a manual release, and must
+  // not imply that pushing to master publishes one.
+  assert.match(readme, /Images are published by the \*\*Release\*\* workflow/)
+  assert.match(readme, /Actions → Release → Run workflow/)
+  assert.match(readme, /docker compose up --build/)
+
+  // The one step CI cannot do for the operator.
+  assert.match(readme, /Change visibility/)
+})
+
 test('the README keeps credentials environment-provided', async () => {
   const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
 
