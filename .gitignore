@@ -28,6 +28,10 @@ logs
 .claude/
 .cursor/
 
+# Per-machine MCP client wiring (references local paths and tokens)
+opencode.json
+.env.serangkai-mcp
+
 # Local env files
 .env
 .env.*
@@ -35,6 +39,3 @@ logs
 data/
 .wrangler/
 .vercel/
-
-# Local MCP token for dogfooding the app from an agent (never commit)
-.env.serangkai-mcp

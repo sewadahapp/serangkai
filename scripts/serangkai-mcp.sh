@@ -9,7 +9,7 @@
 #                                     another machine (SSH, container, cron)
 #   (default)                         bearer token from .env.serangkai-mcp
 #
-# The token is never written into opencode.json (which is committed).
+# The token is never written into a tracked config file.
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

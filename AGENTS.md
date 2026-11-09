@@ -71,7 +71,7 @@ upgrade to Nitro 3 or adopt its `nitro/database`, `useKV`, or H3 v2 APIs until
 Nuxt itself moves to that line.
 
 ## Documentation
-Maintain: AGENTS.md, ARCHITECTURE.md, PROGRESS.md.
+Maintain: AGENTS.md, ARCHITECTURE.md, README.md.
 
 ## Security Notes
 - Isolate untrusted HTML/JS execution (sandboxed iframes, CSP)

@@ -16,13 +16,16 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
   counted; Tiptap/Lexical/Quill are rich-text editors and normalize the HTML
   instead of editing raw source. `vue-codemirror` is unmaintained and is not used.
 - **Local MCP dogfooding**: `bun run dev` is pinned to `127.0.0.1:6969`.
-  `opencode.json` registers a `serangkai` MCP server that runs
-  `scripts/serangkai-mcp.sh`, a stdio→HTTP bridge reading the bearer token from
-  the gitignored `.env.serangkai-mcp`. See `docs/development/mcp-dogfood.md`.
+  `scripts/serangkai-mcp.sh` is a stdio→HTTP bridge to `/api/mcp`. It supports
+  a bearer token from the gitignored `.env.serangkai-mcp`,
+  `SERANGKAI_MCP_AUTH=oauth` for a browser approval, and
+  `SERANGKAI_MCP_AUTH=oauth-device` for the RFC 8628 device code, which is the
+  path that works over SSH. MCP client wiring lives in the contributor's own
+  local config; nothing about it is committed.
 - **Agent support**: the `selaras` skill (copied from the installed package into
-  `.opencode/skills/`) and the local `@sewadah/selaras-mcp` stdio server, wired in
-  `opencode.json`, serving the offline catalog that ships inside
-  `@sewadah/selaras`.
+  `.opencode/skills/`) and the local `@sewadah/selaras-mcp` stdio server serve
+  the offline catalog that ships inside `@sewadah/selaras`. Both are per-machine
+  configuration and are gitignored.
 - **Design system**: Minimalism & Swiss Style — trust blue `#2563EB` primary with an
   `#EA580C` accent, Plus Jakarta Sans, light mode by default with a dark mode toggle.
   Generated with the `ui-ux-pro-max` skill (variance 3 / motion 3 / density 5) and
@@ -450,8 +453,8 @@ adding a second system to configure would buy nothing.
 - **Dogfooded with a real client.** `mcp-remote` 0.16.5 (used by the repo's own
   `scripts/serangkai-mcp.sh` bridge) discovered the server, registered,
   completed PKCE with a browser approval, and called a tool against the built
-  server. That exercises a third-party implementation rather than only the
-  bundled SDK.
+  server — over both the browser flow and `--device-code`. That exercises a
+  third-party implementation rather than only the bundled SDK.
 
 Hand-minted API tokens remain the right tool for scripts and CI; OAuth is the
 convenience path for clients that support it. Both resolve to the same scoped

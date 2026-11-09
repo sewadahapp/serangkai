@@ -2,25 +2,28 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
 
-test('release readiness keeps provider claims and credentials boundaries explicit', async () => {
-  const matrix = await readFile(new URL('../docs/deployment/verification-matrix.md', import.meta.url), 'utf8')
-  const index = await readFile(new URL('../docs/deployment/README.md', import.meta.url), 'utf8')
-  const insta = await readFile(new URL('../docs/deployment/instacloud.md', import.meta.url), 'utf8')
-  const cloudflare = await readFile(new URL('../docs/deployment/cloudflare.md', import.meta.url), 'utf8')
-  const vercel = await readFile(new URL('../docs/deployment/vercel.md', import.meta.url), 'utf8')
-  const runbook = await readFile(new URL('../docs/deployment/remote-verification-runbook.md', import.meta.url), 'utf8')
-  assert.match(matrix, /InstaCloud \| Generic Docker checklist and image run path only \| Not verified/)
-  assert.match(matrix, /Cloudflare R2 \| Local Wrangler R2 binding/)
-  assert.match(matrix, /Vercel \| Nitro Build Output and local Node runtime/)
-  assert.match(insta, /Verification status: not verified/)
-  assert.match(insta, /Docker image path/)
-  assert.match(insta, /docker-compose\.image\.yml/)
-  assert.match(cloudflare, /real Cloudflare deployment still\s+requires/)
-  assert.match(vercel, /not production-ready for durable data/)
-  assert.match(index, /InstaCloud \| Generic container checklist \| \*\*Not verified\*\*/)
-  assert.match(index, /Not deployed remotely/)
-  assert.match(runbook, /The InstaCloud deployment contract is not verified/)
-  assert.match(runbook, /common acceptance checks/)
-  assert.match(runbook, /bun run test:provider-local/)
-  assert.match(index, /bun run test:provider-local/)
+/**
+ * Release readiness: the README is the only place left that states what is and
+ * is not verified, so this guards those claims directly. The per-provider
+ * documents it used to check were removed when the repo was prepared to go
+ * public; deployment-file invariants live in deployment-files.test.mjs.
+ */
+test('the README keeps provider claims and credential boundaries explicit', async () => {
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
+
+  // It must not imply a remote deployment happened.
+  assert.match(readme, /None of these has been deployed to a remote provider/)
+  assert.match(readme, /InstaCloud has no verified deployment contract/)
+
+  // The evaluation commands it names must exist as scripts.
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  for (const script of ['test:provider-local', 'test:docker', 'build:cloudflare', 'build:vercel']) {
+    assert.ok(pkg.scripts[script], `README names bun run ${script}, which must exist`)
+  }
+
+  // Credentials stay environment-provided. The Docker example may show a
+  // placeholder, but never a real-looking committed secret.
+  assert.match(readme, /ADMIN_USERNAME/)
+  assert.match(readme, /SHARE_SECRET/)
+  assert.match(readme, /choose-a-strong-password/)
 })
