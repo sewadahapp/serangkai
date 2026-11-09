@@ -509,3 +509,77 @@ test('an unauthenticated caller cannot list or disconnect OAuth clients', async 
     headers: { authorization: `Bearer ${tokens.access_token}` },
   })).status, 401)
 })
+
+test('the token endpoint rate-limits repeated failures', async () => {
+  // Ten failures per minute per address is well above a real client.
+  let limited = false
+  let retryAfter = ''
+  for (let attempt = 0; attempt < 14; attempt++) {
+    const response = await fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': '198.51.100.77' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: 'not-a-real-client',
+        code: 'nope',
+        redirect_uri: 'https://x.example/cb',
+        code_verifier: 'a'.repeat(64),
+      }),
+    })
+    if (response.status === 429) {
+      limited = true
+      retryAfter = response.headers.get('retry-after') || ''
+      break
+    }
+  }
+  assert.equal(limited, true, 'repeated token failures should be throttled')
+  assert.match(retryAfter, /^\d+$/)
+})
+
+test('an expired OAuth access token tells the client to refresh', async () => {
+  const redirectUri = 'https://client.example/callback'
+  const { body: client } = await registerClient(redirectUri)
+  const { verifier, challenge } = pkcePair()
+  const approval = await authorize({ clientId: client.client_id, redirectUri, challenge })
+  const code = new URL(approval.headers.get('location')).searchParams.get('code')
+  const { body: tokens } = await exchangeCode({ clientId: client.client_id, code, redirectUri, verifier })
+  assert.ok(tokens.access_token)
+
+  // Age the token past its expiry the way time would.
+  const { Database } = await import('bun:sqlite')
+  const db = new Database(join(dataDir, 'serangkai.db'))
+  db.prepare('UPDATE api_tokens SET expires_at = ? WHERE name = ?').run(
+    Math.floor((Date.now() - 60_000) / 1000),
+    'Test MCP client',
+  )
+  db.close()
+
+  const response = await fetch(`${base}/api/mcp`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${tokens.access_token}`,
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+  })
+  assert.equal(response.status, 401)
+  const header = response.headers.get('www-authenticate') || ''
+  assert.match(header, /error="invalid_token"/)
+  assert.match(header, /expired/i)
+  // It still points at discovery, so a client can complete a fresh flow.
+  assert.match(header, /resource_metadata=/)
+
+  // A refresh token still works despite the expired access token.
+  const refreshed = await fetch(`${base}/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: client.client_id,
+      refresh_token: tokens.refresh_token,
+    }),
+  })
+  assert.equal(refreshed.status, 200)
+  assert.ok((await refreshed.json()).access_token)
+})

@@ -32,13 +32,25 @@ export default defineEventHandler(async (event) => {
     const token = authHeader.slice(7)
     const tokenHash = await hashToken(token)
     const apiToken = await db.select().from(apiTokens).where(eq(apiTokens.tokenHash, tokenHash)).get()
-    if (!apiToken) return
-    if (apiToken.expiresAt && apiToken.expiresAt < new Date()) return
+    if (!apiToken) {
+      // Distinguishing the failure lets an MCP client choose between refreshing
+      // its access token and starting a new authorization. A revoked or unknown
+      // token cannot be refreshed; an expired one usually can.
+      event.context.authFailure = 'invalid_token'
+      return
+    }
+    if (apiToken.expiresAt && apiToken.expiresAt < new Date()) {
+      event.context.authFailure = 'expired_token'
+      return
+    }
 
     const user = await db.select().from(users).where(eq(users.id, apiToken.userId)).get()
     // Accounts excluded by the owner migration keep their data but lose the
     // username, which makes their tokens inert.
-    if (!user?.username) return
+    if (!user?.username) {
+      event.context.authFailure = 'invalid_token'
+      return
+    }
 
     event.context.user = user
     event.context.apiToken = apiToken

@@ -143,6 +143,10 @@ documented as unverified rather than claimed as supported.
 - [x] Made the consent page the only path to a grant, with a readable client name, exact redirect URI, per-permission checkboxes, and no way to request `full`
 - [x] Added Settings → Connected agents so the owner can see and disconnect approved clients; revocation deletes the access and refresh tokens together
 - [x] Added `ensureOAuthSchema` so existing databases gain the OAuth tables without touching existing rows, and guarded credential management with a session-only check
+- [x] Dogfooded the OAuth flow with `mcp-remote` 0.16.5 as a real third-party client: discovery, registration, PKCE, browser consent, and a tool call all completed against the built server
+- [x] Added per-address rate limits to registration, consent, and token exchange, with a successful exchange clearing its bucket so normal clients are never throttled
+- [x] Pruned abandoned client registrations and expired codes opportunistically, leaving approved clients untouched
+- [x] Distinguished an expired OAuth access token in the MCP 401 so a client refreshes instead of restarting authorization
 
 ## Verification
 - `bun run build` and `bun run build:cloudflare` pass

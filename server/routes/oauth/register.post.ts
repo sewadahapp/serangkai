@@ -1,9 +1,10 @@
 import { nanoid } from 'nanoid'
 import { oauthClients } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { getHeader, readBody } from 'h3'
+import { readBody } from 'h3'
 import { generateToken, hashToken } from '../../utils/auth'
-import { isAcceptableRedirectUri, normalizeScopes } from '../../utils/oauth'
+import { isAcceptableRedirectUri, normalizeScopes, pruneAbandonedClients } from '../../utils/oauth'
+import { clientBucketKey, createRateLimiter } from '../../utils/rate-limit'
 
 /**
  * RFC 7591 dynamic client registration.
@@ -14,28 +15,7 @@ import { isAcceptableRedirectUri, normalizeScopes } from '../../utils/oauth'
  * a registered client is useless without that approval. The rate limit below
  * exists to keep the table from being filled by a script.
  */
-const REGISTRATION_WINDOW_MS = 60 * 60 * 1000
-const REGISTRATION_LIMIT = 20
-const registrationAttempts = new Map<string, { count: number; resetAt: number }>()
-
-function rateLimited(key: string) {
-  const now = Date.now()
-  const entry = registrationAttempts.get(key)
-  if (!entry || entry.resetAt < now) {
-    registrationAttempts.set(key, { count: 1, resetAt: now + REGISTRATION_WINDOW_MS })
-    return false
-  }
-  entry.count++
-  return entry.count > REGISTRATION_LIMIT
-}
-
-function clientIp(event: any) {
-  // Behind a proxy the socket address is the proxy. Trusting the header blindly
-  // would let a caller pick a fresh bucket per request, so only the first hop
-  // is used and only as a coarse bucket, never for authorization.
-  const forwarded = String(getHeader(event, 'x-forwarded-for') || '').split(',')[0].trim()
-  return forwarded || event.node?.req?.socket?.remoteAddress || 'unknown'
-}
+const registrationLimiter = createRateLimiter({ limit: 20, windowMs: 60 * 60 * 1000 })
 
 function registrationError(event: any, status: number, error: string, description: string) {
   setResponseStatus(event, status)
@@ -46,8 +26,9 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'Access-Control-Allow-Origin', '*')
   setHeader(event, 'Cache-Control', 'no-store')
 
-  if (rateLimited(clientIp(event))) {
-    setHeader(event, 'Retry-After', String(Math.ceil(REGISTRATION_WINDOW_MS / 1000)))
+  const limit = registrationLimiter.hit(clientBucketKey(event))
+  if (limit.limited) {
+    setHeader(event, 'Retry-After', String(limit.retryAfterSeconds))
     return registrationError(event, 429, 'too_many_requests', 'Too many registration attempts. Try again later.')
   }
 
@@ -108,6 +89,10 @@ export default defineEventHandler(async (event) => {
     clientSecretHash: clientSecret ? await hashToken(clientSecret) : null,
     createdAt: new Date(),
   })
+
+  // Opportunistic housekeeping: abandoned sign-ins would otherwise leave rows
+  // behind forever. Approved clients are never touched.
+  pruneAbandonedClients(db).catch(() => {})
 
   setResponseStatus(event, 201)
   return {

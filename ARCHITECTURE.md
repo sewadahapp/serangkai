@@ -396,6 +396,14 @@ adding a second system to configure would buy nothing.
   `/oauth/register` (RFC 7591 dynamic registration, rate-limited),
   `/oauth/token` (authorization code + refresh rotation), `/oauth/revoke`
   (RFC 7009). PKCE `S256` is mandatory and the implicit flow does not exist.
+- **Rate limits.** Registration, consent, and token exchange are throttled per
+  client address (`server/utils/rate-limit.ts`). The limiter is per process, so
+  on Workers it bounds one isolate rather than the whole deployment; it raises
+  the cost of a flood rather than promising a global ceiling. A successful token
+  exchange clears its bucket so normal clients are never penalised.
+- **Housekeeping.** Abandoned registrations (older than a week, never approved)
+  and expired codes are pruned opportunistically on registration. Approved
+  clients are never removed by that path.
 - **Privilege ceiling.** OAuth grants can only be `read` or `write`. `full` —
   which can mint and revoke API tokens — is never grantable, so a connected
   agent cannot escalate into credential management. Only the scopes the owner
@@ -418,9 +426,18 @@ adding a second system to configure would buy nothing.
 - **Settings surfaces are session-only.** `requireSessionUser` guards token and
   grant management, so a bearer token cannot list credentials or disconnect
   clients — including an OAuth grant trying to enumerate its siblings.
+- **Expired tokens are distinguishable.** When a bearer token is recognized but
+  expired, the MCP `401` says so in the `WWW-Authenticate` description while
+  still advertising discovery. A client can refresh instead of prompting the
+  owner again; a revoked or unknown token gets the plain sign-in message.
 - **HTTPS is required** by MCP clients except on loopback. A plain-HTTP LAN
   deployment will be rejected by the client, which is a property of the client
   rather than something the server can code around.
+- **Dogfooded with a real client.** `mcp-remote` 0.16.5 (used by the repo's own
+  `scripts/serangkai-mcp.sh` bridge) discovered the server, registered,
+  completed PKCE with a browser approval, and called a tool against the built
+  server. That exercises a third-party implementation rather than only the
+  bundled SDK.
 
 Hand-minted API tokens remain the right tool for scripts and CI; OAuth is the
 convenience path for clients that support it. Both resolve to the same scoped

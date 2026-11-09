@@ -42,6 +42,42 @@ on the server and does not run build jobs for uploaded bundles.
 - Session resolution runs during SSR via request-forwarded cookies, so signed-in
   pages never flash logged-out chrome (or expose a different header) before hydration.
 
+## Agent authorization (OAuth)
+
+- MCP clients can authenticate with OAuth 2.1 instead of a pasted token.
+  Serangkai is its own authorization server; discovery metadata is built from
+  the request origin, so a self-hosted instance works at any deployment URL.
+- Authorization codes are stored as SHA-256 hashes, never in plaintext. They are
+  single-use (a conditional `UPDATE ... WHERE consumed_at IS NULL`), expire after
+  five minutes, and are bound to the client, the exact redirect URI, and the
+  PKCE challenge.
+- PKCE `S256` is required. The implicit flow and the `plain` challenge method do
+  not exist, so an intercepted code is useless without the verifier.
+- Redirect URIs are matched exactly, with only the RFC 8252 §7.3 loopback-port
+  exception for native clients. A mismatched URI is answered with an error page,
+  never a redirect, because redirecting to an unvalidated URI is the attack this
+  endpoint must not enable.
+- Dynamic client registration is open by necessity (MCP clients self-register),
+  but registration alone grants nothing. A client cannot act until the owner
+  approves it on the consent screen, which requires the browser session.
+- OAuth grants are capped at `read` and `write`. `full` is never grantable over
+  OAuth, so a connected agent cannot mint or revoke API tokens or escalate.
+- Only the permissions the owner leaves checked are stored, even if the client
+  asked for more. Unchecking every box is a denial, not a default grant.
+- Access tokens live one hour; refresh tokens rotate on every use, so a replayed
+  refresh token fails. Revoking a grant deletes its access and refresh tokens
+  together, including from Settings → Connected agents.
+- Token and consent endpoints are rate-limited per client address. The limiter is
+  per process, so on Cloudflare Workers it bounds a single isolate rather than
+  the whole deployment; it raises the cost of a flood rather than guaranteeing a
+  ceiling.
+- Credential management (`/api/tokens`, `/api/oauth/clients`) is session-only. A
+  bearer token can never list, mint, or revoke credentials — including an OAuth
+  grant trying to enumerate or disconnect its siblings.
+- MCP clients require HTTPS except on loopback, so a plain-HTTP LAN deployment
+  will be refused by the client. That is a client-side requirement, not a server
+  control.
+
 ## Authentication and accounts
 
 - Serangkai has exactly one owner account, configured with `ADMIN_USERNAME` and

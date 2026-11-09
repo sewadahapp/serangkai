@@ -13,6 +13,7 @@ import {
   verifyPkce,
   base64UrlEncode,
   timingSafeEqual,
+  pruneAbandonedClients,
 } from '../server/utils/oauth.ts'
 
 /**
@@ -183,4 +184,37 @@ test('timing-safe comparison is correct', () => {
   assert.equal(timingSafeEqual('abc', 'abd'), false)
   assert.equal(timingSafeEqual('abc', 'abcd'), false)
   assert.equal(timingSafeEqual('', ''), true)
+})
+
+test('pruning removes abandoned registrations but never an approved client', async () => {
+  const sqlite = new Database(':memory:')
+  sqlite.exec(`
+    CREATE TABLE oauth_clients (id TEXT PRIMARY KEY, client_name TEXT, client_uri TEXT,
+      redirect_uris TEXT NOT NULL DEFAULT '[]', scopes TEXT NOT NULL DEFAULT '[]',
+      token_endpoint_auth_method TEXT NOT NULL DEFAULT 'none', client_secret_hash TEXT,
+      created_at INTEGER NOT NULL);
+    CREATE TABLE oauth_tokens (id TEXT PRIMARY KEY, client_id TEXT NOT NULL, user_id TEXT NOT NULL,
+      api_token_id TEXT NOT NULL, scopes TEXT NOT NULL DEFAULT '[]', access_expires_at INTEGER NOT NULL,
+      refresh_token_hash TEXT NOT NULL, refresh_expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
+  `)
+  const db = drizzle(sqlite)
+  const oldSeconds = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000)
+  const nowSeconds = Math.floor(Date.now() / 1000)
+
+  // Seed with raw SQL: the tables above are minimal stand-ins for the real
+  // schema, so Drizzle's column mapping does not apply to them.
+  sqlite.exec(`
+    INSERT INTO oauth_clients (id, created_at) VALUES
+      ('abandoned-old', ${oldSeconds}),
+      ('abandoned-fresh', ${nowSeconds}),
+      ('approved-old', ${oldSeconds});
+    INSERT INTO oauth_tokens (id, client_id, user_id, api_token_id, access_expires_at, refresh_token_hash, refresh_expires_at, created_at)
+      VALUES ('grant-1', 'approved-old', 'user-1', 'token-1', ${nowSeconds}, 'hash', ${nowSeconds}, ${nowSeconds});
+  `)
+
+  const removed = await pruneAbandonedClients(db)
+  assert.equal(removed, 1)
+
+  const remaining = sqlite.prepare('SELECT id FROM oauth_clients ORDER BY id').all().map(r => r.id)
+  assert.deepEqual(remaining, ['abandoned-fresh', 'approved-old'])
 })

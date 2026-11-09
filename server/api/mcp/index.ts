@@ -278,12 +278,24 @@ export default defineEventHandler(async (event) => {
     // Without it the client only sees a bare 401 and has no authorization
     // server to send the user to. RFC 9728 puts the metadata URL in
     // `resource_metadata`; RFC 6750 scope/error fields accompany it.
+    //
+    // An expired token is reported as `invalid_token` too — RFC 6750 has no
+    // distinct expired code — but the error description tells the client this
+    // is recoverable, so it refreshes instead of prompting the owner again.
+    const expired = event.context.authFailure === 'expired_token'
     setHeader(
       event,
       'WWW-Authenticate',
-      `Bearer error="invalid_token", error_description="Sign in to connect this client.", scope="read write", resource_metadata="${protectedResourceMetadataUrl(event).href}"`,
+      `Bearer error="invalid_token", error_description="${expired
+        ? 'The access token has expired. Refresh it and retry.'
+        : 'Sign in to connect this client.'}", scope="read write", resource_metadata="${protectedResourceMetadataUrl(event).href}"`,
     )
-    throw createError({ statusCode: 401, message: 'MCP requires an Authorization: Bearer <token> header.' })
+    throw createError({
+      statusCode: 401,
+      message: expired
+        ? 'The access token has expired. Refresh it and retry.'
+        : 'MCP requires an Authorization: Bearer <token> header.',
+    })
   }
   const user = requireScope(event, 'read')
   const db = await getRequestDatabase(event)

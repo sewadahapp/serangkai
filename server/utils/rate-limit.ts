@@ -1,0 +1,89 @@
+/**
+ * Fixed-window rate limiter for the OAuth surface.
+ *
+ * Scope and honesty:
+ *  - This is **per process**. On Cloudflare Workers each isolate and each
+ *    colo has its own map, so a distributed attacker can exceed the limit;
+ *    it raises the cost of a naive flood rather than guaranteeing a ceiling.
+ *    A durable limiter would need a D1/KV counter, which is a deployment
+ *    decision rather than something to bolt on silently.
+ *  - Buckets are pruned lazily, so an instance that sees many distinct
+ *    addresses cannot grow without bound.
+ *  - The key is coarse (client address) and is never used for authorization.
+ */
+export interface RateLimitOptions {
+  /** Requests allowed per window. */
+  limit: number
+  /** Window length in milliseconds. */
+  windowMs: number
+  /** Max bucket keys retained before stale ones are swept. */
+  maxKeys?: number
+}
+
+export interface RateLimitResult {
+  limited: boolean
+  remaining: number
+  retryAfterSeconds: number
+}
+
+export function createRateLimiter(options: RateLimitOptions) {
+  const { limit, windowMs, maxKeys = 10_000 } = options
+  const buckets = new Map<string, { count: number; resetAt: number }>()
+
+  function sweep(now: number) {
+    if (buckets.size < maxKeys) return
+    for (const [key, entry] of buckets) {
+      if (entry.resetAt <= now) buckets.delete(key)
+    }
+    // Still full of live buckets: drop the oldest insertions. Map preserves
+    // insertion order, so this is the cheapest bounded approximation.
+    if (buckets.size >= maxKeys) {
+      let excess = buckets.size - maxKeys + 1
+      for (const key of buckets.keys()) {
+        buckets.delete(key)
+        if (--excess <= 0) break
+      }
+    }
+  }
+
+  return {
+    /** Count one attempt against `key`. */
+    hit(key: string): RateLimitResult {
+      const now = Date.now()
+      sweep(now)
+      const entry = buckets.get(key)
+      if (!entry || entry.resetAt <= now) {
+        buckets.set(key, { count: 1, resetAt: now + windowMs })
+        return { limited: false, remaining: limit - 1, retryAfterSeconds: 0 }
+      }
+      entry.count++
+      if (entry.count > limit) {
+        return {
+          limited: true,
+          remaining: 0,
+          retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)),
+        }
+      }
+      return { limited: false, remaining: Math.max(0, limit - entry.count), retryAfterSeconds: 0 }
+    },
+    /** Clear a bucket, e.g. after a successful authentication. */
+    reset(key: string) {
+      buckets.delete(key)
+    },
+    /** Test/diagnostic view. */
+    size() {
+      return buckets.size
+    },
+  }
+}
+
+/**
+ * Coarse client bucket: the first `X-Forwarded-For` hop, else the socket
+ * address. A caller can rotate the header, so this must never gate
+ * authorization — only throughput.
+ */
+export function clientBucketKey(event: any): string {
+  const forwarded = String(event?.node?.req?.headers?.['x-forwarded-for'] || '').split(',')[0].trim()
+  if (forwarded) return forwarded
+  return event?.node?.req?.socket?.remoteAddress || 'unknown'
+}

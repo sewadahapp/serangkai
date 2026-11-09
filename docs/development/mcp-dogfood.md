@@ -1,12 +1,31 @@
 # Serangkai MCP connection (local dogfooding)
 
-This lets this repo's own agent talk to its own MCP server at
-`http://localhost:6969/api/mcp`.
+Two ways to connect this repo's own agent to its own MCP server at
+`http://localhost:6969/api/mcp`:
 
-The token is **not** committed. `opencode.json` runs a small bridge script that
-reads it from a gitignored file.
+- **OAuth (recommended):** no token file, no pasted secret. `mcp-remote`
+  discovers the authorization server and opens a browser for approval.
+- **Bearer token:** a scoped API token in a gitignored file. Useful for
+  headless shells and CI, where a browser is not available.
 
-## One-time setup
+## OAuth setup
+
+`opencode.json` already points at the bridge script. With OAuth, the bridge
+needs no token:
+
+```bash
+SERANGKAI_MCP_AUTH=oauth bash scripts/serangkai-mcp.sh
+```
+
+On first run `mcp-remote` prints an authorization URL (and opens a browser).
+Approve the client at `/oauth/authorize`; the grant then appears under
+Settings → Connected agents, where it can be disconnected.
+
+Credentials are cached under `MCP_REMOTE_CONFIG_DIR` (defaults to the user's
+config directory), so later runs reuse the refresh token. Requires HTTPS in a
+deployed environment; `localhost` is exempt.
+
+## Bearer token setup
 
 1. Start the dev server on the pinned port:
 
@@ -39,8 +58,9 @@ reads it from a gitignored file.
 }
 ```
 
-`scripts/serangkai-mcp.sh` loads `.env.serangkai-mcp` and runs `mcp-remote` as a
-stdio→HTTP bridge, so the bearer header is never written into a tracked file.
+`scripts/serangkai-mcp.sh` runs `mcp-remote` as a stdio→HTTP bridge, so the
+bearer header is never written into a tracked file. In OAuth mode it passes no
+header at all.
 
 ## Notes
 
@@ -48,3 +68,5 @@ stdio→HTTP bridge, so the bearer header is never written into a tracked file.
 - Only dependency is `bunx mcp-remote` on first run (cached afterwards).
 - Rotate the token in `/settings` and update `.env.serangkai-mcp` if it leaks.
 - `scripts/serangkai-mcp.sh` is committed; `.env.serangkai-mcp` is not.
+- Dogfooded against the built server with `mcp-remote` 0.16.5: discovery,
+  registration, PKCE, consent, and a tool call all completed.

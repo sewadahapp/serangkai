@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lt, notInArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { apiTokens, oauthClients, oauthCodes, oauthTokens } from '../db/schema'
 import { generateToken, hashToken } from './auth'
@@ -327,4 +327,30 @@ export async function findGrantByAccessToken(db: any, accessToken: string) {
 export async function findGrantByRefreshToken(db: any, refreshToken: string) {
   const hash = await sha256Hex(refreshToken)
   return db.select().from(oauthTokens).where(eq(oauthTokens.refreshTokenHash, hash)).get()
+}
+
+/**
+ * Delete abandoned registrations and expired codes.
+ *
+ * A client registers *before* the browser flow, so any abandoned sign-in leaves
+ * a row behind. Nothing references an unapproved client, and its cascade takes
+ * any stray code with it, so removing it is safe. Only rows that never produced
+ * a grant and are older than the retention window are touched — an approved
+ * client is never pruned here.
+ *
+ * Runs opportunistically on registration rather than on a timer, because a
+ * single-owner instance may sit idle for days and a scheduled job would need a
+ * cron binding on some runtimes and not others.
+ */
+export async function pruneAbandonedClients(db: any, olderThanMs = 7 * 24 * 60 * 60 * 1000) {
+  const cutoff = new Date(Date.now() - olderThanMs)
+  const grantedClients = db.select({ clientId: oauthTokens.clientId }).from(oauthTokens)
+  const stale = await db.select({ id: oauthClients.id })
+    .from(oauthClients)
+    .where(and(lt(oauthClients.createdAt, cutoff), notInArray(oauthClients.id, grantedClients)))
+    .limit(100)
+  if (!stale.length) return 0
+  const ids = stale.map((row: { id: string }) => row.id)
+  await db.delete(oauthClients).where(inArray(oauthClients.id, ids))
+  return ids.length
 }

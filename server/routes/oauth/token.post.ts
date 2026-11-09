@@ -8,6 +8,7 @@ import {
   rotateRefreshToken,
   verifyPkce,
 } from '../../utils/oauth'
+import { clientBucketKey, createRateLimiter } from '../../utils/rate-limit'
 
 /**
  * OAuth 2.1 token endpoint.
@@ -15,7 +16,14 @@ import {
  * Handles only the authorization-code exchange and refresh-token rotation.
  * There is no client-credentials grant: an agent must be approved by the owner,
  * never self-issue access.
+ *
+ * Rate limiting matters here because a code is short and a client can be
+ * scripted. Ten attempts per minute per address is far above a normal client
+ * (which exchanges once, then refreshes hourly) and low enough to make
+ * guessing pointless. Successful exchanges do not count against the bucket.
  */
+const tokenLimiter = createRateLimiter({ limit: 10, windowMs: 60 * 1000 })
+
 function tokenError(event: any, status: number, error: string, description: string) {
   setResponseStatus(event, status)
   setHeader(event, 'Cache-Control', 'no-store')
@@ -63,6 +71,13 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'no-store')
   setHeader(event, 'Pragma', 'no-cache')
 
+  const bucket = clientBucketKey(event)
+  const limit = tokenLimiter.hit(bucket)
+  if (limit.limited) {
+    setHeader(event, 'Retry-After', String(limit.retryAfterSeconds))
+    return tokenError(event, 429, 'slow_down', 'Too many token requests. Try again shortly.')
+  }
+
   const body = await readTokenRequest(event)
   const db = await getRequestDatabase(event)
   const grantType = String(body.grant_type || '')
@@ -106,6 +121,9 @@ export default defineEventHandler(async (event) => {
       scopes: record.scopes,
       label: client.clientName || 'OAuth client',
     })
+    // A successful exchange clears the bucket: only failed attempts should
+    // accumulate toward the limit.
+    tokenLimiter.reset(bucket)
     return {
       access_token: issued.accessToken,
       token_type: 'Bearer',
@@ -121,6 +139,7 @@ export default defineEventHandler(async (event) => {
 
     const rotated = await rotateRefreshToken(db, refreshToken, client.id)
     if (!rotated.ok) return tokenError(event, 400, 'invalid_grant', 'The refresh token is invalid or expired.')
+    tokenLimiter.reset(bucket)
     return {
       access_token: rotated.tokens.accessToken,
       token_type: 'Bearer',

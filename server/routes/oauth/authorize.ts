@@ -8,6 +8,15 @@ import {
   parseScopes,
   OAUTH_SCOPES,
 } from '../../utils/oauth'
+import { clientBucketKey, createRateLimiter } from '../../utils/rate-limit'
+
+/**
+ * The consent page is cheap to render but expensive to spam: every hit reads a
+ * client row, and an approval writes a code row. The limit is generous enough
+ * for a human clicking through several clients and tight enough to stop a
+ * script from filling `oauth_codes`.
+ */
+const authorizeLimiter = createRateLimiter({ limit: 60, windowMs: 60 * 1000 })
 
 /**
  * OAuth 2.1 authorization endpoint.
@@ -93,6 +102,13 @@ function errorPage(event: any, status: number, message: string, detail?: string)
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'no-store')
+
+  const limit = authorizeLimiter.hit(clientBucketKey(event))
+  if (limit.limited) {
+    setHeader(event, 'Retry-After', String(limit.retryAfterSeconds))
+    return errorPage(event, 429, 'Too many authorization requests. Try again shortly.', 'slow_down')
+  }
+
   const method = getMethod(event)
   const query = getQuery(event)
   const body = method === 'POST' ? await readBody<Record<string, any>>(event).catch(() => ({})) : {}
