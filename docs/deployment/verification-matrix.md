@@ -17,6 +17,13 @@ generated Worker bundle and checked-in D1/R2 bindings without uploading or
 requiring Cloudflare credentials. This is build validation, not a remote
 deployment.
 
+One thing the dry run does **not** prove: whether static assets are uploaded.
+`wrangler.jsonc` previously lacked an `assets` block, so `wrangler deploy` would
+have shipped the Worker without `/_nuxt`; the dry run reported a healthy bundle
+either way. The block is now checked in and guarded by
+`tests/deployment-files.test.mjs`, and a real deploy log should say
+`Read N files from the assets directory`.
+
 ## Current commands
 
 ```bash

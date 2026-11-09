@@ -51,3 +51,19 @@ test('Docker image workflow publishes multi-arch images without deploying', asyn
   assert.match(workflow, /push:\s*\$\{\{ github\.event_name != 'pull_request' \}\}/)
   assert.doesNotMatch(workflow, /wrangler deploy|vercel deploy/)
 })
+
+test('the checked-in Wrangler config serves static assets', async () => {
+  // Nitro's Cloudflare preset would generate an `assets` binding, but a
+  // checked-in wrangler config takes precedence. Without this block
+  // `wrangler deploy` uploads the Worker alone and every /_nuxt request 404s,
+  // which the dry run cannot catch (it reports the bundle, not the assets).
+  const config = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8')
+  assert.match(config, /"assets"\s*:\s*\{/)
+  assert.match(config, /"binding"\s*:\s*"ASSETS"/)
+  assert.match(config, /"directory"\s*:\s*"\.\/\.output\/public"/)
+
+  // The bindings the runtime requires.
+  assert.match(config, /"binding"\s*:\s*"DB"/)
+  assert.match(config, /"binding"\s*:\s*"ARTIFACTS"/)
+  assert.match(config, /nodejs_compat/)
+})

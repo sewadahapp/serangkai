@@ -4,9 +4,20 @@
   "compatibility_date": "2025-07-15",
   "main": "./.output/server/index.mjs",
   "compatibility_flags": ["nodejs_compat"],
+  // Static client assets (JS, CSS, fonts, icons, artifact runtimes). Without
+  // this block `wrangler deploy` uploads the Worker alone and every /_nuxt
+  // request 404s. Nitro's own preset generates an equivalent binding, but this
+  // checked-in file wins, so it has to declare it too.
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./.output/public"
+  },
   "vars": {
     "NODE_ENV": "production"
   },
+  // Replace both values with your own after `wrangler d1 create` and
+  // `wrangler r2 bucket create`. The local names below are placeholders that
+  // Miniflare is happy with; a real deploy needs the ids Cloudflare returns.
   "d1_databases": [
     {
       "binding": "DB",
