@@ -94,7 +94,20 @@
       <SAlert v-if="error" class="mt-4" color="danger" variant="subtle" :title="error" />
     </div>
 
-    <div class="grid gap-6 lg:grid-cols-[17rem_1fr]">
+    <SerangkaiErrorState
+      v-if="loadError"
+      title="Could not load the workspace"
+      :description="loadError"
+      retry-label="Try again"
+      @retry="retryWorkspace"
+    />
+
+    <div v-else-if="loadingWorkspace" class="serangkai-panel p-8 text-center" role="status">
+      <SSkeleton class="mx-auto h-5 w-48" />
+      <p class="mt-3 text-sm text-[var(--selaras-resolved-text-muted)]">Loading workspace…</p>
+    </div>
+
+    <div v-else class="grid gap-6 lg:grid-cols-[17rem_1fr]">
       <aside class="space-y-4">
         <div class="serangkai-panel overflow-hidden">
           <div class="border-b border-[var(--selaras-resolved-border-muted)] px-4 py-3">
@@ -268,6 +281,8 @@ const saving = ref(false)
 const savingFolder = ref(false)
 const folderMessage = ref('')
 const error = ref('')
+const loadError = ref('')
+const loadingWorkspace = ref(true)
 
 const { confirm } = useConfirm()
 const { add: toast } = useToast()
@@ -445,9 +460,30 @@ const selectFolder = (folderId: string | null) => {
 }
 
 const loadWorkspace = async () => {
+  loadError.value = ''
   const [foldersRes, artifactsRes] = await Promise.all([$fetch('/api/folders'), $fetch('/api/artifacts')])
   folders.value = foldersRes.folders || []
   artifacts.value = artifactsRes.artifacts || []
+}
+
+const workspaceError = (e: any) => (
+  e?.data?.message || e?.message || 'Could not reach the server. Check your connection and try again.'
+)
+
+const retryWorkspace = async () => {
+  if (searchQuery.value.trim()) {
+    await search()
+    return
+  }
+  loadingWorkspace.value = true
+  loadError.value = ''
+  try {
+    await loadWorkspace()
+  } catch (e: any) {
+    loadError.value = workspaceError(e)
+  } finally {
+    loadingWorkspace.value = false
+  }
 }
 
 const { loggedIn } = useUserSession()
@@ -457,23 +493,31 @@ onMounted(async () => {
     await navigateTo('/auth/login')
     return
   }
-  try {
-    await loadWorkspace()
-  } catch (e) {
-    console.error(e)
-  }
+  await retryWorkspace()
 })
 
 const search = async () => {
-  if (!searchQuery.value.trim()) return loadWorkspace()
-  const result = await $fetch('/api/search', { query: { q: searchQuery.value, ...(selectedFolderId.value ? { folderId: selectedFolderId.value } : {}) } })
-  folders.value = result.folders || []
-  artifacts.value = result.artifacts || []
+  loadError.value = ''
+  if (!searchQuery.value.trim()) {
+    try {
+      await loadWorkspace()
+    } catch (e: any) {
+      loadError.value = workspaceError(e)
+    }
+    return
+  }
+  try {
+    const result = await $fetch('/api/search', { query: { q: searchQuery.value, ...(selectedFolderId.value ? { folderId: selectedFolderId.value } : {}) } })
+    folders.value = result.folders || []
+    artifacts.value = result.artifacts || []
+  } catch (e: any) {
+    loadError.value = workspaceError(e)
+  }
 }
 
 const clearSearch = async () => {
   searchQuery.value = ''
-  await loadWorkspace()
+  await retryWorkspace()
 }
 
 const createFolder = async () => {
@@ -602,7 +646,7 @@ const deleteFolder = async () => {
     toast({ title: 'Folder deleted', color: 'success' })
     selectedFolderId.value = null
     renameValue.value = ''
-      await loadWorkspace()
+    await loadWorkspace()
   } catch (e: any) {
     folderMessage.value = e.data?.message || 'Could not delete folder'
   } finally {

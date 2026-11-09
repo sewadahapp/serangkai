@@ -6,9 +6,16 @@
       </template>
     </SerangkaiPageHeader>
 
-    <SAlert v-if="error" color="danger" variant="subtle" :title="error" />
+    <SerangkaiErrorState
+      v-if="error"
+      title="Could not load the overview"
+      :description="error"
+      retry-label="Try again"
+      @retry="loadOverview"
+    />
 
-    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <template v-if="!error">
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <div v-for="card in cards" :key="card.label" class="serangkai-panel p-4">
         <p class="text-xs font-medium uppercase tracking-wider text-[var(--selaras-resolved-text-muted)]">{{ card.label }}</p>
         <p class="serangkai-tabular mt-2 text-2xl font-semibold tracking-tight">{{ card.value }}</p>
@@ -63,6 +70,7 @@
         </section>
       </div>
     </div>
+    </template>
   </div>
 </template>
 

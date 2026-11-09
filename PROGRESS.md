@@ -130,12 +130,18 @@ documented as unverified rather than claimed as supported.
 - [x] Verified ordinary Markdown, tables, code, Mermaid, charts, Selaras cards/alerts/tables, and the opt-in HTML document theme in the real app
 - [x] Preserved existing Markdown/Comark syntax, artifact URLs, SQLite data, and Nitro storage mounts
 - [x] Standardized Selaras internal icons on Lucide via `shared/selaras-icons.ts` and `app/app.config.ts`, with a guard test for new registry keys and explicit Lucide file icons in code blocks
+- [x] Added a custom `error.vue` for 404/401/403/500 with a self-made OpenDoodles-style inline SVG that follows the light/dark theme and never requests a remote asset
+- [x] Wrapped `NuxtPage` in `NuxtErrorBoundary` and clear the boundary on route changes, so a page-level error keeps the shell usable and cannot block the next navigation
+- [x] Replaced silent page-load failures with inline retry states in the workspace, overview, settings, and artifact views; missing or forbidden artifacts use the custom error page
+- [x] Fixed the landing page title so leaving the error page does not leave the 404 title behind
 
 ## Verification
 - `bun run build` and `bun run build:cloudflare` pass
 - `bun run test:auth` passes: login/logout, invalid credentials, registration rejection, SSR state, session/token separation, rotation, legacy adoption, multi-user safety, concurrent owner creation
 - `bun run test:docker` passes: container replacement on the same `/data` volume preserves owner login, artifacts, uploaded bytes, API tokens, and unlisted share links
-- `bun run test:ci` passes, including the auth suites
+- `bun run test:ci` passes (65 tests across 15 files), including the new error-page SSR suite
+- The browser suite passes (20 tests), including 404 recovery, missing-artifact errors, inline workspace retry, and error-boundary recovery
+- The integration suite passes (42 tests across MCP, upload, share, tokens, folders, lifecycle, security, bundles, authoring, and local runtime)
 - `bun run build` passes
 - `bun run test:provider-local` passes and exits cleanly: Bun SQLite, local Bun runtime, D1/R2 through Wrangler/Miniflare, and Vercel Node runtime
 - Fresh SQLite database smoke test passes

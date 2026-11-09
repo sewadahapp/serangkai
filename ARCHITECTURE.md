@@ -300,6 +300,24 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   Form controls are excluded because Selaras draws its own focus ring, and an
   extra outline stacked a second ring on every focused field.
 
+### Error handling and recovery
+- `app/error.vue` is the full-page fallback for fatal and SSR errors and for
+  artifact 401/403/404 responses. Because it replaces `app.vue`, it includes its
+  own `SApp`, header, footer, and color-mode toggle. Its illustration is an
+  inline, themable SVG, so the page has no external asset dependency.
+- Recoverable page-load failures stay inside the app shell through
+  `SerangkaiErrorState`, with a retry action: workspace folders/artifacts, the
+  overview, API-token loading, and artifact loading all use it. Secondary
+  artifact requests (history and folder names) use `Promise.allSettled`, so
+  their failure cannot blank an artifact that already loaded.
+- `NuxtErrorBoundary` wraps `NuxtPage`. A component failure keeps the layout and
+  navigation available, and `router.afterEach` clears the boundary when the
+  route changes so the fallback cannot cover the next page. The fallback's retry
+  remounts the page; 404/401/403 from artifact loading use `showError` instead.
+- Non-HTML clients still receive Nuxt's JSON error response. Production pages
+  never render a stack trace; development only shows details behind a collapsed
+  section on the error page.
+
 ### Authentication
 - Nuxt Auth Utils seals the browser session in `nuxt-auth-session`, an
   HttpOnly/Secure/SameSite=Lax cookie. `useUserSession()` is the single client

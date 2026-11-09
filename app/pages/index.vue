@@ -100,6 +100,8 @@
 </template>
 
 <script setup lang="ts">
+useHead({ title: 'Serangkai — artifact and knowledge workspace' })
+
 const { loggedIn } = useUserSession()
 
 const facts = ['Single container', 'SQLite + filesystem', 'MCP + REST', 'Signed unlisted links']

@@ -613,3 +613,128 @@ test('dark mode sets a dark color scheme and canvas for scrollbars and overscrol
     await context.close()
   }
 })
+
+test('unknown pages render the custom 404 page and recover', async () => {
+  const response = await page.goto(`${base}/definitely-not-a-page`)
+  assert.equal(response?.status(), 404)
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'This page is off the map.' }).waitFor())
+  assert.equal(await page.getByText('Error 404 · Not found').count(), 1)
+
+  await page.getByRole('button', { name: 'Back to workspace' }).click()
+  await page.waitForURL('**/workspace')
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Workspace' }).waitFor())
+  assert.equal(await page.getByRole('heading', { name: 'This page is off the map.' }).count(), 0)
+  assert.equal(await page.title(), 'Workspace · Serangkai')
+})
+
+test('anonymous 404 recovery returns to the landing page and its title', async () => {
+  const context = await browser.newContext()
+  const anon = await context.newPage()
+  try {
+    await anon.goto(`${base}/definitely-not-a-page`)
+    await anon.getByRole('heading', { name: 'This page is off the map.' }).waitFor()
+    await anon.getByRole('button', { name: 'Back to home' }).click()
+    await anon.waitForURL(`${base}/`)
+    await assert.doesNotReject(() => anon.getByRole('heading', { name: /An artifact workspace/ }).waitFor())
+    assert.equal(await anon.title(), 'Serangkai — artifact and knowledge workspace')
+  } finally {
+    await context.close()
+  }
+})
+
+test('missing artifacts show the custom error page and recover', async () => {
+  await page.goto(`${base}/artifacts/definitely-not-an-artifact`)
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'This page is off the map.' }).waitFor())
+  assert.match(await page.getByText('Error code').innerText(), /404/)
+
+  await page.getByRole('button', { name: 'Back to workspace' }).click()
+  await page.waitForURL('**/workspace')
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Workspace' }).waitFor())
+  assert.equal(await page.getByRole('heading', { name: 'This page is off the map.' }).count(), 0)
+})
+
+test('workspace load errors are shown inline, recover, and never block navigation', async () => {
+  const artifactsFilter = url => url.pathname === '/api/artifacts'
+  const failArtifacts = route => route.fulfill({
+    status: 503,
+    contentType: 'application/json',
+    body: JSON.stringify({ statusCode: 503, statusMessage: 'Service Unavailable', message: 'Temporarily unavailable' }),
+  })
+
+  await page.route(artifactsFilter, failArtifacts)
+  try {
+    await page.goto(`${base}/workspace`)
+    await assert.doesNotReject(() => page.getByText('Could not load the workspace').waitFor())
+    assert.match(await page.getByRole('alert').innerText(), /Temporarily unavailable/)
+    // The app shell stays usable while the page is in its error state.
+    await page.getByRole('link', { name: 'Overview' }).first().click()
+    await page.waitForURL('**/dashboard')
+    await assert.doesNotReject(() => page.getByRole('heading', { name: 'Overview' }).waitFor())
+    await page.getByRole('link', { name: 'Workspace', exact: true }).first().click()
+    await page.waitForURL('**/workspace')
+    await assert.doesNotReject(() => page.getByText('Could not load the workspace').waitFor())
+
+    await page.unroute(artifactsFilter, failArtifacts)
+    await page.getByRole('button', { name: 'Try again' }).click()
+    await assert.doesNotReject(() => page.getByRole('button', { name: 'All artifacts' }).waitFor())
+    assert.equal(await page.getByText('Could not load the workspace').count(), 0)
+  } finally {
+    await page.unroute(artifactsFilter, failArtifacts)
+  }
+
+  // A boundary failure must clear on the next route, not cover every page.
+  await page.goto(`${base}/workspace`)
+  await page.getByRole('heading', { name: 'Workspace' }).waitFor()
+  assert.equal(await triggerPageError(page), true)
+  await assert.doesNotReject(() => page.getByText('This page hit an unexpected error').waitFor())
+  await page.getByRole('link', { name: 'Overview' }).first().click()
+  await page.waitForURL('**/dashboard')
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Overview' }).waitFor())
+  assert.equal(await page.getByText('This page hit an unexpected error').count(), 0)
+})
+
+test('a page component error can be retried without losing the app shell', async () => {
+  await page.goto(`${base}/workspace`)
+  await page.getByRole('heading', { name: 'Workspace' }).waitFor()
+  assert.equal(await triggerPageError(page), true)
+  await assert.doesNotReject(() => page.getByText('This page hit an unexpected error').waitFor())
+
+  await page.getByRole('button', { name: 'Try again' }).click()
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Workspace' }).waitFor())
+  assert.equal(await page.getByText('This page hit an unexpected error').count(), 0)
+})
+
+/**
+ * The boundary only reacts to descendant component failures, so a test has to
+ * inject one. Find the boundary instance in the Vue tree and call its
+ * errorCaptured hook instead of adding a production-only failure route.
+ */
+function triggerPageError(target) {
+  return target.evaluate(() => {
+    const root = document.querySelector('#__nuxt')
+    const seen = new Set()
+    let boundary
+    const visit = (vnode, depth) => {
+      if (!vnode || typeof vnode !== 'object' || seen.has(vnode) || depth > 80 || boundary) return
+      seen.add(vnode)
+      const instance = vnode.component
+      if (instance) {
+        if (instance.type?.name === 'NuxtErrorBoundary' && instance.ec?.length) {
+          boundary = instance
+          return
+        }
+        visit(instance.subTree, depth + 1)
+      }
+      if (Array.isArray(vnode.children)) for (const child of vnode.children) visit(child, depth + 1)
+      if (vnode.suspense) {
+        visit(vnode.suspense.activeBranch, depth + 1)
+        visit(vnode.suspense.pendingBranch, depth + 1)
+      }
+      if (vnode.ssContent) visit(vnode.ssContent, depth + 1)
+    }
+    visit(root?._vnode?.component?.subTree, 0)
+    if (!boundary) return false
+    boundary.ec[0](new Error('Simulated page failure'))
+    return true
+  })
+}

@@ -4,7 +4,15 @@
 
     <SAlert v-if="!loggedIn" color="info" variant="subtle" title="Sign in required" description="Sign in to manage API tokens." />
 
-    <template v-else>
+    <SerangkaiErrorState
+      v-if="loggedIn && tokensError"
+      title="Could not load API tokens"
+      :description="tokensError"
+      retry-label="Try again"
+      @retry="loadTokens"
+    />
+
+    <template v-if="loggedIn && !tokensError">
       <section class="serangkai-panel p-5" aria-labelledby="new-token">
         <h2 id="new-token" class="text-sm font-semibold">Create a token</h2>
         <p class="mt-1 text-sm text-[var(--selaras-resolved-text-muted)]">
@@ -109,6 +117,7 @@ const scopes = ref<string[]>(['read', 'write'])
 const expiresAt = shallowRef<DateValue | undefined>()
 const creatingToken = ref(false)
 const tokenMessage = ref('')
+const tokensError = ref('')
 const newToken = ref('')
 
 const scopeOptions = [
@@ -164,11 +173,12 @@ const toggleScope = (value: string, checked: boolean | 'indeterminate') => {
 }
 
 const loadTokens = async () => {
+  tokensError.value = ''
   try {
     const res = await $fetch<any>('/api/tokens')
     tokens.value = res.tokens || []
   } catch (e: any) {
-    tokenMessage.value = e.data?.message || 'Could not load tokens'
+    tokensError.value = e.data?.message || 'Could not load API tokens. Check the server and try again.'
   }
 }
 

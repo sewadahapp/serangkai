@@ -184,9 +184,22 @@
     </div>
   </div>
 
-  <div v-else class="serangkai-panel p-12 text-center">
-    <SSkeleton class="mx-auto h-6 w-56" />
-    <p class="mt-3 text-sm text-[var(--selaras-resolved-text-muted)]">Loading artifact…</p>
+  <SerangkaiErrorState
+    v-else-if="loadError"
+    title="Could not load this artifact"
+    :description="loadError"
+    retry-label="Try again"
+    @retry="loadArtifact"
+  />
+
+  <div v-else class="serangkai-panel p-12 text-center" role="status">
+    <SSkeleton v-if="loadingArtifact" class="mx-auto h-6 w-56" />
+    <p class="mt-3 text-sm text-[var(--selaras-resolved-text-muted)]">
+      {{ loadingArtifact ? 'Loading artifact…' : 'Artifact unavailable.' }}
+    </p>
+    <SButton v-if="!loadingArtifact" class="mt-4" variant="outline" icon="lucide:refresh-cw" @click="loadArtifact">
+      Try again
+    </SButton>
   </div>
 </template>
 
@@ -219,6 +232,8 @@ const viewing = ref<{ version: number; content: string } | null>(null)
 const restoring = ref<number | null>(null)
 const versionMessage = ref('')
 const duplicating = ref(false)
+const loadError = ref('')
+const loadingArtifact = ref(true)
 
 const { confirm } = useConfirm()
 const { add: toast } = useToast()
@@ -423,7 +438,9 @@ const removeArtifact = async () => {
   }
 }
 
-onMounted(async () => {
+const loadArtifact = async () => {
+  loadingArtifact.value = true
+  loadError.value = ''
   try {
     const res = await $fetch<any>(`/api/artifacts/${route.params.id}`)
     artifact.value = res.artifact
@@ -434,16 +451,34 @@ onMounted(async () => {
     draftVisibility.value = res.artifact.visibility
     draftFolderId.value = folderSelection(res.artifact.folderId)
     await loadShareLink()
-    const [history, folderList] = await Promise.all([
+
+    // History and folder names are secondary. A failure there must not blank
+    // an artifact that already loaded.
+    const [history, folderList] = await Promise.allSettled([
       $fetch<any>(`/api/artifacts/${route.params.id}/versions`),
       $fetch<any>('/api/folders'),
     ])
-    versions.value = history.versions || []
-    folders.value = folderList.folders || []
-  } catch (e) {
-    console.error(e)
+    if (history.status === 'fulfilled') versions.value = history.value.versions || []
+    if (folderList.status === 'fulfilled') folders.value = folderList.value.folders || []
+  } catch (e: any) {
+    const status = Number(e?.statusCode || e?.data?.statusCode)
+    if (status === 404 || status === 401 || status === 403) {
+      await showError({
+        statusCode: status,
+        statusMessage: status === 404 ? 'Artifact not found' : status === 401 ? 'Sign in required' : 'Forbidden',
+        message: status === 404
+          ? 'This artifact may have been deleted or moved to another account.'
+          : 'Sign in again with the owner account to open this artifact.',
+      })
+      return
+    }
+    loadError.value = e?.data?.message || e?.message || 'Could not reach the server. Check your connection and try again.'
+  } finally {
+    loadingArtifact.value = false
   }
-})
+}
+
+onMounted(loadArtifact)
 
 const save = async () => {
   if (saving.value) return
