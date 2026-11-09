@@ -50,7 +50,7 @@ pkgs.mkShell {
   packages = [ bun node ];
 
   shellHook = ''
-    echo "sewadah frontend shell — $(bun --version)"
+    echo "serangkai frontend shell — $(bun --version)"
   '';
 }
 
