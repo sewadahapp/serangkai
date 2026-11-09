@@ -176,7 +176,9 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `/artifacts/[id]` - Artifact preview/edit. Markdown, HTML, JSON, and JavaScript
   open a full-viewport source workspace with an inline title, type and version,
   dirty state, and Save/Cancel; preview mode keeps the sharing, folder, and
-  version panels.
+  version panels. The content column is a flex column: HTML and PDF previews
+  grow to its height so a tall history rail cannot leave empty panel space,
+  while `70vh` stays the floor for short columns.
 - `/settings` - API token creation, listing, and revocation
 - `/agent` - MCP/REST connection guide with endpoint, client config, scope reference,
   publishing workflow (`baseVersion`), the HTML color-mode contract, and the

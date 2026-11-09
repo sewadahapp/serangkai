@@ -58,13 +58,13 @@
       <SAlert v-if="deleteMessage" color="danger" variant="subtle" :title="deleteMessage" />
 
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <section aria-labelledby="artifact-content" class="serangkai-panel overflow-hidden">
+        <section aria-labelledby="artifact-content" class="serangkai-panel flex flex-col overflow-hidden">
           <div class="flex items-center justify-between gap-3 border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
             <h2 id="artifact-content" class="text-sm font-semibold">Content</h2>
             <span v-if="message" class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ message }}</span>
           </div>
 
-          <div class="p-5">
+          <div class="flex flex-1 flex-col p-5">
             <img
               v-if="artifact.type === 'image'"
               :src="`/api/artifacts/${artifact.id}/preview`"
@@ -75,12 +75,14 @@
               v-else-if="artifact.type === 'pdf'"
               :src="`/api/artifacts/${artifact.id}/preview`"
               :title="`${artifact.title} PDF`"
-              class="h-[70vh] w-full rounded-md border border-[var(--selaras-resolved-border-default)]"
+              class="min-h-[70vh] w-full flex-1 rounded-md border border-[var(--selaras-resolved-border-default)]"
             />
             <SerangkaiHtmlPreview
               v-else-if="artifact.type === 'html'"
               :src="`/api/artifacts/${artifact.id}/preview`"
               :title="`${artifact.title} HTML preview`"
+              height="100%"
+              class="min-h-[70vh] flex-1"
             />
             <div v-else-if="artifact.type === 'markdown'" class="selaras-prose mx-auto">
               <MarkdownDocument :body="contentBody" />

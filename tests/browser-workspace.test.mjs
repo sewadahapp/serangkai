@@ -402,6 +402,58 @@ test('HTML artifacts render Mermaid and TanStack charts in the sandbox', async (
   assert.match(await frame.locator('.serangkai-mermaid').innerText(), /Draft/)
 })
 
+test('the artifact preview fills a tall content column instead of stopping at a fixed height', async () => {
+  const artifactId = await page.evaluate(async () => {
+    const content = '<!doctype html><html><head><title>Tall preview</title></head><body><h1>Tall preview</h1></body></html>'
+    const res = await fetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Tall preview artifact', type: 'html', content }),
+    })
+    const { artifact } = await res.json()
+
+    // A long history makes the sidebar taller than the preview's 70vh minimum,
+    // which is the case that used to leave the panel half empty.
+    for (let version = 1; version <= 12; version++) {
+      const updated = await fetch(`/api/artifacts/${artifact.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ content: `${content}\n<!-- revision ${version} -->`, baseVersion: version }),
+      })
+      if (!updated.ok) throw new Error(`Version ${version} failed: ${await updated.text()}`)
+    }
+    return artifact.id
+  })
+
+  await page.goto(`${base}/artifacts/${artifactId}`)
+  await page.locator('section[aria-labelledby="artifact-content"] iframe').waitFor({ timeout: 15000 })
+  const layout = await page.evaluate(() => {
+    const section = document.querySelector('section[aria-labelledby="artifact-content"]')
+    const frame = section?.querySelector('iframe')
+    const content = frame?.parentElement
+    const rect = (element) => {
+      const bounds = element.getBoundingClientRect()
+      return { top: Math.round(bounds.top), bottom: Math.round(bounds.bottom), height: Math.round(bounds.height) }
+    }
+    return {
+      viewport: window.innerHeight,
+      path: location.pathname,
+      title: document.title,
+      heading: document.querySelector('h1')?.textContent,
+      section: section ? rect(section) : null,
+      content: content ? rect(content) : null,
+      frame: frame ? rect(frame) : null,
+    }
+  })
+
+  assert.ok(layout.frame, `the HTML preview iframe must render: ${JSON.stringify(layout)}`)
+  // The history rail is taller than the 70vh floor, so the content column grows.
+  assert.ok(layout.section.height > layout.viewport * 0.7 + 100, `section height ${layout.section.height}`)
+  // The iframe grows with the column; only the panel's 20px padding remains.
+  assert.ok(Math.abs(layout.content.bottom - 20 - layout.frame.bottom) <= 2, `frame bottom ${layout.frame.bottom} vs content ${layout.content.bottom}`)
+  assert.ok(layout.frame.height > layout.viewport * 0.7 + 100, `frame height ${layout.frame.height}`)
+})
+
 test('read-only values offer a working copy button', async () => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base })
 
