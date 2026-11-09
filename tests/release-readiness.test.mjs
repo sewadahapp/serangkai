@@ -8,22 +8,40 @@ import { test } from 'node:test'
  * documents it used to check were removed when the repo was prepared to go
  * public; deployment-file invariants live in deployment-files.test.mjs.
  */
-test('the README keeps provider claims and credential boundaries explicit', async () => {
+test('the README describes one smoke-tested instance without claiming support', async () => {
   const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
 
-  // It must not imply a remote deployment happened.
-  assert.match(readme, /None of these has been deployed to a remote provider/)
-  assert.match(readme, /InstaCloud has no verified deployment contract/)
+  // One deployment was exercised, and it is named as such.
+  assert.match(readme, /deployed by hand and checked from the outside/)
 
-  // The evaluation commands it names must exist as scripts.
+  // But that must never be upgraded into a supported platform contract, and no
+  // workflow here deploys on its own.
+  assert.match(readme, /not a supported platform contract/)
+  assert.match(readme, /nothing\s+in this repository deploys anywhere on its own/)
+
+  // The live instance URL is deliberately not advertised in a public README.
+  assert.doesNotMatch(readme, /instacloud-edge\.com/)
+})
+
+test('the README only names commands and images that actually resolve', async () => {
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+
   for (const script of ['test:provider-local', 'test:docker', 'build:cloudflare', 'build:vercel']) {
     assert.ok(pkg.scripts[script], `README names bun run ${script}, which must exist`)
   }
 
-  // Credentials stay environment-provided. The Docker example may show a
-  // placeholder, but never a real-looking committed secret.
+  // The quick-start image must be the one CI publishes, not a placeholder.
+  assert.match(readme, /ghcr\.io\/sewadahapp\/serangkai:latest/)
+  assert.doesNotMatch(readme, /yourusername|OWNER\/REPO/)
+})
+
+test('the README keeps credentials environment-provided', async () => {
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
+
   assert.match(readme, /ADMIN_USERNAME/)
   assert.match(readme, /SHARE_SECRET/)
+  // A placeholder is fine; a real-looking committed secret is not.
   assert.match(readme, /choose-a-strong-password/)
+  assert.doesNotMatch(readme, /ADMIN_PASSWORD=['"][^'"]*[A-Za-z0-9]{12,}['"]/)
 })

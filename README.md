@@ -21,7 +21,7 @@ docker run -d -p 3000:3000 \
   -e ADMIN_PASSWORD='choose-a-strong-password' \
   -e JWT_SECRET=$(openssl rand -base64 32) \
   -e SHARE_SECRET=$(openssl rand -base64 32) \
-  ghcr.io/yourusername/serangkai:latest
+  ghcr.io/sewadahapp/serangkai:latest
 ```
 
 Open `http://localhost:3000/auth/login` and sign in with those credentials.
@@ -93,10 +93,23 @@ login, artifact creation, binary upload, and download. Vercel uses Nitro's
 `vercel` preset and a Node 24 function runtime, but its filesystem is ephemeral:
 durable data needs an external database plus `STORAGE_DRIVER=s3`.
 
-None of these has been deployed to a remote provider from this repository, and
-InstaCloud has no verified deployment contract. Run `bun run test:provider-local`
-for the credential-free local matrix, and verify health plus data persistence
-after any real deployment before treating it as supported.
+### What has actually been exercised
+
+An InstaCloud-hosted instance was deployed by hand and checked from the outside:
+`/api/health` returns 200, the OAuth discovery documents resolve, an
+unauthenticated `/api/mcp` request returns 401 with a `WWW-Authenticate`
+challenge, CORS preflight answers, dynamic client registration succeeds, and
+static assets load. That instance predates the current build, so it needs a
+redeploy to pick up later changes (including the device grant).
+
+That is a smoke test of one deployment, not a supported platform contract.
+InstaCloud's container and template specifics are not documented here, nothing
+in this repository deploys anywhere on its own, and data persistence across a
+container replacement has only been verified locally with Podman. Vercel and
+Cloudflare have likewise only been exercised locally. Run
+`bun run test:provider-local` for the credential-free local matrix, and verify
+health plus persistence after any real deployment before treating it as
+supported.
 
 ## Authoring
 
