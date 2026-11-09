@@ -100,3 +100,53 @@ export async function ensureUserSchema(db: any) {
     WHERE username IS NOT NULL
   `)
 }
+
+/**
+ * Adds the OAuth tables to databases created before agent authorization.
+ *
+ * `CREATE TABLE IF NOT EXISTS` in the bootstrap only runs for a brand-new
+ * database, so an existing installation would otherwise have no way to connect
+ * an MCP client. These statements are idempotent and additive: no existing row
+ * is read, moved, or deleted.
+ */
+export async function ensureOAuthSchema(db: any) {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS oauth_clients (
+      id TEXT PRIMARY KEY NOT NULL,
+      client_name TEXT,
+      client_uri TEXT,
+      redirect_uris TEXT NOT NULL DEFAULT '[]',
+      scopes TEXT NOT NULL DEFAULT '[]',
+      token_endpoint_auth_method TEXT NOT NULL DEFAULT 'none',
+      client_secret_hash TEXT,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS oauth_codes (
+      id TEXT PRIMARY KEY NOT NULL,
+      client_id TEXT NOT NULL REFERENCES oauth_clients(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      redirect_uri TEXT NOT NULL,
+      scopes TEXT NOT NULL DEFAULT '[]',
+      code_challenge TEXT NOT NULL,
+      code_challenge_method TEXT NOT NULL DEFAULT 'S256',
+      resource TEXT,
+      expires_at INTEGER NOT NULL,
+      consumed_at INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS oauth_tokens (
+      id TEXT PRIMARY KEY NOT NULL,
+      client_id TEXT NOT NULL REFERENCES oauth_clients(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      api_token_id TEXT NOT NULL REFERENCES api_tokens(id) ON DELETE CASCADE,
+      scopes TEXT NOT NULL DEFAULT '[]',
+      access_expires_at INTEGER NOT NULL,
+      refresh_token_hash TEXT NOT NULL UNIQUE,
+      refresh_expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+    )`,
+    `CREATE INDEX IF NOT EXISTS oauth_codes_expires_idx ON oauth_codes (expires_at)`,
+    `CREATE INDEX IF NOT EXISTS oauth_tokens_client_idx ON oauth_tokens (client_id)`,
+  ]
+  for (const statement of statements) await db.run(sql.raw(statement))
+}

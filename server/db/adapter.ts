@@ -1,7 +1,7 @@
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import * as schema from './schema'
 import { BOOTSTRAP_STATEMENTS } from './bootstrap'
-import { ensureGlobalSlugUniqueness, ensureUserSchema } from './migrations'
+import { ensureGlobalSlugUniqueness, ensureOAuthSchema, ensureUserSchema } from './migrations'
 
 export type DatabaseProvider = 'sqlite' | 'd1'
 
@@ -41,6 +41,7 @@ export async function getRequestDatabase(event: any) {
         d1Migrated = true
         await ensureUserSchema(event.context.d1Database)
         await ensureGlobalSlugUniqueness(event.context.d1Database)
+        await ensureOAuthSchema(event.context.d1Database)
       }
     }
     return event.context.d1Database

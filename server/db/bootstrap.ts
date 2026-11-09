@@ -55,6 +55,40 @@ export const BOOTSTRAP_STATEMENTS = [
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     UNIQUE(artifact_id, version)
   )`,
+  `CREATE TABLE IF NOT EXISTS oauth_clients (
+    id TEXT PRIMARY KEY NOT NULL,
+    client_name TEXT,
+    client_uri TEXT,
+    redirect_uris TEXT NOT NULL DEFAULT '[]',
+    scopes TEXT NOT NULL DEFAULT '[]',
+    token_endpoint_auth_method TEXT NOT NULL DEFAULT 'none',
+    client_secret_hash TEXT,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS oauth_codes (
+    id TEXT PRIMARY KEY NOT NULL,
+    client_id TEXT NOT NULL REFERENCES oauth_clients(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    redirect_uri TEXT NOT NULL,
+    scopes TEXT NOT NULL DEFAULT '[]',
+    code_challenge TEXT NOT NULL,
+    code_challenge_method TEXT NOT NULL DEFAULT 'S256',
+    resource TEXT,
+    expires_at INTEGER NOT NULL,
+    consumed_at INTEGER,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS oauth_tokens (
+    id TEXT PRIMARY KEY NOT NULL,
+    client_id TEXT NOT NULL REFERENCES oauth_clients(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    api_token_id TEXT NOT NULL REFERENCES api_tokens(id) ON DELETE CASCADE,
+    scopes TEXT NOT NULL DEFAULT '[]',
+    access_expires_at INTEGER NOT NULL,
+    refresh_token_hash TEXT NOT NULL UNIQUE,
+    refresh_expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+  )`,
 ]
 
 export const BOOTSTRAP_SQL = BOOTSTRAP_STATEMENTS.map(statement => `${statement};`).join('\n')

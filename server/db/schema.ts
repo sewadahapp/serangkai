@@ -12,6 +12,70 @@ export const users = sqliteTable('users', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
 })
 
+/**
+ * OAuth clients that completed dynamic registration (RFC 7591).
+ *
+ * MCP clients register themselves before the authorization flow, so this table
+ * is the pending/untrusted end of the surface: a row only becomes useful after
+ * the owner approves it on the consent screen. Redirect URIs are stored as a
+ * JSON array and matched exactly, except for loopback ports (RFC 8252 §7.3).
+ */
+export const oauthClients = sqliteTable('oauth_clients', {
+  id: text('id').primaryKey(),
+  clientName: text('client_name'),
+  clientUri: text('client_uri'),
+  redirectUris: text('redirect_uris', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  scopes: text('scopes', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  // Token-endpoint auth method advertised to the client. MCP clients use
+  // `none` with PKCE; a secret is kept for confidential clients.
+  tokenEndpointAuthMethod: text('token_endpoint_auth_method').notNull().default('none'),
+  clientSecretHash: text('client_secret_hash'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
+})
+
+/**
+ * Short-lived authorization codes. Consumed exactly once, bound to a PKCE
+ * challenge, and never reused.
+ */
+export const oauthCodes = sqliteTable('oauth_codes', {
+  id: text('id').primaryKey(),
+  clientId: text('client_id').notNull().references(() => oauthClients.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  redirectUri: text('redirect_uri').notNull(),
+  scopes: text('scopes', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  codeChallenge: text('code_challenge').notNull(),
+  codeChallengeMethod: text('code_challenge_method').notNull().default('S256'),
+  resource: text('resource'),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  consumedAt: integer('consumed_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
+})
+
+/**
+ * OAuth-granted tokens.
+ *
+ * Kept separate from API tokens on purpose: a connected agent must never be
+ * able to act like a hand-minted full-scope token, and revoking one surface
+ * must not silently disable the other. `apiTokenId` links to the hashed row so
+ * the existing request middleware keeps working unchanged.
+ *
+ * One row is one authorization grant. Refreshing rotates the row: the old
+ * access token row is deleted and the refresh hash replaced, so a replayed
+ * refresh token stops working.
+ */
+export const oauthTokens = sqliteTable('oauth_tokens', {
+  id: text('id').primaryKey(),
+  clientId: text('client_id').notNull().references(() => oauthClients.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  apiTokenId: text('api_token_id').notNull().references(() => apiTokens.id, { onDelete: 'cascade' }),
+  scopes: text('scopes', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  accessExpiresAt: integer('access_expires_at', { mode: 'timestamp' }).notNull(),
+  refreshTokenHash: text('refresh_token_hash').notNull().unique(),
+  refreshExpiresAt: integer('refresh_expires_at', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
+})
+
+
 export const apiTokens = sqliteTable('api_tokens', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

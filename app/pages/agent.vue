@@ -41,6 +41,38 @@
           </div>
         </section>
 
+        <section class="serangkai-panel p-5" aria-labelledby="oauth-connection">
+          <h2 id="oauth-connection" class="text-sm font-semibold">Browser sign-in (OAuth)</h2>
+          <p class="mt-1 text-sm text-[var(--selaras-resolved-text-muted)]">
+            Hosted MCP clients can connect without a pasted token. Point the client at the MCP URL
+            and it discovers this installation's authorization server from the endpoint's
+            <code class="rounded bg-[var(--selaras-resolved-surface-elevated)] px-1 py-0.5 font-mono text-xs">401</code>
+            response, opens a browser, and asks you to approve it.
+          </p>
+          <ul class="mt-3 space-y-2 text-sm text-[var(--selaras-resolved-text-muted)]">
+            <li>
+              <strong class="text-[var(--selaras-resolved-text-default)]">No URL to configure.</strong>
+              Every endpoint is derived from the MCP URL the client used, so a self-hosted
+              instance works at whatever address it is served from.
+            </li>
+            <li>
+              <strong class="text-[var(--selaras-resolved-text-default)]">Scopes stay limited.</strong>
+              A browser-approved client can only receive <code>read</code> and <code>write</code>.
+              It can never mint or revoke API tokens.
+            </li>
+            <li>
+              <strong class="text-[var(--selaras-resolved-text-default)]">Revocable.</strong>
+              Approved clients appear under Settings → Connected agents, and disconnecting one
+              cuts off its access immediately.
+            </li>
+            <li>
+              <strong class="text-[var(--selaras-resolved-text-default)]">HTTPS required.</strong>
+              MCP clients reject plain-HTTP servers except on loopback, so put a deployed
+              instance behind TLS.
+            </li>
+          </ul>
+        </section>
+
         <section class="serangkai-panel p-5" aria-labelledby="publishing">
           <h2 id="publishing" class="text-sm font-semibold">Publishing safely</h2>
           <ul class="mt-3 space-y-2 text-sm text-[var(--selaras-resolved-text-muted)]">

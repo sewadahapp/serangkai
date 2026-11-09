@@ -151,7 +151,18 @@ solely for tests and local previews.
 - `GET /api/share/:slug/*` - Scoped static bundle asset delivery
 - `GET /api/search` - Search artifacts/folders, optionally scoped to a folder subtree
 - `GET /api/overview` - Workspace summary: counts, visibility, storage total, recent artifacts
+- `GET /api/oauth/clients` - List approved OAuth grants (browser session only)
+- `DELETE /api/oauth/clients/:id` - Disconnect a grant and delete its access token
 - `GET /api/health` - Health check
+
+### OAuth endpoints (Nitro, outside `/api`)
+- `GET /.well-known/oauth-protected-resource[/api/mcp]` - RFC 9728 metadata
+- `GET /.well-known/oauth-authorization-server` - RFC 8414 metadata
+- `GET /.well-known/openid-configuration` - OIDC-style alias of the same document
+- `GET|POST /oauth/authorize` - Consent page and approval decision
+- `POST /oauth/register` - RFC 7591 dynamic client registration (rate-limited)
+- `POST /oauth/token` - Authorization code exchange and refresh rotation
+- `POST /oauth/revoke` - RFC 7009 revocation
 
 ### MCP Integration
 MCP server at `/api/mcp` (Streamable HTTP) providing tools:
@@ -364,6 +375,56 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   rotate credentials in place. A multi-user database fails with instructions
   unless `SERANGKAI_MIGRATION_OWNER_USER_ID` explicitly selects the owner.
 - There is no registration route or page.
+
+### Agent authorization (OAuth)
+Serangkai is its own OAuth 2.1 authorization server for MCP clients, so a
+hosted client can connect with a browser approval instead of a pasted token. It
+does **not** depend on an external IdP: there is one owner and one login, and
+adding a second system to configure would buy nothing.
+
+- **Discovery is request-derived.** Nothing needs the deployment URL in
+  advance. An unauthenticated `POST /api/mcp` returns a `401` whose
+  `WWW-Authenticate` header names
+  `/.well-known/oauth-protected-resource/api/mcp` (RFC 9728); that document
+  names the same origin as the authorization server, which serves RFC 8414
+  metadata at `/.well-known/oauth-authorization-server` (also aliased at
+  `/.well-known/openid-configuration`). Every URL is built by
+  `server/utils/oauth-urls.ts` from the incoming request, honoring
+  `X-Forwarded-*` and the existing `PUBLIC_BASE_URL` override for proxies that
+  rewrite `Host`.
+- **Endpoints.** `/oauth/authorize` (consent page and decision),
+  `/oauth/register` (RFC 7591 dynamic registration, rate-limited),
+  `/oauth/token` (authorization code + refresh rotation), `/oauth/revoke`
+  (RFC 7009). PKCE `S256` is mandatory and the implicit flow does not exist.
+- **Privilege ceiling.** OAuth grants can only be `read` or `write`. `full` —
+  which can mint and revoke API tokens — is never grantable, so a connected
+  agent cannot escalate into credential management. Only the scopes the owner
+  leaves checked are persisted, even if the client asked for more; checking
+  nothing is a denial, not a default.
+- **Consent is explicit.** The page shows the client name, the exact redirect
+  URI, and each permission in plain language. Registration alone grants
+  nothing. Unknown clients and unregistered redirect URIs are answered with an
+  error page, never a redirect; matching is exact except for loopback ports
+  (RFC 8252 §7.3).
+- **Grants are revocable.** Settings → Connected agents lists approved clients
+  and disconnects them. Revocation deletes the whole grant, so the access token
+  and its refresh token both die immediately. Refresh tokens rotate on every
+  use, so a replayed one fails.
+- **Storage.** `oauth_clients`, `oauth_codes` (keyed by the code's SHA-256, so
+  the database never holds a usable code), and `oauth_tokens` (which links to
+  the hashed `api_tokens` row so the existing request middleware authenticates
+  it unchanged). `ensureOAuthSchema` adds these tables to pre-existing
+  databases; it is additive and never rewrites rows.
+- **Settings surfaces are session-only.** `requireSessionUser` guards token and
+  grant management, so a bearer token cannot list credentials or disconnect
+  clients — including an OAuth grant trying to enumerate its siblings.
+- **HTTPS is required** by MCP clients except on loopback. A plain-HTTP LAN
+  deployment will be rejected by the client, which is a property of the client
+  rather than something the server can code around.
+
+Hand-minted API tokens remain the right tool for scripts and CI; OAuth is the
+convenience path for clients that support it. Both resolve to the same scoped
+`api_tokens` row at request time.
 
 ### Security Considerations
 - **Auth**: scrypt password hashes; sealed HttpOnly session cookies; rotated by changing ADMIN_PASSWORD or JWT_SECRET

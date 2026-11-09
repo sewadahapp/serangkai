@@ -70,6 +70,35 @@
         <SAlert v-if="tokenMessage" class="mt-4" color="info" variant="subtle" :title="tokenMessage" />
       </section>
 
+      <section class="serangkai-panel overflow-hidden" aria-labelledby="connected-clients">
+        <div class="flex items-center justify-between gap-3 border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
+          <h2 id="connected-clients" class="text-sm font-semibold">Connected agents</h2>
+          <span class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ oauthClients.length }} connected</span>
+        </div>
+        <ul v-if="oauthClients.length" class="divide-y divide-[var(--selaras-resolved-border-muted)]">
+          <li v-for="client in oauthClients" :key="client.id" class="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+            <div class="min-w-0">
+              <p class="font-medium">{{ client.name }}</p>
+              <p class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-[var(--selaras-resolved-text-muted)]">
+                <span>{{ client.scopes.join(', ') || 'no scopes' }}</span>
+                <span aria-hidden="true">·</span>
+                <span>connected {{ new Date(client.connectedAt).toLocaleDateString() }}</span>
+                <span aria-hidden="true">·</span>
+                <span>session renews until {{ new Date(client.refreshExpiresAt).toLocaleDateString() }}</span>
+              </p>
+            </div>
+            <SButton variant="ghost" color="danger" size="sm" icon="lucide:unplug" @click="disconnectClient(client)">Disconnect</SButton>
+          </li>
+        </ul>
+        <div v-else class="px-5 py-6">
+          <p class="text-sm text-[var(--selaras-resolved-text-muted)]">
+            No agents are connected over OAuth. MCP clients that support OAuth will offer a
+            browser sign-in instead of a pasted token; approved clients appear here.
+          </p>
+        </div>
+        <p v-if="clientMessage" class="border-t border-[var(--selaras-resolved-border-muted)] px-5 py-3 text-sm text-[var(--selaras-resolved-text-muted)]">{{ clientMessage }}</p>
+      </section>
+
       <section class="serangkai-panel overflow-hidden" aria-labelledby="existing-tokens">
         <div class="border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
           <h2 id="existing-tokens" class="text-sm font-semibold">Existing tokens</h2>
@@ -119,6 +148,8 @@ const creatingToken = ref(false)
 const tokenMessage = ref('')
 const tokensError = ref('')
 const newToken = ref('')
+const oauthClients = ref<any[]>([])
+const clientMessage = ref('')
 
 const scopeOptions = [
   { value: 'read', label: 'Read', hint: 'List and read artifacts, folders, and versions. Read-only.' },
@@ -182,6 +213,28 @@ const loadTokens = async () => {
   }
 }
 
+const loadClients = async () => {
+  try {
+    const res = await $fetch<any>('/api/oauth/clients')
+    oauthClients.value = res.clients || []
+  } catch {
+    // Connected agents are additive: failing to list them must not hide the
+    // token section the owner actually came here for.
+    oauthClients.value = []
+  }
+}
+
+const disconnectClient = async (client: any) => {
+  clientMessage.value = ''
+  try {
+    await $fetch(`/api/oauth/clients/${client.id}`, { method: 'DELETE' })
+    await loadClients()
+    clientMessage.value = `Disconnected ${client.name}.`
+  } catch (e: any) {
+    clientMessage.value = e.data?.message || 'Could not disconnect client'
+  }
+}
+
 const createToken = async () => {
   tokenMessage.value = ''; newToken.value = ''
   if (!scopes.value.length) { tokenMessage.value = 'Select at least one scope.'; return }
@@ -217,5 +270,5 @@ const revokeToken = async (token: any) => {
   }
 }
 
-onMounted(() => { if (loggedIn.value) loadTokens() })
+onMounted(() => { if (loggedIn.value) { loadTokens(); loadClients() } })
 </script>

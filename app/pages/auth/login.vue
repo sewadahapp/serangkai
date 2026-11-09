@@ -16,6 +16,8 @@
         and redirect even when the client JS is still loading (or unavailable).
       -->
       <form class="space-y-4" method="post" action="/api/auth/login" @submit.prevent="login">
+        <!-- Carries the OAuth consent round-trip through the no-hydration path. -->
+        <input type="hidden" name="redirect" :value="returnTo">
         <SFormField label="Username" required>
           <SInput v-model="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required class="w-full" />
         </SFormField>
@@ -49,6 +51,18 @@ const password = ref('')
 const error = ref(route.query.error ? 'Invalid credentials' : '')
 const loading = ref(false)
 
+/**
+ * Where to go after logging in. Only same-origin, absolute paths are accepted:
+ * an open redirect here would let a crafted link bounce a freshly signed-in
+ * owner to another site, which matters most for the OAuth consent round-trip.
+ */
+const returnTo = computed(() => {
+  const value = route.query.redirect
+  if (typeof value !== 'string') return '/workspace'
+  if (!value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return '/workspace'
+  return value
+})
+
 const login = async () => {
   loading.value = true
   error.value = ''
@@ -60,7 +74,9 @@ const login = async () => {
     // Update the shared session state before navigating so the header and
     // layout render the signed-in view immediately.
     await refreshSession()
-    await navigateTo('/workspace')
+    // `/oauth/authorize` is a server route, not a Nuxt page, so this must be a
+    // full navigation rather than a client-side route change.
+    await navigateTo(returnTo.value, { external: true })
   } catch (e: any) {
     error.value = e.data?.message || 'Login failed'
   } finally {

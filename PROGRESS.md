@@ -139,14 +139,20 @@ documented as unverified rather than claimed as supported.
 - [x] Centralized the page title in `shared/site.ts` and a `%s · Serangkai` head template, so pages set only their short name; the landing page keeps the full product title and is the only indexable page
 - [x] Replaced the placeholder favicon with the app's rounded S mark, added SVG/ICO/Apple/install/maskable icons and a web manifest, and linked them from the document head
 - [x] Made `/artifacts/[id]` load its artifact during SSR, so a direct load has a real title and a missing artifact answers 404 instead of a soft 200
+- [x] Added OAuth 2.1 authorization-server support for MCP clients: request-derived discovery (`401` + RFC 9728, RFC 8414, OIDC alias), dynamic registration, PKCE-only code exchange, refresh rotation, and revocation
+- [x] Made the consent page the only path to a grant, with a readable client name, exact redirect URI, per-permission checkboxes, and no way to request `full`
+- [x] Added Settings → Connected agents so the owner can see and disconnect approved clients; revocation deletes the access and refresh tokens together
+- [x] Added `ensureOAuthSchema` so existing databases gain the OAuth tables without touching existing rows, and guarded credential management with a session-only check
 
 ## Verification
 - `bun run build` and `bun run build:cloudflare` pass
 - `bun run test:auth` passes: login/logout, invalid credentials, registration rejection, SSR state, session/token separation, rotation, legacy adoption, multi-user safety, concurrent owner creation
 - `bun run test:docker` passes: container replacement on the same `/data` volume preserves owner login, artifacts, uploaded bytes, API tokens, and unlisted share links
-- `bun run test:ci` passes (78 tests across 17 files), including the error-page, share-error, preview-height bridge, and page-head suites
+- `bun run test:ci` passes (92 tests across 18 files), including the error-page, share-error, preview-height, page-head, and OAuth flow suites
 - The browser suite passes (23 tests), including 404 recovery, missing-artifact errors, missing-share errors, footer positioning, HTML preview page-scroll, inline workspace retry, and error-boundary recovery
-- The integration suite passes (42 tests across MCP, upload, share, tokens, folders, lifecycle, security, bundles, authoring, and local runtime)
+- The integration suite passes (43 tests across MCP, upload, share, tokens, folders, lifecycle, security, bundles, authoring, and local runtime)
+- The OAuth flow is verified end to end with the MCP SDK's own client helpers (`discoverOAuthServerInfo`, `registerClient`, `startAuthorization`, `exchangeAuthorization`) against the built server, plus a real-browser check of the login round-trip, consent narrowing, denial, and the open-redirect guard
+- OAuth was additive on a copy of the local database: 13 artifacts, 24 versions, 1 API token, and 3 folders survived, and the three OAuth tables appeared
 - `bun run build` passes
 - `bun run test:provider-local` passes and exits cleanly: Bun SQLite, local Bun runtime, D1/R2 through Wrangler/Miniflare, and Vercel Node runtime
 - Fresh SQLite database smoke test passes

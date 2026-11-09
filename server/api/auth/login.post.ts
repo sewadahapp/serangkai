@@ -6,6 +6,8 @@ import { eq } from 'drizzle-orm'
 const schema = z.object({
   username: z.string().trim().min(1).max(64),
   password: z.string().min(1).max(1024),
+  // Optional same-origin path to return to after a native form post.
+  redirect: z.string().max(2048).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -50,7 +52,13 @@ export default defineEventHandler(async (event) => {
   })
 
   if (isFormPost) {
-    return sendRedirect(event, '/workspace', 303)
+    // Only a same-origin absolute path is honored, so the login form cannot be
+    // used as an open redirect.
+    const target = String(result.data.redirect || '')
+    const safe = target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/\\')
+      ? target
+      : '/workspace'
+    return sendRedirect(event, safe, 303)
   }
 
   return { user: sessionUser, message: 'Logged in successfully' }

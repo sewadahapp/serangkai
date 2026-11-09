@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import * as schema from './schema'
 import { BOOTSTRAP_SQL } from './bootstrap'
-import { ensureGlobalSlugUniqueness, ensureUserSchema } from './migrations'
+import { ensureGlobalSlugUniqueness, ensureOAuthSchema, ensureUserSchema } from './migrations'
 import { getServerConfig } from '../utils/config'
 
 /**
@@ -27,6 +27,7 @@ async function createDatabase() {
     const db = drizzle(sqlite, { schema })
     await ensureUserSchema(db)
     await ensureGlobalSlugUniqueness(db)
+    await ensureOAuthSchema(db)
     return db
   }
 
@@ -38,6 +39,7 @@ async function createDatabase() {
   const db = drizzle(sqlite, { schema })
   await ensureUserSchema(db)
   await ensureGlobalSlugUniqueness(db)
+  await ensureOAuthSchema(db)
   return db
 }
 

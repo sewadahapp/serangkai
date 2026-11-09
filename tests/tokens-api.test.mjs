@@ -63,3 +63,17 @@ test('write tokens can create artifacts but still cannot manage tokens', async (
   const minted = await fetch(`${base}/api/tokens`, { method: 'POST', headers: { ...bearer(token), 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Escalation', scopes: ['full'] }) })
   assert.equal(minted.status, 403)
 })
+
+test('token management requires a browser session, not a bearer token', async () => {
+  const created = await createToken({ name: 'Enumerate', scopes: ['read', 'write'] })
+  const { token } = await created.json()
+
+  // Listing credentials is not workspace content, so no token scope grants it.
+  const listed = await fetch(`${base}/api/tokens`, { headers: bearer(token) })
+  assert.equal(listed.status, 401)
+
+  // The session still works.
+  const viaSession = await fetch(`${base}/api/tokens`, { headers: { cookie } })
+  assert.equal(viaSession.status, 200)
+  assert.ok((await viaSession.json()).tokens.length > 0)
+})

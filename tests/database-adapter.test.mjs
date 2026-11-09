@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { getDatabaseProvider, initializeD1Schema, getRequestDatabase } from '../server/db/adapter.ts'
+import { BOOTSTRAP_STATEMENTS } from '../server/db/bootstrap.ts'
+
+// Derived, not hardcoded: a new table must not require editing a magic number,
+// and the count assertion below still catches a statement that never runs.
+const TABLE_COUNT = BOOTSTRAP_STATEMENTS.length
 
 test('selects SQLite by default and D1 explicitly', () => {
   assert.equal(getDatabaseProvider({}), 'sqlite')
@@ -11,7 +16,7 @@ test('initializes a D1-compatible binding through prepared statements', async ()
   const calls = []
   const client = { prepare(sql) { calls.push(sql); return { run: async () => ({ success: true }) } } }
   await initializeD1Schema(client)
-  assert.equal(calls.length, 5)
+  assert.equal(calls.length, TABLE_COUNT)
   assert.ok(calls.every(sql => sql.startsWith('CREATE TABLE IF NOT EXISTS')))
 })
 
@@ -19,7 +24,7 @@ test('uses D1 batch when the binding provides it', async () => {
   let batchSize = 0
   const client = { prepare: () => ({ run: async () => ({}) }), batch: async statements => { batchSize = statements.length; return [] } }
   await initializeD1Schema(client)
-  assert.equal(batchSize, 5)
+  assert.equal(batchSize, TABLE_COUNT)
 })
 
 test('resolves and caches a request-scoped Cloudflare D1 binding', async () => {

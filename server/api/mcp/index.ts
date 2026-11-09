@@ -11,6 +11,7 @@ import { readArtifactBytes, writeArtifact } from '../../utils/artifact-storage'
 import { reserveSlug } from '../../utils/artifacts'
 import { isSlugConflict } from '../../db/migrations'
 import { capabilities, capabilitiesText, htmlGuide, markdownGuide, promptMessages, templates } from '../../utils/authoring'
+import { protectedResourceMetadataUrl } from '../../utils/oauth-urls'
 import { componentCatalogMarkdown } from '../../../shared/artifact-components'
 
 const artifactType = z.enum(['markdown', 'html', 'javascript', 'pdf', 'image', 'json', 'bundle'])
@@ -273,6 +274,15 @@ export default defineEventHandler(async (event) => {
   // Agents authenticate with a scoped bearer token. A browser session must not
   // open the MCP endpoint, so there is no session fallback here.
   if (!event.context.apiToken) {
+    // The WWW-Authenticate header is how an MCP client discovers OAuth at all.
+    // Without it the client only sees a bare 401 and has no authorization
+    // server to send the user to. RFC 9728 puts the metadata URL in
+    // `resource_metadata`; RFC 6750 scope/error fields accompany it.
+    setHeader(
+      event,
+      'WWW-Authenticate',
+      `Bearer error="invalid_token", error_description="Sign in to connect this client.", scope="read write", resource_metadata="${protectedResourceMetadataUrl(event).href}"`,
+    )
     throw createError({ statusCode: 401, message: 'MCP requires an Authorization: Bearer <token> header.' })
   }
   const user = requireScope(event, 'read')
