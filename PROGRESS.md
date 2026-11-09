@@ -135,14 +135,14 @@ documented as unverified rather than claimed as supported.
 - [x] Replaced silent page-load failures with inline retry states in the workspace, overview, settings, and artifact views; missing or forbidden artifacts and invalid/private share links use the custom error design
 - [x] Fixed the landing page title so leaving the error page does not leave the 404 title behind
 - [x] Kept the footer at the viewport bottom on short pages, including the full-page error screen and shared-artifact reader
-- [x] Let HTML and PDF previews grow with the artifact detail column, so a tall history rail no longer leaves an empty panel below a fixed-height preview; `70vh` remains the minimum
+- [x] Let HTML previews size to their document through a source-checked postMessage bridge, so document-style artifacts scroll with the page instead of inside the iframe; `70vh` remains the floor, `100vh` artifacts cannot grow in a loop, Markdown already renders in-page, and PDFs keep the native viewer
 
 ## Verification
 - `bun run build` and `bun run build:cloudflare` pass
 - `bun run test:auth` passes: login/logout, invalid credentials, registration rejection, SSR state, session/token separation, rotation, legacy adoption, multi-user safety, concurrent owner creation
 - `bun run test:docker` passes: container replacement on the same `/data` volume preserves owner login, artifacts, uploaded bytes, API tokens, and unlisted share links
-- `bun run test:ci` passes (67 tests across 15 files), including the error-page, missing-share, and private-share SSR suites
-- The browser suite passes (22 tests), including 404 recovery, missing-artifact errors, missing-share errors, footer positioning, artifact-preview fill, inline workspace retry, and error-boundary recovery
+- `bun run test:ci` passes (73 tests across 16 files), including the error-page, missing-share, private-share SSR, and preview-height bridge suites
+- The browser suite passes (23 tests), including 404 recovery, missing-artifact errors, missing-share errors, footer positioning, HTML preview page-scroll, inline workspace retry, and error-boundary recovery
 - The integration suite passes (42 tests across MCP, upload, share, tokens, folders, lifecycle, security, bundles, authoring, and local runtime)
 - `bun run build` passes
 - `bun run test:provider-local` passes and exits cleanly: Bun SQLite, local Bun runtime, D1/R2 through Wrangler/Miniflare, and Vercel Node runtime

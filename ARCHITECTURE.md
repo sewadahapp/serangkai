@@ -176,9 +176,9 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `/artifacts/[id]` - Artifact preview/edit. Markdown, HTML, JSON, and JavaScript
   open a full-viewport source workspace with an inline title, type and version,
   dirty state, and Save/Cancel; preview mode keeps the sharing, folder, and
-  version panels. The content column is a flex column: HTML and PDF previews
-  grow to its height so a tall history rail cannot leave empty panel space,
-  while `70vh` stays the floor for short columns.
+  version panels. HTML previews size to the document and scroll with the page,
+  with `70vh` as the floor; Markdown already renders in-page. PDFs keep the
+  browser's viewer and fill the content column.
 - `/settings` - API token creation, listing, and revocation
 - `/agent` - MCP/REST connection guide with endpoint, client config, scope reference,
   publishing workflow (`baseVersion`), the HTML color-mode contract, and the
@@ -263,6 +263,13 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   Artifacts can opt out with `<meta name="color-scheme" content="only light">`.
   `sandbox allow-scripts` still denies same-origin access, forms, popups, framing,
   and network calls.
+- The authenticated HTML preview also injects a height reporter
+  (`server/utils/artifact-preview-height.ts`). Because the sandboxed frame is
+  opaque-origin, the parent listens for a source-checked `serangkai:height`
+  message and resizes the frame to the document height, so document-style
+  artifacts scroll with the page. Reports that equal the current frame height
+  are ignored, which keeps `100vh` artifacts from growing in a feedback loop.
+  Public share delivery does not inject the reporter.
 - Sandboxed HTML artifacts can render Mermaid and TanStack charts without a CDN
   by opting into a same-origin runtime. `server/utils/artifact-runtime.ts` scans
   the delivered HTML and injects only the bundles it needs:

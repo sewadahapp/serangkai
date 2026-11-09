@@ -402,31 +402,41 @@ test('HTML artifacts render Mermaid and TanStack charts in the sandbox', async (
   assert.match(await frame.locator('.serangkai-mermaid').innerText(), /Draft/)
 })
 
-test('the artifact preview fills a tall content column instead of stopping at a fixed height', async () => {
+test('long HTML previews size to the document and scroll with the page', async () => {
   const artifactId = await page.evaluate(async () => {
-    const content = '<!doctype html><html><head><title>Tall preview</title></head><body><h1>Tall preview</h1></body></html>'
+    const paragraphs = Array.from({ length: 80 }, (_, index) => `<p>Paragraph ${index + 1} — the preview should grow to fit this document.</p>`).join('')
+    const content = `<!doctype html><html><head><title>Long preview</title></head><body><h1>Long preview</h1>${paragraphs}</body></html>`
     const res = await fetch('/api/artifacts', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title: 'Tall preview artifact', type: 'html', content }),
+      body: JSON.stringify({ title: 'Long preview artifact', type: 'html', content }),
     })
-    const { artifact } = await res.json()
-
-    // A long history makes the sidebar taller than the preview's 70vh minimum,
-    // which is the case that used to leave the panel half empty.
-    for (let version = 1; version <= 12; version++) {
-      const updated = await fetch(`/api/artifacts/${artifact.id}`, {
-        method: 'PUT',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ content: `${content}\n<!-- revision ${version} -->`, baseVersion: version }),
-      })
-      if (!updated.ok) throw new Error(`Version ${version} failed: ${await updated.text()}`)
-    }
-    return artifact.id
+    return (await res.json()).artifact.id
   })
 
   await page.goto(`${base}/artifacts/${artifactId}`)
   await page.locator('section[aria-labelledby="artifact-content"] iframe').waitFor({ timeout: 15000 })
+  // The injected bridge reports after layout; wait for the frame to outgrow 70vh.
+  await page.waitForFunction(() => {
+    const frame = document.querySelector('section[aria-labelledby="artifact-content"] iframe')
+    return !!frame && frame.getBoundingClientRect().height > window.innerHeight
+  }, undefined, { timeout: 15000 })
+
+  const previewFrame = page.frames().find(frame => frame.url().includes('/preview'))
+  assert.ok(previewFrame, 'the preview frame must be available')
+  let inner
+  for (let attempt = 0; attempt < 30; attempt++) {
+    inner = await previewFrame.evaluate(() => ({
+      scrollHeight: document.documentElement.scrollHeight,
+      clientHeight: document.documentElement.clientHeight,
+      hasBridge: !!document.querySelector('script[data-serangkai-preview-height]'),
+    }))
+    if (inner.scrollHeight <= inner.clientHeight + 1) break
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  assert.equal(inner.hasBridge, true)
+  assert.ok(inner.scrollHeight <= inner.clientHeight + 1, `the frame must not scroll: ${inner.scrollHeight} > ${inner.clientHeight}`)
+
   const layout = await page.evaluate(() => {
     const section = document.querySelector('section[aria-labelledby="artifact-content"]')
     const frame = section?.querySelector('iframe')
@@ -437,21 +447,61 @@ test('the artifact preview fills a tall content column instead of stopping at a 
     }
     return {
       viewport: window.innerHeight,
-      path: location.pathname,
-      title: document.title,
-      heading: document.querySelector('h1')?.textContent,
+      pageHeight: document.documentElement.scrollHeight,
       section: section ? rect(section) : null,
       content: content ? rect(content) : null,
       frame: frame ? rect(frame) : null,
     }
   })
 
-  assert.ok(layout.frame, `the HTML preview iframe must render: ${JSON.stringify(layout)}`)
-  // The history rail is taller than the 70vh floor, so the content column grows.
-  assert.ok(layout.section.height > layout.viewport * 0.7 + 100, `section height ${layout.section.height}`)
-  // The iframe grows with the column; only the panel's 20px padding remains.
-  assert.ok(Math.abs(layout.content.bottom - 20 - layout.frame.bottom) <= 2, `frame bottom ${layout.frame.bottom} vs content ${layout.content.bottom}`)
-  assert.ok(layout.frame.height > layout.viewport * 0.7 + 100, `frame height ${layout.frame.height}`)
+  assert.ok(layout.frame, 'the HTML preview iframe must render')
+  assert.ok(layout.frame.height > layout.viewport, `frame height ${layout.frame.height}`)
+  // The panel ends with the document; only its 20px padding (and 1px border)
+  // remains below the frame. It must not stretch to a taller sidebar.
+  assert.ok(Math.abs(layout.section.bottom - layout.frame.bottom - 21) <= 2, `section bottom ${layout.section.bottom} vs frame ${layout.frame.bottom}`)
+  assert.ok(layout.section.height < layout.frame.height + 120, `section height ${layout.section.height}`)
+  // The main page owns the scroll.
+  assert.ok(layout.pageHeight > layout.frame.height, `page ${layout.pageHeight} vs frame ${layout.frame.height}`)
+
+  // A short document keeps the 70vh floor instead of collapsing.
+  const shortId = await page.evaluate(async () => {
+    const res = await fetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Short preview artifact', type: 'html', content: '<!doctype html><html><head><title>Short</title></head><body><h1>Short</h1></body></html>' }),
+    })
+    return (await res.json()).artifact.id
+  })
+  await page.goto(`${base}/artifacts/${shortId}`)
+  await page.locator('section[aria-labelledby="artifact-content"] iframe').waitFor({ timeout: 15000 })
+  await page.waitForTimeout(400)
+  const short = await page.evaluate(() => {
+    const frame = document.querySelector('section[aria-labelledby="artifact-content"] iframe')
+    return { height: Math.round(frame.getBoundingClientRect().height), viewport: window.innerHeight }
+  })
+  assert.ok(Math.abs(short.height - short.viewport * 0.7) <= 3, `short frame height ${short.height} at ${short.viewport}`)
+})
+
+test('viewport-sized HTML previews do not grow in a feedback loop', async () => {
+  const artifactId = await page.evaluate(async () => {
+    const content = '<!doctype html><html><head><style>html,body{height:100%;margin:0}main{height:100vh;display:grid;place-items:center}</style></head><body><main><h1>Slide</h1></main></body></html>'
+    const res = await fetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Viewport-sized artifact', type: 'html', content }),
+    })
+    return (await res.json()).artifact.id
+  })
+
+  await page.goto(`${base}/artifacts/${artifactId}`)
+  await page.locator('section[aria-labelledby="artifact-content"] iframe').waitFor({ timeout: 15000 })
+  const heights = []
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await page.waitForTimeout(350)
+    heights.push(await page.evaluate(() => Math.round(document.querySelector('section[aria-labelledby="artifact-content"] iframe').getBoundingClientRect().height)))
+  }
+  assert.ok(heights.every(height => Math.abs(height - heights[0]) <= 2), `heights ${heights.join(', ')}`)
+  assert.ok(Math.abs(heights[0] - page.viewportSize().height * 0.7) <= 3, `frame height ${heights[0]}`)
 })
 
 test('read-only values offer a working copy button', async () => {

@@ -58,7 +58,11 @@
       <SAlert v-if="deleteMessage" color="danger" variant="subtle" :title="deleteMessage" />
 
       <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <section aria-labelledby="artifact-content" class="serangkai-panel flex flex-col overflow-hidden">
+        <section
+          aria-labelledby="artifact-content"
+          class="serangkai-panel flex flex-col overflow-hidden"
+          :class="artifact.type === 'html' ? 'self-start' : ''"
+        >
           <div class="flex items-center justify-between gap-3 border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
             <h2 id="artifact-content" class="text-sm font-semibold">Content</h2>
             <span v-if="message" class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ message }}</span>
@@ -81,8 +85,8 @@
               v-else-if="artifact.type === 'html'"
               :src="`/api/artifacts/${artifact.id}/preview`"
               :title="`${artifact.title} HTML preview`"
-              height="100%"
-              class="min-h-[70vh] flex-1"
+              auto-height
+              class="min-h-[70vh]"
             />
             <div v-else-if="artifact.type === 'markdown'" class="selaras-prose mx-auto">
               <MarkdownDocument :body="contentBody" />

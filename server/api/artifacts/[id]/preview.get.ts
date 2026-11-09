@@ -3,6 +3,7 @@ import { artifacts } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
 import { requireUser } from '../../../utils/require-auth'
 import { withColorMode } from '../../../utils/artifact-color-mode'
+import { withPreviewHeight } from '../../../utils/artifact-preview-height'
 import { withArtifactRuntime } from '../../../utils/artifact-runtime'
 import { withDocumentTheme } from '../../../utils/artifact-theme'
 import { readArtifactBytes } from '../../../utils/artifact-storage'
@@ -52,7 +53,7 @@ export default defineEventHandler(async (event) => {
     setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
     setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' https: data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
     setHeader(event, 'Vary', 'Sec-CH-Prefers-Color-Scheme')
-    return withArtifactRuntime(withDocumentTheme(withColorMode(content.toString())))
+    return withArtifactRuntime(withDocumentTheme(withColorMode(withPreviewHeight(content.toString()))))
   } else {
     setHeader(event, 'Content-Type', resolveImageType(metadata))
     setHeader(event, 'Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'")
