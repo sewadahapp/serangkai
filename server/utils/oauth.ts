@@ -197,8 +197,11 @@ export async function createAuthorizationCode(db: any, input: CreateCodeInput): 
 /**
  * Consume a code exactly once.
  *
- * The UPDATE is conditional on `consumed_at IS NULL`, so two concurrent
- * exchanges cannot both succeed; whichever loses sees no affected row.
+ * The UPDATE is conditional on `consumed_at IS NULL`, so the loser of a
+ * concurrent exchange updates zero rows. The affected-row count is read from
+ * each driver's own shape: bun-sqlite/better-sqlite3 report `changes`, D1
+ * reports `meta.changes`. An unrecognized shape is treated as "not consumed"
+ * so this fails closed rather than letting a replay through.
  */
 export async function consumeAuthorizationCode(db: any, code: string) {
   const id = await sha256Hex(code)
@@ -209,10 +212,15 @@ export async function consumeAuthorizationCode(db: any, code: string) {
   const result = await db.update(oauthCodes)
     .set({ consumedAt: new Date() })
     .where(and(eq(oauthCodes.id, id), isNull(oauthCodes.consumedAt)))
-  const affected = Number(result?.rowsAffected ?? result?.changes ?? 1)
-  // Drizzle's SQLite and D1 drivers report the count differently; a re-read is
-  // the portable confirmation that this exchange won the race.
-  if (affected === 0) return { ok: false as const, error: 'invalid_grant' as const }
+
+  const affected = Number(
+    result?.changes
+    ?? result?.rowsAffected
+    ?? result?.meta?.changes,
+  )
+  if (!Number.isFinite(affected) || affected <= 0) {
+    return { ok: false as const, error: 'invalid_grant' as const }
+  }
   return { ok: true as const, code: row }
 }
 
