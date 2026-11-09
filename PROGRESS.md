@@ -152,10 +152,11 @@ documented as unverified rather than claimed as supported.
 - `bun run build` and `bun run build:cloudflare` pass
 - `bun run test:auth` passes: login/logout, invalid credentials, registration rejection, SSR state, session/token separation, rotation, legacy adoption, multi-user safety, concurrent owner creation
 - `bun run test:docker` passes: container replacement on the same `/data` volume preserves owner login, artifacts, uploaded bytes, API tokens, and unlisted share links
-- `bun run test:ci` passes (92 tests across 18 files), including the error-page, share-error, preview-height, page-head, and OAuth flow suites
+- `bun run test:ci` passes (110 tests across 20 files), including the error-page, share-error, preview-height, page-head, OAuth flow, OAuth utility, and rate-limit suites
 - The browser suite passes (23 tests), including 404 recovery, missing-artifact errors, missing-share errors, footer positioning, HTML preview page-scroll, inline workspace retry, and error-boundary recovery
 - The integration suite passes (43 tests across MCP, upload, share, tokens, folders, lifecycle, security, bundles, authoring, and local runtime)
 - The OAuth flow is verified end to end with the MCP SDK's own client helpers (`discoverOAuthServerInfo`, `registerClient`, `startAuthorization`, `exchangeAuthorization`) against the built server, plus a real-browser check of the login round-trip, consent narrowing, denial, and the open-redirect guard
+- The OAuth flow is also verified with a real third-party client, `mcp-remote` 0.16.5: discovery, registration, PKCE, browser consent, and a `tools/call` all completed on both the Node build and the Cloudflare D1 runtime (single-use code replay refused, rate limit tripped)
 - OAuth was additive on a copy of the local database: 13 artifacts, 24 versions, 1 API token, and 3 folders survived, and the three OAuth tables appeared
 - `bun run build` passes
 - `bun run test:provider-local` passes and exits cleanly: Bun SQLite, local Bun runtime, D1/R2 through Wrangler/Miniflare, and Vercel Node runtime

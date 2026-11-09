@@ -36,6 +36,26 @@ Tagged releases publish multi-arch images to GHCR through
 generic image checklist; that provider remains **Not verified** until tested
 against a real account.
 
+## Agent connections over OAuth
+
+Serangkai is its own OAuth authorization server, so MCP clients can connect with
+a browser approval. Two deployment facts follow from that:
+
+- **Serve over HTTPS.** MCP clients reject a plain-HTTP server except on
+  loopback. A `http://` LAN or IP-only deployment will work for the web UI and
+  bearer tokens, but an OAuth-capable client will refuse it. Terminate TLS in
+  front of the container.
+- **`PUBLIC_BASE_URL` is the proxy escape hatch.** Every OAuth document and
+  redirect is built from the incoming request, honoring `X-Forwarded-Host` and
+  `X-Forwarded-Proto`. If your proxy rewrites `Host` without forwarding the
+  original, set `PUBLIC_BASE_URL` to the public origin (the same variable that
+  already controls share links) so discovery advertises the address clients
+  actually use.
+
+Registration, consent, and token exchange are rate-limited per client address
+per process. On Workers that bounds a single isolate, not the whole
+deployment.
+
 ## Credential-free local verification
 
 Run the local/emulated provider suite with:
