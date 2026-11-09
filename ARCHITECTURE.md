@@ -169,14 +169,17 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   Mutating tools declare `destructiveHint`.
 
 ### Frontend Routes
-- `/` - Landing page with capability, agent-setup, and CTA sections
+- `/` - Landing page with capability, agent-setup, and CTA sections. The only
+  indexable page (`index, follow` plus canonical and Open Graph tags).
 - `/auth/login` - Owner login with labeled `SFormField` inputs; registration does not exist
 - `/dashboard` - Workspace overview: counts, storage total, recent activity, types
 - `/workspace` - Artifact workspace with folder tree, scoped search, create/upload panels
-- `/artifacts/[id]` - Artifact preview/edit. Markdown, HTML, JSON, and JavaScript
-  open a full-viewport source workspace with an inline title, type and version,
-  dirty state, and Save/Cancel; preview mode keeps the sharing, folder, and
-  version panels. HTML previews size to the document and scroll with the page,
+- `/artifacts/[id]` - Artifact preview/edit. The artifact is fetched during SSR so
+  the title renders on a direct load and a missing artifact answers 404; history,
+  folders, and the share link load after the document. Markdown, HTML, JSON, and
+  JavaScript open a full-viewport source workspace with an inline title, type and
+  version, dirty state, and Save/Cancel; preview mode keeps the sharing, folder,
+  and version panels. HTML previews size to the document and scroll with the page,
   with `70vh` as the floor; Markdown already renders in-page. PDFs keep the
   browser's viewer and fill the content column.
 - `/settings` - API token creation, listing, and revocation
@@ -202,6 +205,16 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 ### Design system notes
 - Semantic roles (`primary`, `accent`, plus Selaras builtins) are compiled at build
   time; components reference `var(--selaras-resolved-*)` tokens rather than raw hex.
+- Site identity lives in `shared/site.ts` and ships from `nuxt.config.ts`'s
+  `app.head`: `titleTemplate: '%s · Serangkai'` (a string, because Nuxt
+  serializes `app.head` with `JSON.stringify`, which drops functions), the
+  description, Open Graph basics, `noindex` by default, and the icon links.
+  Pages set only their short title. The landing page is the sole exception: it
+  sets the full product title with `titleTemplate: null`, opts into indexing,
+  and adds a request-derived canonical URL. The icon set is a rounded mark for
+  browser tabs (`favicon.ico` at 16/32/48, `favicon.svg`) and full-bleed
+  install icons (`apple-touch-icon.png`, `icon-192/512.png`, plus a maskable
+  variant) described by `public/site.webmanifest`.
 - `app/assets/css/main.css` holds the font face, shell width, prose measure, skip
   link, and a global `prefers-reduced-motion` override.
 - All form controls live inside `SFormField` so labels, hints, and errors are

@@ -136,12 +136,15 @@ documented as unverified rather than claimed as supported.
 - [x] Fixed the landing page title so leaving the error page does not leave the 404 title behind
 - [x] Kept the footer at the viewport bottom on short pages, including the full-page error screen and shared-artifact reader
 - [x] Let HTML previews size to their document through a source-checked postMessage bridge, so document-style artifacts scroll with the page instead of inside the iframe; `70vh` remains the floor, `100vh` artifacts cannot grow in a loop, Markdown already renders in-page, and PDFs keep the native viewer
+- [x] Centralized the page title in `shared/site.ts` and a `%s · Serangkai` head template, so pages set only their short name; the landing page keeps the full product title and is the only indexable page
+- [x] Replaced the placeholder favicon with the app's rounded S mark, added SVG/ICO/Apple/install/maskable icons and a web manifest, and linked them from the document head
+- [x] Made `/artifacts/[id]` load its artifact during SSR, so a direct load has a real title and a missing artifact answers 404 instead of a soft 200
 
 ## Verification
 - `bun run build` and `bun run build:cloudflare` pass
 - `bun run test:auth` passes: login/logout, invalid credentials, registration rejection, SSR state, session/token separation, rotation, legacy adoption, multi-user safety, concurrent owner creation
 - `bun run test:docker` passes: container replacement on the same `/data` volume preserves owner login, artifacts, uploaded bytes, API tokens, and unlisted share links
-- `bun run test:ci` passes (73 tests across 16 files), including the error-page, missing-share, private-share SSR, and preview-height bridge suites
+- `bun run test:ci` passes (78 tests across 17 files), including the error-page, share-error, preview-height bridge, and page-head suites
 - The browser suite passes (23 tests), including 404 recovery, missing-artifact errors, missing-share errors, footer positioning, HTML preview page-scroll, inline workspace retry, and error-boundary recovery
 - The integration suite passes (42 tests across MCP, upload, share, tokens, folders, lifecycle, security, bundles, authoring, and local runtime)
 - `bun run build` passes

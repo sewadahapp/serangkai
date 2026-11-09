@@ -77,7 +77,7 @@ const goBackToApp = () => clearError({
 const retry = () => clearError({ redirect: retryTarget.value })
 
 useHead(() => ({
-  title: `${title.value} · Serangkai`,
+  title: title.value,
   meta: [{ name: 'robots', content: 'noindex, nofollow' }],
 }))
 </script>

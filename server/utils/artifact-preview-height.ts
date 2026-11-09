@@ -20,6 +20,7 @@ const BOOTSTRAP = `(function () {
   var root = doc.documentElement;
   var last = -1;
   var scheduled = false;
+  var forceNext = false;
 
   function measure() {
     var body = doc.body;
@@ -28,7 +29,12 @@ const BOOTSTRAP = `(function () {
       body ? body.scrollHeight : 0,
       body ? body.offsetHeight : 0
     );
-    if (!height || height === last) return;
+    if (!height) return;
+    // Automatic reports are deduped, but an explicit request must always
+    // answer: the first report can fire before the framing app has hydrated
+    // and attached its listener, so the parent asks again once it is ready.
+    if (!forceNext && height === last) return;
+    forceNext = false;
     last = height;
     try {
       parent.postMessage({
@@ -38,7 +44,8 @@ const BOOTSTRAP = `(function () {
     } catch (error) {}
   }
 
-  function schedule() {
+  function schedule(force) {
+    if (force) forceNext = true;
     if (scheduled) return;
     scheduled = true;
     var run = function () {
@@ -50,21 +57,21 @@ const BOOTSTRAP = `(function () {
   }
 
   if (window.ResizeObserver) {
-    var observer = new ResizeObserver(schedule);
+    var observer = new ResizeObserver(function () { schedule(false); });
     if (root) observer.observe(root);
     if (doc.body) observer.observe(doc.body);
   }
   window.addEventListener('message', function (event) {
     var data = event && event.data;
-    if (data && data.type === 'serangkai:height-request') schedule();
+    if (data && data.type === 'serangkai:height-request') schedule(true);
   });
-  window.addEventListener('load', schedule);
-  window.addEventListener('resize', schedule);
-  doc.addEventListener('DOMContentLoaded', schedule);
-  if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(schedule).catch(function () {});
-  setTimeout(schedule, 0);
-  setTimeout(schedule, 250);
-  setTimeout(schedule, 1000);
+  window.addEventListener('load', function () { schedule(false); });
+  window.addEventListener('resize', function () { schedule(false); });
+  doc.addEventListener('DOMContentLoaded', function () { schedule(false); });
+  if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(function () { schedule(false); }).catch(function () {});
+  setTimeout(function () { schedule(false); }, 0);
+  setTimeout(function () { schedule(false); }, 250);
+  setTimeout(function () { schedule(false); }, 1000);
 })();`
 
 const TAG = `<script data-serangkai-preview-height>${BOOTSTRAP}</script>`

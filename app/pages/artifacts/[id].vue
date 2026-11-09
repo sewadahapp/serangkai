@@ -214,6 +214,7 @@ import { NO_FOLDER, folderIdFromSelection, folderSelection } from '~/utils/folde
 import type { EditorLanguage } from '~/utils/editor'
 
 const route = useRoute()
+const requestFetch = useRequestFetch()
 const artifact = ref<any>(null)
 const content = ref('')
 const contentBody = ref<Record<string, unknown> | null>(null)
@@ -241,6 +242,15 @@ const duplicating = ref(false)
 const loadError = ref('')
 const loadingArtifact = ref(true)
 
+// The artifact itself is fetched during SSR. That makes a direct load render
+// the real title instead of an empty tab, and a missing artifact answer 404
+// instead of a soft 200. History, folders, and the share link stay client-only:
+// they are secondary panels and must not delay the document.
+const { data: artifactData, error: artifactError, refresh: refreshArtifact } = await useAsyncData(
+  () => `artifact:${route.params.id}`,
+  () => requestFetch<any>(`/api/artifacts/${route.params.id}`),
+)
+
 const { confirm } = useConfirm()
 const { add: toast } = useToast()
 
@@ -255,9 +265,19 @@ const folderOptions = computed(() => [
   ...folders.value.map((folder: any) => ({ label: folder.path || folder.name, value: folder.id })),
 ])
 
-watch(artifact, (value) => {
-  if (value) useHead({ title: `${value.title} · Serangkai` })
-}, { immediate: true })
+const artifactPageTitle = computed(() => {
+  const value = artifact.value
+  // Before the payload resolves (or on an inline retry) the tab still needs a
+  // name rather than being blank.
+  if (!value) return 'Artifact'
+  // The title is user content: trim the noise but keep the author's wording.
+  const title = String(value.title || '').trim()
+  return title || 'Artifact'
+})
+
+// A function input, so the title resolves after the artifact payload has been
+// applied. A watcher would run after the SSR head snapshot is taken.
+useHead(() => ({ title: artifactPageTitle.value }))
 
 const latestVersion = computed(() => versions.value[0]?.version ?? null)
 
@@ -366,13 +386,7 @@ const restoreVersion = async (version: number) => {
 
 const reloadArtifact = async () => {
   const res = await $fetch<any>(`/api/artifacts/${route.params.id}`)
-  artifact.value = res.artifact
-  content.value = res.content
-  contentBody.value = res.body || null
-  draftTitle.value = res.artifact.title
-  draftContent.value = res.content
-  draftVisibility.value = res.artifact.visibility
-  draftFolderId.value = folderSelection(res.artifact.folderId)
+  applyArtifact(res)
   shareMessage.value = ''
   versions.value = (await $fetch<any>(`/api/artifacts/${route.params.id}/versions`)).versions || []
 }
@@ -444,38 +458,98 @@ const removeArtifact = async () => {
   }
 }
 
+// A direct load already has the artifact from SSR. Missing or forbidden
+// artifacts become a real error page (with its status code) instead of a soft
+// 200 with an empty shell.
+const fatalStatus = (error: any) => {
+  const status = Number(error?.statusCode || error?.data?.statusCode)
+  return status === 404 || status === 401 || status === 403 ? status : 0
+}
+
+const showArtifactError = async (status: number) => showError({
+  statusCode: status,
+  statusMessage: status === 404 ? 'Artifact not found' : status === 401 ? 'Sign in required' : 'Forbidden',
+  message: status === 404
+    ? 'This artifact may have been deleted or moved to another account.'
+    : 'Sign in again with the owner account to open this artifact.',
+  url: route.fullPath,
+})
+
+const prefetchStatus = fatalStatus(artifactError.value)
+if (prefetchStatus) await showArtifactError(prefetchStatus)
+
+// Assignment helper shared by the server payload, reloads, and saves, so every
+// path keeps the artifact, its content, and the draft fields in sync.
+const applyArtifact = (res: any) => {
+  artifact.value = res.artifact
+  content.value = res.content
+  contentBody.value = res.body || null
+  draftTitle.value = res.artifact.title
+  draftContent.value = res.content
+  draftVisibility.value = res.artifact.visibility
+  draftFolderId.value = folderSelection(res.artifact.folderId)
+}
+
+if (artifactData.value) applyArtifact(artifactData.value)
+
+// Secondary panels: loaded once the document is on screen. They never block the
+// artifact and never replace it on failure.
+const loadSecondary = async () => {
+  const [history, folderList] = await Promise.allSettled([
+    $fetch<any>(`/api/artifacts/${route.params.id}/versions`),
+    $fetch<any>('/api/folders'),
+  ])
+  if (history.status === 'fulfilled') versions.value = history.value.versions || []
+  else versions.value = []
+  if (folderList.status === 'fulfilled') folders.value = folderList.value.folders || []
+  await loadShareLink()
+}
+
+const reportRecoverableLoadError = () => {
+  // Only a recoverable failure (network/5xx) lands here: 404/401/403 was routed
+  // to the error page before the page could render.
+  loadError.value = (artifactError.value as any)?.data?.message
+    || artifactError.value?.message
+    || 'Could not reach the server. Check your connection and try again.'
+}
+
+// Client-side navigation between two artifacts keeps this component mounted, so
+// the payload watcher has to drive both the document and the secondary panels.
+watch(artifactData, async (value) => {
+  if (value) {
+    applyArtifact(value)
+    loadError.value = ''
+    await loadSecondary()
+    return
+  }
+  const status = fatalStatus(artifactError.value)
+  if (status) {
+    await showArtifactError(status)
+    return
+  }
+  if (artifactError.value) reportRecoverableLoadError()
+})
+
+onMounted(async () => {
+  loadingArtifact.value = false
+  if (!artifactData.value) {
+    if (artifactError.value) reportRecoverableLoadError()
+    return
+  }
+  await loadSecondary()
+})
+
 const loadArtifact = async () => {
   loadingArtifact.value = true
   loadError.value = ''
   try {
-    const res = await $fetch<any>(`/api/artifacts/${route.params.id}`)
-    artifact.value = res.artifact
-    content.value = res.content
-    contentBody.value = res.body || null
-    draftTitle.value = res.artifact.title
-    draftContent.value = res.content
-    draftVisibility.value = res.artifact.visibility
-    draftFolderId.value = folderSelection(res.artifact.folderId)
-    await loadShareLink()
-
-    // History and folder names are secondary. A failure there must not blank
-    // an artifact that already loaded.
-    const [history, folderList] = await Promise.allSettled([
-      $fetch<any>(`/api/artifacts/${route.params.id}/versions`),
-      $fetch<any>('/api/folders'),
-    ])
-    if (history.status === 'fulfilled') versions.value = history.value.versions || []
-    if (folderList.status === 'fulfilled') folders.value = folderList.value.folders || []
+    await refreshArtifact()
+    if (!artifactData.value && artifactError.value) throw artifactError.value
+    await loadSecondary()
   } catch (e: any) {
-    const status = Number(e?.statusCode || e?.data?.statusCode)
-    if (status === 404 || status === 401 || status === 403) {
-      await showError({
-        statusCode: status,
-        statusMessage: status === 404 ? 'Artifact not found' : status === 401 ? 'Sign in required' : 'Forbidden',
-        message: status === 404
-          ? 'This artifact may have been deleted or moved to another account.'
-          : 'Sign in again with the owner account to open this artifact.',
-      })
+    const status = fatalStatus(e)
+    if (status) {
+      await showArtifactError(status)
       return
     }
     loadError.value = e?.data?.message || e?.message || 'Could not reach the server. Check your connection and try again.'
@@ -483,8 +557,6 @@ const loadArtifact = async () => {
     loadingArtifact.value = false
   }
 }
-
-onMounted(loadArtifact)
 
 const save = async () => {
   if (saving.value) return

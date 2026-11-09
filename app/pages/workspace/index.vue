@@ -246,7 +246,7 @@
 import { NO_FOLDER, folderIdFromSelection, folderSelection } from '~/utils/folders'
 import type { EditorLanguage } from '~/utils/editor'
 
-useHead({ title: 'Workspace · Serangkai' })
+useHead({ title: 'Workspace' })
 
 interface Folder {
   id: string

@@ -100,9 +100,29 @@
 </template>
 
 <script setup lang="ts">
-useHead({ title: 'Serangkai — artifact and knowledge workspace' })
+import { SITE_DESCRIPTION, SITE_TITLE } from '#shared/site'
 
 const { loggedIn } = useUserSession()
+const requestUrl = useRequestURL()
+// A canonical URL must be absolute, and a self-hosted instance can live at any
+// origin, so derive it from the request rather than hardcoding a domain.
+const canonical = computed(() => `${requestUrl.origin}/`)
+
+// The landing page explains the product, so it is the only indexable page. It
+// carries the full product title and opts out of the global `%s · Serangkai`
+// suffix, which would otherwise repeat the name.
+useHead({
+  title: SITE_TITLE,
+  titleTemplate: null,
+  meta: [
+    { name: 'robots', content: 'index, follow' },
+    { property: 'og:title', content: SITE_TITLE },
+    { property: 'og:description', content: SITE_DESCRIPTION },
+    { name: 'twitter:title', content: SITE_TITLE },
+    { name: 'twitter:description', content: SITE_DESCRIPTION },
+  ],
+  link: [{ rel: 'canonical', href: canonical.value }],
+})
 
 const facts = ['Single container', 'SQLite + filesystem', 'MCP + REST', 'Signed unlisted links']
 

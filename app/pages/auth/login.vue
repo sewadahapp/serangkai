@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-useHead({ title: 'Log in · Serangkai' })
+useHead({ title: 'Log in' })
 
 const { fetch: refreshSession } = useUserSession()
 const route = useRoute()

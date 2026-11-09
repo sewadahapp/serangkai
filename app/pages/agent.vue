@@ -122,7 +122,7 @@
 </template>
 
 <script setup lang="ts">
-useHead({ title: 'Connect an agent · Serangkai' })
+useHead({ title: 'Connect an agent' })
 
 const { loggedIn } = useUserSession()
 

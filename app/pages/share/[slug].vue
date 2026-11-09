@@ -234,8 +234,8 @@ if (import.meta.server && fetchError.value) {
 
 useHead(() => ({
   title: artifact.value
-    ? `${artifact.value.title} · Serangkai`
-    : errorInfo.value ? `${errorInfo.value.title} · Serangkai` : 'Shared artifact · Serangkai',
+    ? (artifact.value.title || 'Shared artifact')
+    : errorInfo.value ? errorInfo.value.title : 'Shared artifact',
   meta: [{ name: 'robots', content: 'noindex, nofollow' }],
 }))
 </script>

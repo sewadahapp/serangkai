@@ -81,10 +81,11 @@ function onMessage(event: MessageEvent) {
 
   // A document that sizes itself from the viewport (`100vh`, `100dvh`) reports
   // its own frame height. Growing the frame for that would feed back into
-  // itself forever, so a report that does not exceed the current content height
-  // is treated as "the frame is already the right size".
+  // itself forever, so a report within 2px of the current content height is
+  // treated as "the frame is already the right size". Anything else is a real
+  // change, in either direction, so collapsing content still shrinks the frame.
   const current = frame.value?.clientHeight ?? 0
-  if (current > 0 && next <= current) return
+  if (current > 0 && Math.abs(next - current) <= 2) return
 
   if (reportedHeight.value !== null && Math.abs(reportedHeight.value - next) < 2) return
   reportedHeight.value = next
@@ -98,6 +99,10 @@ onMounted(() => {
   if (colorMode.unknown) {
     colorMode.value = colorMode.preference === 'system' ? 'system' : colorMode.preference
   }
+  // A server-rendered frame may finish loading before hydration attaches the
+  // listener, so its first height reports are lost. Ask for the current height
+  // once the listener is in place.
+  sync()
 })
 
 onBeforeUnmount(() => window.removeEventListener('message', onMessage))

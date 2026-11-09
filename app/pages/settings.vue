@@ -108,7 +108,7 @@
 import type { DateValue } from '@internationalized/date'
 import { getLocalTimeZone } from '@internationalized/date'
 
-useHead({ title: 'Settings · Serangkai' })
+useHead({ title: 'Settings' })
 
 const { loggedIn } = useUserSession()
 const tokens = ref<any[]>([])

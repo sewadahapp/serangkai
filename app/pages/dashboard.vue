@@ -75,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-useHead({ title: 'Overview · Serangkai' })
+useHead({ title: 'Overview' })
 
 const { loggedIn } = useUserSession()
 const summary = ref<any>(null)

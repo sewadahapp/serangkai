@@ -1,6 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import { defineColorFromSeed } from '@sewadah/selaras/theme'
 import { selarasIconNames } from './shared/selaras-icons'
+import { SITE_DESCRIPTION, SITE_NAME } from './shared/site'
 
 // Design system generated with ui-ux-pro-max:
 //   Minimalism & Swiss Style · variance 3 / motion 3 / density 5
@@ -10,6 +11,9 @@ const theme = {
   primary: defineColorFromSeed('#2563EB'),
   accent: defineColorFromSeed('#EA580C'),
 }
+
+// Shared with the pages and the manifest so the product name and pitch are
+// defined once.
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
@@ -41,13 +45,31 @@ export default defineNuxtConfig({
   app: {
     head: {
       htmlAttrs: { lang: 'en' },
+      // Pages set the short title only; the suffix lives here so the separator
+      // and brand name cannot drift page to page. `%s` is replaced by the page
+      // title, and a page with no title falls back to the product title (see
+      // app/pages/index.vue). It must stay a string: Nuxt serializes app.head
+      // with JSON.stringify, which silently drops function values. This also
+      // applies to error.vue, which renders outside the normal app tree.
+      titleTemplate: `%s · ${SITE_NAME}`,
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         { name: 'theme-color', content: '#f8fafc', media: '(prefers-color-scheme: light)' },
         { name: 'theme-color', content: '#090a0d', media: '(prefers-color-scheme: dark)' },
+        { name: 'description', content: SITE_DESCRIPTION },
+        { property: 'og:site_name', content: 'Serangkai' },
+        { property: 'og:type', content: 'website' },
+        { name: 'twitter:card', content: 'summary' },
+        // A single-owner workspace is private by default. Only the landing page
+        // opts back into indexing; see app/pages/index.vue.
+        { name: 'robots', content: 'noindex, nofollow' },
       ],
       link: [
         { rel: 'preload', href: '/fonts/plus-jakarta-sans-latin.woff2', as: 'font', type: 'font/woff2', crossorigin: '' },
+        { rel: 'icon', href: '/favicon.ico', sizes: '16x16 32x32 48x48' },
+        { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+        { rel: 'manifest', href: '/site.webmanifest' },
       ],
     },
   },
