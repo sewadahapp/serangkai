@@ -426,6 +426,12 @@ adding a second system to configure would buy nothing.
 - **Settings surfaces are session-only.** `requireSessionUser` guards token and
   grant management, so a bearer token cannot list credentials or disconnect
   clients — including an OAuth grant trying to enumerate its siblings.
+- **Browser clients get CORS.** `server/middleware/oauth-cors.ts` answers
+  preflight on the discovery, registration, token, revocation, and MCP paths
+  and exposes `WWW-Authenticate`, so a browser-based MCP client can read the
+  discovery URL. It sends `Access-Control-Allow-Origin: *` **without**
+  `Allow-Credentials`, so a cross-origin page can never borrow the session
+  cookie; the MCP endpoint still requires a bearer token.
 - **Expired tokens are distinguishable.** When a bearer token is recognized but
   expired, the MCP `401` says so in the `WWW-Authenticate` description while
   still advertising discovery. A client can refresh instead of prompting the

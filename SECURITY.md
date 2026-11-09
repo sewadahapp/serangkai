@@ -71,6 +71,10 @@ on the server and does not run build jobs for uploaded bundles.
   per process, so on Cloudflare Workers it bounds a single isolate rather than
   the whole deployment; it raises the cost of a flood rather than guaranteeing a
   ceiling.
+- CORS is enabled on the OAuth and MCP paths so browser-based clients work.
+  `Access-Control-Allow-Origin: *` is never combined with
+  `Access-Control-Allow-Credentials`, and MCP rejects cookie-only requests, so a
+  cross-origin page gains nothing without already holding a bearer token.
 - Credential management (`/api/tokens`, `/api/oauth/clients`) is session-only. A
   bearer token can never list, mint, or revoke credentials — including an OAuth
   grant trying to enumerate or disconnect its siblings.

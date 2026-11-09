@@ -583,3 +583,42 @@ test('an expired OAuth access token tells the client to refresh', async () => {
   assert.equal(refreshed.status, 200)
   assert.ok((await refreshed.json()).access_token)
 })
+
+test('browser-based clients can pass CORS preflight on the OAuth surface', async () => {
+  const preflight = (path, method = 'POST') => fetch(`${base}${path}`, {
+    method: 'OPTIONS',
+    headers: {
+      origin: 'https://web-client.example',
+      'access-control-request-method': method,
+      'access-control-request-headers': 'content-type, authorization',
+    },
+  })
+
+  for (const [path, method] of [
+    ['/.well-known/oauth-protected-resource/api/mcp', 'GET'],
+    ['/.well-known/oauth-authorization-server', 'GET'],
+    ['/oauth/register', 'POST'],
+    ['/oauth/token', 'POST'],
+    ['/oauth/revoke', 'POST'],
+    ['/api/mcp', 'POST'],
+  ]) {
+    const response = await preflight(path, method)
+    // Answered by the CORS middleware, not by a route that only knows GET/POST.
+    assert.equal(response.status, 204, `${path} preflight status`)
+    assert.equal(response.headers.get('access-control-allow-origin'), '*', `${path} allow-origin`)
+    assert.match(response.headers.get('access-control-allow-methods') || '', /POST/, `${path} allow-methods`)
+    assert.match(response.headers.get('access-control-allow-headers') || '', /authorization/, `${path} allow-headers`)
+  }
+
+  // Credentials must never be allowed: the session cookie stays first-party.
+  const withCredentials = await preflight('/oauth/token')
+  assert.equal(withCredentials.headers.get('access-control-allow-credentials'), null)
+
+  // The actual responses carry the same origin header.
+  const discovery = await fetch(`${base}/.well-known/oauth-authorization-server`, { headers: { origin: 'https://web-client.example' } })
+  assert.equal(discovery.headers.get('access-control-allow-origin'), '*')
+
+  // A non-OAuth path is untouched.
+  const unrelated = await fetch(`${base}/api/health`, { method: 'OPTIONS' })
+  assert.equal(unrelated.headers.get('access-control-allow-origin'), null)
+})
