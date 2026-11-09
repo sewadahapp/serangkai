@@ -66,22 +66,64 @@ test('the release workflow publishes the image in the same run as the tag', asyn
   assert.match(workflow, /linux\/amd64,linux\/arm64/)
   assert.match(workflow, /changelogen/)
 
-  // The tag is pushed only after the image exists.
-  assert.ok(
-    workflow.indexOf('Build and publish image') < workflow.indexOf('Push the release commit and tag'),
-    'the image must be published before the tag is pushed',
-  )
-
   // The release must not deploy anywhere.
   assert.doesNotMatch(workflow, /wrangler deploy|vercel deploy/)
 })
 
-test('the release workflow verifies the version before tagging', async () => {
+test('the release publishes nothing irreversible until the image is verified', async () => {
   const workflow = await readFile(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8')
-  assert.match(workflow, /check-release-version\.mjs/)
-  assert.match(workflow, /--verify-result/)
-  // Tests must gate publication, not run after it.
-  assert.ok(workflow.indexOf('bun run test:ci') < workflow.indexOf('docker/build-push-action@v6'))
+  const at = label => {
+    const index = workflow.indexOf(label)
+    assert.ok(index >= 0, `release.yml must contain "${label}"`)
+    return index
+  }
+
+  // Tests gate the build; the build is only ever staged under a commit tag.
+  const test = at('bun run test:ci')
+  const build = at('Build and stage the image')
+  const smoke = at('Smoke test the staged image')
+  const promote = at('Promote to the version tag and latest')
+  const push = at('Push the release commit and tag')
+  const release = at('gh release create')
+
+  assert.ok(test < build, 'tests must run before the image is built')
+  assert.ok(build < smoke, 'the image must be built before it is smoke tested')
+  assert.ok(smoke < promote, 'the image must pass its smoke test before promotion')
+  assert.ok(promote < push, 'the version tag must exist before the git tag is pushed')
+  assert.ok(push < release, 'the git tag must be pushed before the GitHub release')
+
+  // Staging must not use the version tag directly, or a failed smoke test
+  // would leave a published version behind.
+  assert.match(workflow, /tags: \$\{\{ env\.IMAGE \}\}:sha-\$\{\{ github\.sha \}\}/)
+  assert.match(workflow, /docker buildx imagetools create/)
+
+  // GHCR login has to precede anything that pushes.
+  assert.ok(at('Log in to GHCR') < build, 'must authenticate to GHCR before pushing')
+})
+
+test('an interrupted release resumes instead of rebuilding or overwriting', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8')
+
+  // A rerun must detect prior progress and either resume or refuse.
+  assert.match(workflow, /Check for an interrupted release/)
+  assert.match(workflow, /state=promoted/)
+  assert.match(workflow, /state=staged/)
+  assert.match(workflow, /was not built from this commit/)
+})
+
+test('the rehearsal builds and smoke tests without publishing', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/release-rehearsal.yml', import.meta.url), 'utf8')
+
+  assert.match(workflow, /workflow_dispatch:/)
+  assert.match(workflow, /permissions:\s*\n\s*contents: read/)
+  assert.match(workflow, /push: false/)
+  assert.match(workflow, /load: true/)
+
+  // A rehearsal must not publish anything at all.
+  assert.doesNotMatch(workflow, /packages: write/)
+  assert.doesNotMatch(workflow, /git push/)
+  assert.doesNotMatch(workflow, /gh release create/)
+  assert.doesNotMatch(workflow, /docker\/login-action/)
 })
 
 test('the checked-in Wrangler config serves static assets', async () => {

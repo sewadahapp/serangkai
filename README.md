@@ -120,13 +120,30 @@ bump, then in one run:
 1. Runs `bun run test:ci`.
 2. Bumps `package.json` from the conventional commits and writes `CHANGELOG.md`.
 3. Builds `linux/amd64` and `linux/arm64` images.
-4. Pushes the release commit and an annotated `vX.Y.Z` tag.
-5. Publishes a GitHub release with the changelog section as its notes.
+4. Boots the built image and waits for `/api/health` to answer.
+5. Promotes it to `:X.Y.Z` and `:latest`.
+6. Pushes the release commit and an annotated `vX.Y.Z` tag.
+7. Publishes a GitHub release with the changelog section as its notes.
 
-A version is required to advance, tags are checked for collisions, and the tag is
-pushed only after the image is published, so a failed build cannot leave a tag
-pointing at a version that was never released. Until the first release there is
-no `:latest` image; build from source with `docker compose up --build` instead.
+The order is deliberate: each step is harder to undo than the last, and nothing
+irreversible happens until the image has actually started. The image is staged
+under a commit tag first; a failed build or a container that never answers
+health leaves no version tag and no `:latest` behind.
+
+**Recovering from a failure.** Re-run the workflow. The version is derived from
+pushed tags, so an interrupted run recomputes the same version and resumes: if
+the image was already staged or promoted from the same commit, the build is
+skipped and the run continues to the tag and release. If a published image for
+that version came from a different commit, it stops instead of overwriting it —
+release a higher version instead.
+
+To see what a release would do without publishing anything, run **Release
+rehearsal**. It computes the version, writes the changelog in the runner, builds
+the image, and smoke-tests it, then discards all of it.
+
+A version is required to advance and tags are checked for collisions. Until the
+first release there is no `:latest` image; build from source with
+`docker compose up --build` instead.
 
 The first published package is private by default, even from a public
 repository, so anonymous `docker pull` returns 401 until it is set to public once

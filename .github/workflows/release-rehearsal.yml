@@ -1,0 +1,159 @@
+name: Release rehearsal
+
+# Dry run for a release. Everything except publication: it computes the version,
+# rewrites package.json and CHANGELOG.md in the runner, builds the image, and
+# smoke-tests it. Nothing is pushed, tagged, published, or released.
+#
+# Use it to answer "what version would I get, and does the image actually boot?"
+# before running the real Release workflow. Running the rehearsal first is
+# cheaper than recovering a half-finished release.
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump to rehearse
+        type: choice
+        default: auto
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+      version:
+        description: Exact version to rehearse (overrides the bump)
+        required: false
+        type: string
+
+# Rehearsals only read the repository and push nothing, so they can be
+# cancelled freely.
+concurrency:
+  group: release-rehearsal
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      # Release work must happen against the real default-branch tip; a
+      # rehearsal from a stale branch would rehearse the wrong commits.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Test
+        run: bun run test:ci
+
+      - name: Create the candidate changelog and version
+        id: candidate
+        env:
+          REQUESTED: ${{ inputs.version }}
+          BUMP: ${{ inputs.bump }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # A rehearsal may name any version, including one already released, so
+          # only the requested version is validated here. The real workflow is
+          # what enforces "must advance".
+          if [[ -n "$REQUESTED" ]]; then
+            node scripts/check-release-version.mjs "$REQUESTED" || {
+              echo "::warning::The requested version would be rejected by the real release. Rehearsing it anyway."
+            }
+          fi
+
+          args=(--release --no-github --no-commit --no-tag)
+          if [[ -n "$REQUESTED" ]]; then
+            args+=(-r "$REQUESTED")
+          elif [[ "$BUMP" != "auto" ]]; then
+            args+=("--$BUMP")
+          fi
+
+          bunx changelogen "${args[@]}"
+
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "### Rehearsed version: \`$VERSION\`" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo ""
+            echo "No image, tag, or GitHub release was published."
+            echo ""
+            echo '```markdown'
+            head -40 CHANGELOG.md
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Show what would be committed
+        run: |
+          set -euo pipefail
+          echo "### Files the release would commit" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          git status --short >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          git status --short
+
+      # Build without pushing, then load it locally so the same
+      # boot-and-answer-health check as the real release can run.
+      - name: Build the image locally
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: ${{ env.IMAGE }}:rehearsal
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test the image
+        env:
+          STAGED: ${{ env.IMAGE }}:rehearsal
+        run: |
+          set -euo pipefail
+          docker run -d --name serangkai-rehearsal -p 3999:3000 \
+            -e ADMIN_USERNAME=smoke \
+            -e ADMIN_PASSWORD=smoke-test-password \
+            -e JWT_SECRET="$(openssl rand -hex 32)" \
+            -e SHARE_SECRET="$(openssl rand -hex 32)" \
+            "$STAGED"
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS --max-time 2 http://127.0.0.1:3999/api/health >/dev/null 2>&1; then
+              echo "Container is healthy." >> "$GITHUB_STEP_SUMMARY"
+              curl -fsS http://127.0.0.1:3999/api/health
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "::error::The image started but never answered /api/health."
+          docker logs serangkai-rehearsal || true
+          exit 1
+
+      - name: Stop the smoke container
+        if: always()
+        run: docker rm -f serangkai-rehearsal >/dev/null 2>&1 || true
+
+      - name: Remind that nothing was published
+        if: always()
+        run: |
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "This was a rehearsal. Run **Release** to publish." >> "$GITHUB_STEP_SUMMARY"

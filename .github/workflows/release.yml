@@ -1,13 +1,24 @@
 name: Release
 
 # Manual, one-click release: bump the version from conventional commits, write
-# CHANGELOG.md, then build and publish the multi-arch image — all in one run.
+# CHANGELOG.md, build and smoke-test the image, then publish it, tag it, and open
+# a GitHub release.
+#
+# Ordering is deliberate, because each step is more expensive to undo than the
+# last: test -> build -> smoke test -> publish image -> push tag -> create
+# release. Nothing irreversible happens until the image has actually booted.
+#
+# Re-running after a failure is the recovery path. The version derives only from
+# pushed tags, so an interrupted run recomputes the same version and either
+# resumes or rebuilds. If the image was already published from the same commit,
+# the build is skipped and the run continues to the tag and release. If the
+# published image came from a different commit, it stops instead of silently
+# overwriting a release.
 #
 # The image is built here rather than by .github/workflows/docker.yml on the tag,
 # because a tag pushed with GITHUB_TOKEN does not trigger `on: push: tags`
-# workflows. Chaining the two would create a green release with no image and no
-# error anywhere. docker.yml still builds on pull requests and on manually pushed
-# tags.
+# workflows. Chaining the two would produce a green release with no image and no
+# error anywhere.
 on:
   workflow_dispatch:
     inputs:
@@ -34,6 +45,9 @@ concurrency:
 permissions:
   contents: write
   packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
   release:
@@ -69,7 +83,7 @@ jobs:
         if: inputs.version != ''
         run: node scripts/check-release-version.mjs "${{ inputs.version }}"
 
-      - name: Create changelog, bump version, and tag
+      - name: Create changelog and bump version
         env:
           REQUESTED: ${{ inputs.version }}
           BUMP: ${{ inputs.bump }}
@@ -79,9 +93,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # --release is what performs the bump and writes CHANGELOG.md; the
-          # --no-* flags stop it committing, tagging, and calling GitHub, so the
-          # commit only happens after the image has been published. With no
-          # explicit version, changelogen derives the bump from the commits.
+          # --no-* flags stop it committing, tagging, and calling GitHub, so
+          # nothing is published until the image has been verified.
           args=(--release --no-github --no-commit --no-tag)
           if [[ -n "$REQUESTED" ]]; then
             args+=(-r "$REQUESTED")
@@ -94,12 +107,11 @@ jobs:
           VERSION="$(node -p "require('./package.json').version")"
           echo "--- changelog:"; head -12 CHANGELOG.md
 
-          # Re-validate whatever changelogen actually produced: an auto bump
-          # must still produce a valid version with no existing tag. The bump is
-          # already applied, so compare against the tag rather than package.json.
+          # Validate whatever changelogen produced. The bump is already applied,
+          # so this checks validity and tag availability, not advancement.
           node scripts/check-release-version.mjs "$VERSION" --verify-result
-        
-      - name: Commit and describe the release
+
+      - name: Stage the release commit locally
         id: release
         run: |
           set -euo pipefail
@@ -131,27 +143,93 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=raw,value=${{ steps.release.outputs.version }}
-            type=raw,value=latest
+      # Recovery: a re-run after a failure should resume, not rebuild. The
+      # staging tag is stamped with the exact commit, so it proves provenance
+      # without trusting labels on a multi-arch manifest.
+      - name: Check for an interrupted release
+        id: existing
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          staged="$IMAGE:sha-${{ github.sha }}"
+          if docker buildx imagetools inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
+            if docker buildx imagetools inspect "$staged" >/dev/null 2>&1; then
+              echo "$VERSION was already promoted from this commit; resuming."
+              echo "state=promoted" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::$VERSION already exists but was not built from this commit. Choose a higher version rather than overwriting a published release."
+              exit 1
+            fi
+          elif docker buildx imagetools inspect "$staged" >/dev/null 2>&1; then
+            echo "Already staged from this commit; skipping the rebuild."
+            echo "state=staged" >> "$GITHUB_OUTPUT"
+          else
+            echo "state=absent" >> "$GITHUB_OUTPUT"
+          fi
 
-      # The tag is only pushed after the image exists, so a failed build does
-      # not leave a release tag pointing at an unpublished version.
-      - name: Build and publish image
+      # Pushed under a staging tag only: if the smoke test fails, no version tag
+      # and no :latest exist yet.
+      - name: Build and stage the image
+        if: steps.existing.outputs.state == 'absent'
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.IMAGE }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.release.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # A build succeeding says nothing about the container starting. Boot the
+      # staged image and require a healthy response before promoting it.
+      - name: Smoke test the staged image
+        if: steps.existing.outputs.state == 'absent'
+        env:
+          STAGED: ${{ env.IMAGE }}:sha-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker run -d --name serangkai-smoke -p 3999:3000 \
+            -e ADMIN_USERNAME=smoke \
+            -e ADMIN_PASSWORD=smoke-test-password \
+            -e JWT_SECRET="$(openssl rand -hex 32)" \
+            -e SHARE_SECRET="$(openssl rand -hex 32)" \
+            "$STAGED"
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS --max-time 2 http://127.0.0.1:3999/api/health >/dev/null 2>&1; then
+              echo "Container is healthy."
+              curl -fsS http://127.0.0.1:3999/api/health
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "::error::The image started but never answered /api/health."
+          docker logs serangkai-smoke || true
+          exit 1
+
+      - name: Stop the smoke container
+        if: always() && steps.existing.outputs.state == 'absent'
+        run: docker rm -f serangkai-smoke >/dev/null 2>&1 || true
+
+      # Promotion is a manifest copy, not a rebuild, so :latest and the version
+      # tag are the exact bytes that were smoke tested.
+      - name: Promote to the version tag and latest
+        if: steps.existing.outputs.state != 'promoted'
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create \
+            -t "$IMAGE:$VERSION" \
+            -t "$IMAGE:latest" \
+            "$IMAGE:sha-${{ github.sha }}"
+
+      # Only now is anything irreversible published.
       - name: Push the release commit and tag
         run: git push origin "HEAD:${{ github.ref_name }}" --follow-tags
 
