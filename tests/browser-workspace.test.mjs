@@ -738,3 +738,34 @@ function triggerPageError(target) {
     return true
   })
 }
+
+test('share errors use the error design and short share pages keep the footer at the bottom', async () => {
+  const response = await page.goto(`${base}/share/definitely-not-a-share`)
+  assert.equal(response?.status(), 404)
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'This shared artifact is off the map.' }).waitFor())
+  assert.equal(await page.getByText('This link is invalid or the artifact is no longer shared.').count(), 1)
+  assert.equal(await page.locator('.serangkai-error-doodle').count(), 1)
+
+  const footerPosition = () => page.locator('footer').evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return { bottom: Math.round(rect.bottom), viewport: window.innerHeight }
+  })
+
+  let footer = await footerPosition()
+  assert.ok(Math.abs(footer.bottom - footer.viewport) <= 2, 'the error page footer must sit at the viewport bottom')
+
+  const sharePath = await page.evaluate(async () => {
+    const created = await fetch('/api/artifacts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Short share', type: 'markdown', content: '# Short share', visibility: 'public' }),
+    })
+    const { artifact } = await created.json()
+    return `/share/${artifact.slug}`
+  })
+
+  await page.goto(`${base}${sharePath}`)
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Short share' }).waitFor())
+  footer = await footerPosition()
+  assert.ok(Math.abs(footer.bottom - footer.viewport) <= 2, 'a short share footer must sit at the viewport bottom')
+})

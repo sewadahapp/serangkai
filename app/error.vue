@@ -7,7 +7,6 @@ const props = defineProps<{
 
 const route = useRoute()
 const { loggedIn } = useUserSession()
-const heading = ref<HTMLHeadingElement>()
 
 const statusCode = computed(() => Number(props.error?.statusCode) || 500)
 const isNotFound = computed(() => statusCode.value === 404)
@@ -81,8 +80,6 @@ useHead(() => ({
   title: `${title.value} · Serangkai`,
   meta: [{ name: 'robots', content: 'noindex, nofollow' }],
 }))
-
-onMounted(() => heading.value?.focus())
 </script>
 
 <template>
@@ -99,42 +96,23 @@ onMounted(() => heading.value?.focus())
       </header>
 
       <main class="serangkai-shell flex flex-1 items-center py-10 md:py-16">
-        <div class="grid w-full items-center gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
-          <section>
-            <p class="serangkai-eyebrow">{{ eyebrow }}</p>
-            <h1
-              ref="heading"
-              tabindex="-1"
-              class="serangkai-balance mt-3 text-4xl font-bold leading-[1.08] tracking-tight outline-none sm:text-5xl"
-            >
-              {{ title }}
-            </h1>
-            <p class="serangkai-pretty mt-4 max-w-xl text-lg leading-relaxed text-[var(--selaras-resolved-text-muted)]">
-              {{ description }}
-            </p>
-
-            <div class="mt-8 flex flex-wrap items-center gap-3">
-              <SButton size="lg" :icon="primaryIcon" @click="goBackToApp">{{ primaryLabel }}</SButton>
-              <SButton v-if="canRetry" size="lg" variant="outline" icon="lucide:refresh-cw" @click="retry">Try again</SButton>
-            </div>
-
-            <p class="mt-6 text-sm text-[var(--selaras-resolved-text-muted)]">
-              Error code <span class="serangkai-tabular font-mono text-[var(--selaras-resolved-text-default)]">{{ statusCode }}</span>
-              <template v-if="isNotFound && !loggedIn">
-                · New here? <NuxtLink to="/auth/login" class="underline underline-offset-4 hover:text-[var(--selaras-resolved-text-default)]">Sign in</NuxtLink>
-              </template>
-            </p>
-
-            <details v-if="detail" class="mt-6 max-w-xl rounded-md border border-[var(--selaras-resolved-border-muted)] p-3 text-sm">
-              <summary class="cursor-pointer font-medium">Error details (development only)</summary>
-              <pre class="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-[var(--selaras-resolved-text-muted)]">{{ detail }}</pre>
-            </details>
-          </section>
-
-          <div class="mx-auto w-full max-w-md lg:max-w-none">
-            <SerangkaiErrorDoodle :variant="isNotFound ? 'lost' : 'torn'" />
-          </div>
-        </div>
+        <SerangkaiErrorHero
+          :eyebrow="eyebrow"
+          :title="title"
+          :description="description"
+          :detail="detail"
+          :status-code="statusCode"
+          :variant="isNotFound ? 'lost' : 'torn'"
+          :primary-label="primaryLabel"
+          :primary-icon="primaryIcon"
+          :retry-label="canRetry ? 'Try again' : undefined"
+          @primary="goBackToApp"
+          @retry="retry"
+        >
+          <template v-if="isNotFound && !loggedIn" #footnote>
+            · New here? <NuxtLink to="/auth/login" class="underline underline-offset-4 hover:text-[var(--selaras-resolved-text-default)]">Sign in</NuxtLink>
+          </template>
+        </SerangkaiErrorHero>
       </main>
 
       <footer class="border-t border-[var(--selaras-resolved-border-muted)] py-6">

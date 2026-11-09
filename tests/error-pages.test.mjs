@@ -78,3 +78,37 @@ test('unknown API-style requests still get a JSON 404', async () => {
   const body = await response.json()
   assert.equal(body.statusCode, 404)
 })
+
+test('missing share links render the custom error design', async () => {
+  const response = await htmlPage('/share/definitely-not-a-share')
+  assert.equal(response.status, 404)
+
+  const body = await response.text()
+  assert.match(body, /This shared artifact is off the map\./)
+  assert.match(body, /This link is invalid or the artifact is no longer shared\./)
+  assert.match(body, /Error code/)
+  assert.match(body, /serangkai-error-doodle/)
+  assert.match(body, /Back to Serangkai/)
+  assert.match(body, /Shared from Serangkai/)
+  assert.doesNotMatch(body, /at Object\.|node_modules\/|__NUXT_ERROR/)
+})
+
+test('private share links render the forbidden error design', async () => {
+  const { cookie } = await login(base)
+  const created = await fetch(`${base}/api/artifacts`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Private share', type: 'markdown', content: '# Private', visibility: 'private' }),
+  })
+  const { artifact } = await created.json()
+
+  const response = await htmlPage(`/share/${artifact.slug}`)
+  assert.equal(response.status, 403)
+
+  const body = await response.text()
+  assert.match(body, /This shared artifact is private\./)
+  assert.match(body, /Error 403 · Private artifact/)
+  assert.match(body, /serangkai-error-doodle/)
+  assert.match(body, /Back to Serangkai/)
+  assert.doesNotMatch(body, /at Object\.|node_modules\/|__NUXT_ERROR/)
+})

@@ -1,6 +1,6 @@
 <template>
   <div
-    class="bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]"
+    class="flex min-h-dvh flex-col bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]"
   >
     <header class="sticky top-0 z-40 shrink-0 border-b border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-canvas)]">
       <div class="serangkai-shell flex h-16 items-center justify-between gap-4">
@@ -17,16 +17,32 @@
       </div>
     </header>
 
+    <!-- A missing or private share keeps the reader chrome but uses the same
+         error hero as the rest of the app. -->
+    <main v-if="errorInfo" class="serangkai-shell flex flex-1 items-center py-10 md:py-16">
+      <SerangkaiErrorHero
+        :eyebrow="errorInfo.eyebrow"
+        :title="errorInfo.title"
+        :description="errorInfo.description"
+        :status-code="errorInfo.statusCode"
+        :variant="errorInfo.variant"
+        primary-label="Back to Serangkai"
+        primary-to="/"
+        :retry-label="canRetryShared ? 'Try again' : undefined"
+        @retry="refresh"
+      >
+        <template v-if="errorInfo.statusCode === 403" #actions>
+          <SButton size="lg" variant="ghost" icon="lucide:log-in" to="/auth/login">Sign in</SButton>
+        </template>
+      </SerangkaiErrorHero>
+    </main>
+
     <!-- Framed, PDF, and source artifacts are the document itself rather than a
          preview inside the page: they use the full width, and the frame or
          viewer fills the first screen. The footer follows in normal flow, so
          only the header is pinned. -->
-    <main v-if="isFill">
-      <p v-if="error" role="alert" class="serangkai-shell p-6">
-        <span class="serangkai-panel block p-5 text-sm text-[var(--selaras-resolved-color-danger-text)]">{{ error }}</span>
-      </p>
-
-      <template v-else-if="artifact">
+    <main v-else-if="isFill" class="flex-1">
+      <template v-if="artifact">
         <SerangkaiHtmlPreview
           v-if="isFramed && artifact.rawUrl"
           flush
@@ -53,12 +69,8 @@
     </main>
 
     <!-- Markdown and images scroll like a document. -->
-    <main v-else class="serangkai-shell py-10">
-      <p v-if="error" role="alert" class="serangkai-panel mx-auto max-w-[46rem] p-5 text-sm text-[var(--selaras-resolved-color-danger-text)]">
-        {{ error }}
-      </p>
-
-      <template v-else-if="artifact">
+    <main v-else class="serangkai-shell flex-1 py-10">
+      <template v-if="artifact">
         <!-- Markdown keeps its prose measure and contents rail. -->
         <div v-if="artifact.type === 'markdown'" class="mx-auto grid max-w-5xl grid-cols-1 gap-10 lg:grid-cols-[minmax(0,46rem)_13rem]">
           <article>
@@ -91,7 +103,8 @@
     </main>
 
     <!-- Every shared type carries the same chrome, so a link always ends the
-         same way. Only the header is pinned; the footer follows the content. -->
+         same way. Only the header is pinned; the footer closes the page and is
+         pushed to the viewport bottom when the content is short. -->
     <footer class="border-t border-[var(--selaras-resolved-border-muted)] py-6">
       <div class="serangkai-shell flex flex-col gap-2 text-sm text-[var(--selaras-resolved-text-muted)] sm:flex-row sm:items-center sm:justify-between">
         <p>Shared from Serangkai — a private-by-default artifact workspace.</p>
@@ -137,7 +150,7 @@ const slug = String(route.params.slug)
 const key = typeof route.query.k === 'string' ? route.query.k : ''
 const requestFetch = useRequestFetch()
 
-const { data: artifact, error: fetchError } = await useAsyncData(
+const { data: artifact, error: fetchError, refresh } = await useAsyncData(
   `shared-artifact:${slug}`,
   () => requestFetch<SharedArtifact>(`/api/share/${slug}`, {
     query: { ...(key ? { k: key } : {}), format: 'json' },
@@ -173,13 +186,45 @@ const updatedLabel = computed(() => (
     : ''
 ))
 
-const error = computed(() => {
-  const statusCode = (fetchError.value as any)?.statusCode
-  if (!fetchError.value) return ''
-  if (statusCode === 404) return 'This link is invalid or the artifact is no longer shared.'
-  if (statusCode === 403) return 'This artifact is private. Sign in as its owner to view it.'
-  return 'Unable to load this shared artifact.'
+interface SharedError {
+  statusCode: number
+  variant: 'lost' | 'torn'
+  eyebrow: string
+  title: string
+  description: string
+}
+
+const errorInfo = computed<SharedError | null>(() => {
+  if (!fetchError.value) return null
+  const statusCode = Number((fetchError.value as any)?.statusCode) || 500
+  if (statusCode === 404) {
+    return {
+      statusCode,
+      variant: 'lost',
+      eyebrow: 'Error 404 · Not found',
+      title: 'This shared artifact is off the map.',
+      description: 'This link is invalid or the artifact is no longer shared. Ask the owner for a fresh link, or open Serangkai.',
+    }
+  }
+  if (statusCode === 403) {
+    return {
+      statusCode,
+      variant: 'torn',
+      eyebrow: 'Error 403 · Private artifact',
+      title: 'This shared artifact is private.',
+      description: 'This artifact is private. Sign in as its owner to view it, or open Serangkai to continue.',
+    }
+  }
+  return {
+    statusCode,
+    variant: 'torn',
+    eyebrow: 'Error 500 · Server error',
+    title: 'Something snapped.',
+    description: 'The shared artifact could not be loaded, but nothing was lost. Try again, or open Serangkai.',
+  }
 })
+
+const canRetryShared = computed(() => !!errorInfo.value && errorInfo.value.statusCode >= 500)
 
 // A missing or unauthorized share should answer 404/403, not a soft 200.
 if (import.meta.server && fetchError.value) {
@@ -188,7 +233,9 @@ if (import.meta.server && fetchError.value) {
 }
 
 useHead(() => ({
-  title: artifact.value ? `${artifact.value.title} · Serangkai` : 'Shared artifact · Serangkai',
+  title: artifact.value
+    ? `${artifact.value.title} · Serangkai`
+    : errorInfo.value ? `${errorInfo.value.title} · Serangkai` : 'Shared artifact · Serangkai',
   meta: [{ name: 'robots', content: 'noindex, nofollow' }],
 }))
 </script>

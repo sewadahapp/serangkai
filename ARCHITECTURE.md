@@ -310,6 +310,13 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   overview, API-token loading, and artifact loading all use it. Secondary
   artifact requests (history and folder names) use `Promise.allSettled`, so
   their failure cannot blank an artifact that already loaded.
+- `SerangkaiErrorHero` is shared by the full-page error screen and the public
+  share reader, so a missing or private share uses the same illustration,
+  typography, status code, and recovery actions while keeping the reader's own
+  header and footer.
+- The default layout, the full-page error screen, and the share reader are flex
+  columns with `min-h-dvh`; their footer sits at the viewport bottom when the
+  content is shorter than the screen.
 - `NuxtErrorBoundary` wraps `NuxtPage`. A component failure keeps the layout and
   navigation available, and `router.afterEach` clears the boundary when the
   route changes so the fallback cannot cover the next page. The fallback's retry
