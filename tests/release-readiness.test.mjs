@@ -45,3 +45,18 @@ test('the README keeps credentials environment-provided', async () => {
   assert.match(readme, /choose-a-strong-password/)
   assert.doesNotMatch(readme, /ADMIN_PASSWORD=['"][^'"]*[A-Za-z0-9]{12,}['"]/)
 })
+
+test('the declared license exists as a file', async () => {
+  // "MIT" in a README is a statement of intent, not a grant of rights. A public
+  // repository needs the actual text, and package.json must agree with it.
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.equal(pkg.license, 'MIT')
+
+  const license = await readFile(new URL('../LICENSE', import.meta.url), 'utf8')
+  assert.match(license, /^MIT License/)
+  assert.match(license, /Copyright \(c\) \d{4} Sewadah/)
+  assert.match(license, /WITHOUT WARRANTY OF ANY KIND/)
+
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
+  assert.match(readme, /\[LICENSE\]\(LICENSE\)/)
+})

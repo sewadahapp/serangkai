@@ -2,6 +2,7 @@
   "name": "serangkai",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "build": "bun run build:runtime && bun --bun run nuxt build",
     "build:node": "bun run build:runtime && NITRO_PRESET=node-server bun --bun run nuxt build",

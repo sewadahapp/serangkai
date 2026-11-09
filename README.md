@@ -147,4 +147,4 @@ creating and updating artifacts. Tokens are hashed at rest and can be revoked.
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
