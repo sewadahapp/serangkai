@@ -9,12 +9,22 @@ declare const __SERANGKAI_CLOUDFLARE__: boolean
  * Nitro's storage layer is unstorage, so the same keys work against the local
  * filesystem, an R2 binding, or S3-compatible object storage. The driver is
  * selected at runtime so credentials and paths never get baked into the build.
+ * On Cloudflare the default stays the native R2 binding; `STORAGE_DRIVER=s3`
+ * selects an external S3-compatible provider such as Backblaze B2 instead.
  */
-export default defineNitroPlugin(async () => {
+export default defineNitroPlugin(async (nitroApp) => {
   const storage = useStorage()
   const config = getServerConfig()
 
   if (__SERANGKAI_CLOUDFLARE__) {
+    const selected = process.env.STORAGE_DRIVER || 'r2-binding'
+    if (selected === 's3') {
+      await mountS3(nitroApp, storage, config)
+      return
+    }
+    if (selected !== 'r2-binding') {
+      throw new Error(`STORAGE_DRIVER "${selected}" is not available on Cloudflare Workers. Use r2-binding or s3.`)
+    }
     const { default: r2Driver } = await import('unstorage/drivers/cloudflare-r2-binding')
     const driver = r2Driver({ binding: config.r2Binding })
     try {
@@ -37,11 +47,34 @@ export default defineNitroPlugin(async () => {
   }
 
   if (config.storageDriver === 's3') {
-    const { default: s3Driver } = await import('unstorage/drivers/s3')
-    storage.mount('artifacts', s3Driver(config.s3))
+    await mountS3(nitroApp, storage, config)
     return
+  }
+  if (config.storageDriver === 'r2-binding') {
+    throw new Error('STORAGE_DRIVER=r2-binding is only available on Cloudflare Workers. Use local or s3 here.')
   }
 
   const { default: fsDriver } = await import('unstorage/drivers/fs')
   storage.mount('artifacts', fsDriver({ base: config.storagePath }))
 })
+
+/**
+ * S3 mounts without an eager probe: Cloudflare Workers forbid network I/O in
+ * global scope, where Nitro initializes plugins. The driver probes the bucket
+ * once on the first storage operation — the request hook below makes that the
+ * first request, so a misconfigured deployment fails before it serves anything.
+ * There is deliberately no ephemeral-memory fallback for S3.
+ */
+async function mountS3(nitroApp: any, storage: ReturnType<typeof useStorage>, config: ReturnType<typeof getServerConfig>) {
+  const { s3Driver } = await import('../utils/s3-driver')
+  const driver = s3Driver(config.s3)
+  storage.mount('artifacts', driver)
+  nitroApp.hooks.hook('request', async () => {
+    try {
+      await driver.getInstance()
+    } catch (error: any) {
+      console.error(`[serangkai] S3 storage is unavailable: ${error?.message || error}`)
+      throw error
+    }
+  })
+}
