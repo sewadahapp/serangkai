@@ -371,8 +371,16 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   before the server module loads (`scripts/start.mjs`). NUXT_APP_SECRET remains
   an explicit override for edge runtimes.
 - Passwords use auth-utils' scrypt helper. Browser sessions and REST bearer
-  tokens are separate: an Authorization header is validated on its own and never
-  falls back to a cookie, and MCP refuses to run on a session alone.
+  tokens are separate: any Authorization header is validated on its own and
+  never falls back to a cookie, and MCP refuses to run on a session alone. The
+  Bearer scheme is parsed case-insensitively; a malformed header is an invalid
+  credential, not a session.
+- Login is throttled per process with a fixed window (ten failures per fifteen
+  minutes by default). JSON and native form posts share the limit, unknown users
+  run a dummy scrypt verification, and every failure is the same generic message.
+  `X-Forwarded-For` is ignored unless `TRUST_PROXY=true` or the socket peer is in
+  `TRUSTED_PROXY_IPS`; otherwise a caller could rotate the header to reset its
+  bucket. A successful login clears the bucket.
 - The single owner is created or adopted at first request
   (`server/utils/owner.ts`). The owner id is stable; username/password changes
   rotate credentials in place. A multi-user database fails with instructions
@@ -394,11 +402,25 @@ adding a second system to configure would buy nothing.
   `/.well-known/openid-configuration`). Every URL is built by
   `server/utils/oauth-urls.ts` from the incoming request, honoring
   `X-Forwarded-*` and the existing `PUBLIC_BASE_URL` override for proxies that
-  rewrite `Host`.
+  rewrite `Host`. Set `PUBLIC_BASE_URL` in that deployment: without it, the
+  incoming host is trusted for OAuth metadata and audience checks.
 - **Endpoints.** `/oauth/authorize` (consent page and decision),
   `/oauth/register` (RFC 7591 dynamic registration, rate-limited),
   `/oauth/token` (authorization code + refresh rotation), `/oauth/revoke`
   (RFC 7009). PKCE `S256` is mandatory and the implicit flow does not exist.
+- **Registration is bounded.** Only JSON is accepted, bodies are capped at
+  32 KiB, redirect lists at ten entries of 2,048 characters, and client
+  metadata at 500 characters. Only the `none` and `client_secret_post` auth
+  methods the server can verify are accepted; anything else is rejected rather
+  than downgraded. Requested scopes are capped at `read`/`write`.
+- **Grants are audience-bound.** Every code, device grant, and token stores the
+  canonical `${origin}/api/mcp` resource. A request may omit `resource` (it
+  defaults to that one resource) but an explicit value must match structurally:
+  same protocol, host, and path, with no query, fragment, or credentials. The
+  token endpoint returns `invalid_target` on a mismatch, and `/api/mcp` rejects
+  an access token issued for another resource. Legacy grants with a null
+  resource are adopted on first refresh or first MCP request; hand-minted API
+  tokens have no grant row and are unaffected.
 - **Headless sign-in (RFC 8628).** `/oauth/device-authorization` issues a device
   code plus a short `WDJB-MJHT`-style user code; `/oauth/device` is the
   activation page where the owner types or follows it. The token endpoint
@@ -420,20 +442,31 @@ adding a second system to configure would buy nothing.
   agent cannot escalate into credential management. Only the scopes the owner
   leaves checked are persisted, even if the client asked for more; checking
   nothing is a denial, not a default.
-- **Consent is explicit.** The page shows the client name, the exact redirect
-  URI, and each permission in plain language. Registration alone grants
-  nothing. Unknown clients and unregistered redirect URIs are answered with an
-  error page, never a redirect; matching is exact except for loopback ports
-  (RFC 8252 §7.3).
+- **Consent is explicit and request-bound.** The page shows the client name,
+  the exact redirect URI, and each permission in plain language. Registration
+  alone grants nothing. Unknown clients and unregistered redirect URIs are
+  answered with an error page, never a redirect; matching is exact except for
+  loopback ports (RFC 8252 §7.3). The GET stores a random nonce plus a
+  fingerprint of the whole request in the sealed session; the POST must present
+  the nonce and consumes the state once, so a cross-site form cannot approve a
+  request the owner never rendered. Up to eight pending pages are kept for
+  multiple tabs, and a bearer token cannot approve an OAuth client.
 - **Grants are revocable.** Settings → Connected agents lists approved clients
   and disconnects them. Revocation deletes the whole grant, so the access token
   and its refresh token both die immediately. Refresh tokens rotate on every
-  use, so a replayed one fails.
+  use, so a replayed one fails. Rotation is a conditional update inside a SQLite
+  transaction or a D1 batch: exactly one concurrent request wins, the loser's
+  new access token is deleted, and the grant id stays stable so Settings still
+  shows one connection.
 - **Storage.** `oauth_clients`, `oauth_codes` (keyed by the code's SHA-256, so
   the database never holds a usable code), and `oauth_tokens` (which links to
   the hashed `api_tokens` row so the existing request middleware authenticates
-  it unchanged). `ensureOAuthSchema` adds these tables to pre-existing
-  databases; it is additive and never rewrites rows.
+  it unchanged, and stores the RFC 8707 `resource`). `ensureOAuthSchema` adds
+  these tables and the `resource` column to pre-existing databases; it is
+  additive and never rewrites rows. On D1, initialization is a shared
+  per-isolate promise: concurrent requests wait for the same migration, and a
+  failure clears the promise so the next request retries instead of serving a
+  half-initialized schema.
 - **Settings surfaces are session-only.** `requireSessionUser` guards token and
   grant management, so a bearer token cannot list credentials or disconnect
   clients — including an OAuth grant trying to enumerate its siblings.
@@ -461,9 +494,9 @@ convenience path for clients that support it. Both resolve to the same scoped
 `api_tokens` row at request time.
 
 ### Security Considerations
-- **Auth**: scrypt password hashes; sealed HttpOnly session cookies; rotated by changing ADMIN_PASSWORD or JWT_SECRET
-- **API Tokens**: SHA-256 hashed, scoped (`read`/`write`/`full`), optional expiry
-- **Authorization**: All private resources check ownership; API tokens checked for scopes
+- **Auth**: scrypt password hashes; sealed HttpOnly session cookies; rotated by changing ADMIN_PASSWORD or JWT_SECRET; login throttled with generic failures and no X-Forwarded-For bypass by default
+- **API Tokens**: SHA-256 hashed, scoped (`read`/`write`/`full`), optional expiry; OAuth tokens are audience-bound to `/api/mcp`
+- **Authorization**: All private resources check ownership; API tokens checked for scopes; unlisted downloads require the share key; read-only tokens cannot mint share links
 - **XSS/Sanitization**: Sanitize user input; careful with HTML rendering
 - **Sandboxing**: HTML/JS artifacts rendered in sandboxed iframes with restrictive CSP; the opt-in Mermaid/chart runtime is same-origin, declarative, and network-denied
 - **File Uploads**: Validate file types, size limits, scan if needed

@@ -39,6 +39,17 @@ These four values must stay configured across redeployments:
 | `JWT_SECRET` | Stable root secret for the sealed browser session. Rotating it signs everyone out. |
 | `SHARE_SECRET` | Signs unlisted share links. Rotating it invalidates existing signed links. |
 
+Optional deployment settings:
+
+- `PUBLIC_BASE_URL` — canonical origin for OAuth metadata and audience checks.
+  Set it when a reverse proxy rewrites `Host`.
+- `TRUST_PROXY=true`, or `TRUSTED_PROXY_IPS` with the proxy's socket addresses,
+  makes rate limiting honor `X-Forwarded-For`. Leave both unset otherwise: the
+  header is caller-controlled and is ignored by default.
+- `SERANGKAI_LOGIN_RATE_LIMIT` / `SERANGKAI_LOGIN_RATE_WINDOW_MS` tune the
+  per-process login throttle; `SERANGKAI_OAUTH_REGISTER_RATE_LIMIT` and
+  `SERANGKAI_OAUTH_AUTHORIZE_RATE_LIMIT` tune OAuth throttling.
+
 `SERANGKAI_ALLOW_EPHEMERAL_STORAGE` is test-only and must not be set in
 production.
 
