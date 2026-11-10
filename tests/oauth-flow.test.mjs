@@ -34,6 +34,11 @@ before(async () => {
       SHARE_SECRET: randomBytes(32).toString('hex'),
       DATABASE_PATH: join(dataDir, 'serangkai.db'),
       STORAGE_PATH: join(dataDir, 'files'),
+      // The suite talks to the server over loopback and deliberately uses
+      // X-Forwarded-For to isolate rate-limit buckets.
+      TRUST_PROXY: 'true',
+      SERANGKAI_OAUTH_REGISTER_RATE_LIMIT: '1000',
+      SERANGKAI_OAUTH_AUTHORIZE_RATE_LIMIT: '1000',
     },
     stdio: 'ignore',
   })
@@ -74,13 +79,27 @@ async function registerClient(redirectUri, overrides = {}) {
   return { response, body: await response.json() }
 }
 
-/**
- * Approve an authorization request the way the consent form does. The form
- * submits one `scopes` entry per checked box, so the helper has to as well;
- * omitting them means the owner unchecked everything.
- */
-async function authorize({ clientId, redirectUri, challenge, scope = 'read write', state = 'xyz', decision = 'approve', scopes = scope }) {
-  const body = new URLSearchParams({
+function decodeHtml(value) {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+}
+
+/** Read the hidden inputs a real browser would submit with the consent form. */
+function consentFields(html) {
+  const fields = {}
+  for (const match of html.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)">/g)) {
+    fields[decodeHtml(match[1])] = decodeHtml(match[2])
+  }
+  return fields
+}
+
+/** Render the consent page and return the updated session cookie. */
+async function consentPage({ clientId, redirectUri, challenge, scope = 'read write', state = 'xyz', resource }) {
+  const query = new URLSearchParams({
     response_type: 'code',
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -88,30 +107,64 @@ async function authorize({ clientId, redirectUri, challenge, scope = 'read write
     code_challenge_method: 'S256',
     scope,
     state,
-    decision,
   })
+  if (resource) query.set('resource', resource)
+  const response = await fetch(`${base}/oauth/authorize?${query}`, {
+    headers: { cookie },
+    redirect: 'manual',
+  })
+  return {
+    response,
+    html: await response.text(),
+    cookie: response.headers.get('set-cookie') || cookie,
+  }
+}
+
+/**
+ * Approve an authorization request the way the consent form does: first GET
+ * the page (which binds the request to the sealed session), then POST the
+ * hidden fields plus one `scopes` entry per checked box. Omitting the scopes
+ * means the owner unchecked everything.
+ */
+async function authorize({
+  clientId,
+  redirectUri,
+  challenge,
+  scope = 'read write',
+  state = 'xyz',
+  decision = 'approve',
+  scopes = scope,
+  resource,
+}) {
+  const page = await consentPage({ clientId, redirectUri, challenge, scope, state, resource })
+  if (page.response.status !== 200) return page.response
+
+  const body = new URLSearchParams(consentFields(page.html))
+  body.set('decision', decision)
   if (decision === 'approve') {
     for (const value of String(scopes).split(/\s+/).filter(Boolean)) body.append('scopes', value)
   }
   return fetch(`${base}/oauth/authorize`, {
     method: 'POST',
-    headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { cookie: page.cookie, 'content-type': 'application/x-www-form-urlencoded' },
     body,
     redirect: 'manual',
   })
 }
 
-async function exchangeCode({ clientId, code, redirectUri, verifier }) {
+async function exchangeCode({ clientId, code, redirectUri, verifier, resource }) {
+  const body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: clientId,
+    code,
+    redirect_uri: redirectUri,
+    code_verifier: verifier,
+  })
+  if (resource) body.set('resource', resource)
   const response = await fetch(`${base}/oauth/token`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
-      client_id: clientId,
-      code,
-      redirect_uri: redirectUri,
-      code_verifier: verifier,
-    }),
+    body,
   })
   return { response, body: await response.json() }
 }
@@ -172,6 +225,31 @@ test('registration validates redirect URIs and never grants admin scope', async 
   const escalated = await registerClient('https://app.example/cb', { scope: 'read write full' })
   assert.equal(escalated.response.status, 201)
   assert.equal(escalated.body.scope, 'read write')
+
+  // An auth method this server cannot verify is rejected, not silently
+  // downgraded to a public client.
+  const basic = await registerClient('https://app.example/cb', {
+    token_endpoint_auth_method: 'client_secret_basic',
+  })
+  assert.equal(basic.response.status, 400)
+  assert.equal(basic.body.error, 'invalid_client_metadata')
+
+  const wrongType = await fetch(`${base}/oauth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'text/plain' },
+    body: JSON.stringify({ redirect_uris: ['https://app.example/cb'] }),
+  })
+  assert.equal(wrongType.status, 415)
+
+  const oversized = await fetch(`${base}/oauth/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      redirect_uris: ['https://app.example/cb'],
+      client_name: 'x'.repeat(40 * 1024),
+    }),
+  })
+  assert.equal(oversized.status, 413)
 })
 
 test('a full code exchange issues working tokens, and the code cannot be replayed', async () => {
@@ -248,6 +326,101 @@ test('PKCE, client binding, and redirect URI are all enforced', async () => {
   }
 })
 
+test('resource indicators are enforced at consent, exchange, refresh, and MCP', async () => {
+  const redirectUri = 'https://client.example/callback'
+  const { body: client } = await registerClient(redirectUri)
+  const { verifier, challenge } = pkcePair()
+  const canonical = `${base}/api/mcp`
+  const foreign = 'https://evil.example/api/mcp'
+
+  const refusedConsent = await consentPage({
+    clientId: client.client_id,
+    redirectUri,
+    challenge,
+    resource: foreign,
+  })
+  assert.equal(refusedConsent.response.status, 400)
+
+  const page = await consentPage({
+    clientId: client.client_id,
+    redirectUri,
+    challenge,
+    resource: canonical,
+  })
+  assert.equal(page.response.status, 200)
+  const approvalBody = new URLSearchParams(consentFields(page.html))
+  approvalBody.set('decision', 'approve')
+  approvalBody.append('scopes', 'read')
+  const approval = await fetch(`${base}/oauth/authorize`, {
+    method: 'POST',
+    headers: { cookie: page.cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: approvalBody,
+    redirect: 'manual',
+  })
+  assert.equal(approval.status, 302)
+  const code = new URL(approval.headers.get('location')).searchParams.get('code')
+
+  // A wrong audience does not consume the code; the correct retry succeeds.
+  const wrongExchange = await exchangeCode({
+    clientId: client.client_id,
+    code,
+    redirectUri,
+    verifier,
+    resource: foreign,
+  })
+  assert.equal(wrongExchange.response.status, 400)
+  assert.equal(wrongExchange.body.error, 'invalid_target')
+  const goodExchange = await exchangeCode({
+    clientId: client.client_id,
+    code,
+    redirectUri,
+    verifier,
+    resource: canonical,
+  })
+  assert.equal(goodExchange.response.status, 200)
+
+  const refresh = (refreshToken, resource) => {
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: client.client_id,
+      refresh_token: refreshToken,
+    })
+    if (resource) body.set('resource', resource)
+    return fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    })
+  }
+
+  const wrongRefresh = await refresh(goodExchange.body.refresh_token, foreign)
+  assert.equal(wrongRefresh.status, 400)
+  assert.equal((await wrongRefresh.json()).error, 'invalid_target')
+
+  const goodRefresh = await refresh(goodExchange.body.refresh_token, canonical)
+  assert.equal(goodRefresh.status, 200)
+  const rotated = await goodRefresh.json()
+
+  // If the stored audience no longer names this MCP endpoint, the access token
+  // is refused even though the token row is otherwise valid.
+  const { Database } = await import('bun:sqlite')
+  const db = new Database(join(dataDir, 'serangkai.db'))
+  db.prepare('UPDATE oauth_tokens SET resource = ?').run(foreign)
+  db.close()
+
+  const mcp = await fetch(`${base}/api/mcp`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${rotated.access_token}`,
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+  })
+  assert.equal(mcp.status, 401)
+  assert.match(mcp.headers.get('www-authenticate') || '', /invalid_token/)
+})
+
 test('an unregistered redirect URI is refused instead of redirected to', async () => {
   const { body: client } = await registerClient('https://client.example/callback')
   const { challenge } = pkcePair()
@@ -303,21 +476,12 @@ test('unchecking a scope on the consent page narrows the grant', async () => {
   // The client asks for read+write, the owner approves only read. A single
   // checked box serializes as one string, which used to be discarded in favour
   // of the full request.
-  const approval = await fetch(`${base}/oauth/authorize`, {
-    method: 'POST',
-    headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      response_type: 'code',
-      client_id: client.client_id,
-      redirect_uri: redirectUri,
-      code_challenge: pair.challenge,
-      code_challenge_method: 'S256',
-      scope: 'read write',
-      state: 'narrow',
-      decision: 'approve',
-      scopes: 'read',
-    }),
-    redirect: 'manual',
+  const approval = await authorize({
+    clientId: client.client_id,
+    redirectUri,
+    challenge: pair.challenge,
+    state: 'narrow',
+    scopes: 'read',
   })
   assert.equal(approval.status, 302)
   const code = new URL(approval.headers.get('location')).searchParams.get('code')
@@ -351,7 +515,34 @@ test('unchecking every scope is refused rather than defaulting to full access', 
   const redirectUri = 'https://client.example/callback'
   const { body: client } = await registerClient(redirectUri)
   const { challenge } = pkcePair()
+  const page = await consentPage({
+    clientId: client.client_id,
+    redirectUri,
+    challenge,
+    state: 'none',
+  })
+  assert.equal(page.response.status, 200)
 
+  const body = new URLSearchParams(consentFields(page.html))
+  body.set('decision', 'approve')
+  // No `scopes` field at all: every box was unchecked.
+  const response = await fetch(`${base}/oauth/authorize`, {
+    method: 'POST',
+    headers: { cookie: page.cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body,
+    redirect: 'manual',
+  })
+  assert.equal(response.status, 400)
+  assert.equal(response.headers.get('location'), null)
+})
+
+test('a consent POST without rendering the page is refused', async () => {
+  const redirectUri = 'https://client.example/callback'
+  const { body: client } = await registerClient(redirectUri)
+  const { challenge } = pkcePair()
+
+  // A cross-site form can submit every visible value, but it cannot add the
+  // request binding to the owner's sealed session. No code may be issued.
   const response = await fetch(`${base}/oauth/authorize`, {
     method: 'POST',
     headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
@@ -362,14 +553,45 @@ test('unchecking every scope is refused rather than defaulting to full access', 
       code_challenge: challenge,
       code_challenge_method: 'S256',
       scope: 'read write',
-      state: 'none',
+      state: 'csrf',
       decision: 'approve',
-      // No `scopes` field at all: every box was unchecked.
+      scopes: 'read',
     }),
     redirect: 'manual',
   })
   assert.equal(response.status, 400)
   assert.equal(response.headers.get('location'), null)
+
+  // Even after the owner renders the page, a cross-site form cannot know the
+  // random token hidden in that page. A POST without it must fail, and the
+  // failed attempt must not consume the state needed by the real form.
+  const page = await consentPage({ clientId: client.client_id, redirectUri, challenge })
+  const fields = consentFields(page.html)
+  assert.ok(fields.consent_token)
+  const withoutToken = new URLSearchParams(fields)
+  withoutToken.delete('consent_token')
+  withoutToken.set('decision', 'approve')
+  withoutToken.append('scopes', 'read')
+  const missingToken = await fetch(`${base}/oauth/authorize`, {
+    method: 'POST',
+    headers: { cookie: page.cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: withoutToken,
+    redirect: 'manual',
+  })
+  assert.equal(missingToken.status, 400)
+  assert.equal(missingToken.headers.get('location'), null)
+
+  const approved = new URLSearchParams(fields)
+  approved.set('decision', 'approve')
+  approved.append('scopes', 'read')
+  const success = await fetch(`${base}/oauth/authorize`, {
+    method: 'POST',
+    headers: { cookie: page.cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: approved,
+    redirect: 'manual',
+  })
+  assert.equal(success.status, 302)
+  assert.ok(new URL(success.headers.get('location')).searchParams.get('code'))
 })
 
 test('refresh tokens rotate and the old one stops working', async () => {
@@ -621,6 +843,21 @@ test('browser-based clients can pass CORS preflight on the OAuth surface', async
   // A non-OAuth path is untouched.
   const unrelated = await fetch(`${base}/api/health`, { method: 'OPTIONS' })
   assert.equal(unrelated.headers.get('access-control-allow-origin'), null)
+})
+
+test('device authorization rejects a foreign resource', async () => {
+  const { body: client } = await registerClient('https://unused.example/cb')
+  const response = await fetch(`${base}/oauth/device-authorization`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: client.client_id,
+      scope: 'read',
+      resource: 'https://evil.example/api/mcp',
+    }),
+  })
+  assert.equal(response.status, 400)
+  assert.equal((await response.json()).error, 'invalid_target')
 })
 
 test('the device flow connects a client that has no browser callback', async () => {

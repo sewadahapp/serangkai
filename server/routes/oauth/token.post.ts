@@ -5,10 +5,16 @@ import {
   consumeAuthorizationCode,
   findClient,
   issueTokens,
+  parseResourceIndicator,
+  parseScopes,
   pollDeviceAuthorization,
+  resourceMatches,
   rotateRefreshToken,
+  timingSafeEqual,
   verifyPkce,
 } from '../../utils/oauth'
+import { mcpResourceUrl } from '../../utils/oauth-urls'
+import { readBoundedBody } from '../../utils/request-body'
 import { clientBucketKey, createRateLimiter } from '../../utils/rate-limit'
 
 /**
@@ -32,15 +38,12 @@ function tokenError(event: any, status: number, error: string, description: stri
   return { error, error_description: description }
 }
 
+/** Token requests are tiny; a megabyte here is always an attack or a bug. */
+const TOKEN_BODY_LIMIT = 16 * 1024
+
 /** Read a request body from either a form post or JSON. */
 async function readTokenRequest(event: any) {
-  const contentType = String(getHeader(event, 'content-type') || '')
-  if (contentType.includes('application/json')) {
-    const body = await readBody(event)
-    return (body && typeof body === 'object' ? body : {}) as Record<string, any>
-  }
-  const body = await readBody<Record<string, any>>(event).catch(() => ({}))
-  return (body && typeof body === 'object' ? body : {}) as Record<string, any>
+  return readBoundedBody(event, { maxBytes: TOKEN_BODY_LIMIT })
 }
 
 /**
@@ -59,7 +62,8 @@ async function authenticateClient(event: any, db: any, body: Record<string, any>
     const secret = typeof body.client_secret === 'string' ? body.client_secret : ''
     if (!secret) return { ok: false as const, error: 'invalid_client' as const }
     if (!client.clientSecretHash) return { ok: false as const, error: 'invalid_client' as const }
-    if (await hashToken(secret) !== client.clientSecretHash) {
+    const presented = await hashToken(secret)
+    if (!timingSafeEqual(presented, client.clientSecretHash)) {
       return { ok: false as const, error: 'invalid_client' as const }
     }
   }
@@ -79,7 +83,22 @@ export default defineEventHandler(async (event) => {
     return tokenError(event, 429, 'slow_down', 'Too many token requests. Try again shortly.')
   }
 
-  const body = await readTokenRequest(event)
+  let body: Record<string, any>
+  try {
+    body = await readTokenRequest(event)
+  } catch (error: any) {
+    const status = Number(error?.statusCode) === 413 ? 413 : 400
+    return tokenError(event, status, 'invalid_request', 'The token request could not be read.')
+  }
+
+  // RFC 8707: a token may only be issued for this server's single MCP
+  // resource. An omitted value defaults to it; any other audience is refused.
+  const resourceResult = parseResourceIndicator(body.resource, mcpResourceUrl(event).href)
+  if (!resourceResult.ok) {
+    return tokenError(event, 400, 'invalid_target', 'The requested resource is not served by this authorization server.')
+  }
+  const resource = resourceResult.resource
+
   const db = await getRequestDatabase(event)
   const grantType = String(body.grant_type || '')
   const auth = await authenticateClient(event, db, body)
@@ -97,8 +116,13 @@ export default defineEventHandler(async (event) => {
     if (!redirectUri) return tokenError(event, 400, 'invalid_request', 'redirect_uri is required.')
     if (!codeVerifier) return tokenError(event, 400, 'invalid_request', 'code_verifier is required.')
 
-    const consumed = await consumeAuthorizationCode(db, code)
-    if (!consumed.ok) return tokenError(event, 400, 'invalid_grant', 'The authorization code is invalid or expired.')
+    const consumed = await consumeAuthorizationCode(db, code, resource)
+    if (!consumed.ok) {
+      if (consumed.error === 'invalid_target') {
+        return tokenError(event, 400, 'invalid_target', 'The authorization code was issued for another resource.')
+      }
+      return tokenError(event, 400, 'invalid_grant', 'The authorization code is invalid or expired.')
+    }
     const record = consumed.code
 
     // The code is bound to the client, the exact redirect URI, and the PKCE
@@ -115,12 +139,22 @@ export default defineEventHandler(async (event) => {
     if (!await verifyPkce(record.codeChallenge, codeVerifier)) {
       return tokenError(event, 400, 'invalid_grant', 'The PKCE verifier does not match the challenge.')
     }
+    // A code is bound to the resource the owner approved. Legacy codes carry
+    // null and are bound to the canonical resource on exchange.
+    if (record.resource && !resourceMatches(record.resource, resource)) {
+      return tokenError(event, 400, 'invalid_target', 'The authorization code was issued for another resource.')
+    }
+    const scopes = parseScopes(record.scopes)
+    if (!scopes.length) {
+      return tokenError(event, 400, 'invalid_grant', 'The authorization code carries no grantable scopes.')
+    }
 
     const issued = await issueTokens(db, {
       clientId: client.id,
       userId: record.userId,
-      scopes: record.scopes,
+      scopes,
       label: client.clientName || 'OAuth client',
+      resource,
     })
     // A successful exchange clears the bucket: only failed attempts should
     // accumulate toward the limit.
@@ -138,8 +172,13 @@ export default defineEventHandler(async (event) => {
     const refreshToken = String(body.refresh_token || '')
     if (!refreshToken) return tokenError(event, 400, 'invalid_request', 'refresh_token is required.')
 
-    const rotated = await rotateRefreshToken(db, refreshToken, client.id)
-    if (!rotated.ok) return tokenError(event, 400, 'invalid_grant', 'The refresh token is invalid or expired.')
+    const rotated = await rotateRefreshToken(db, refreshToken, client.id, resource)
+    if (!rotated.ok) {
+      if (rotated.error === 'invalid_target') {
+        return tokenError(event, 400, 'invalid_target', 'The refresh token is not valid for this resource.')
+      }
+      return tokenError(event, 400, 'invalid_grant', 'The refresh token is invalid or expired.')
+    }
     tokenLimiter.reset(bucket)
     return {
       access_token: rotated.tokens.accessToken,
@@ -154,7 +193,7 @@ export default defineEventHandler(async (event) => {
     const deviceCode = String(body.device_code || '')
     if (!deviceCode) return tokenError(event, 400, 'invalid_request', 'device_code is required.')
 
-    const polled = await pollDeviceAuthorization(db, deviceCode)
+    const polled = await pollDeviceAuthorization(db, deviceCode, client.id, resource)
     if (!polled.ok) {
       // RFC 8628 error codes are what a polling client branches on:
       // authorization_pending means "keep waiting", the rest are terminal.
@@ -164,7 +203,9 @@ export default defineEventHandler(async (event) => {
           ? 'The owner declined this connection.'
           : polled.error === 'expired_token'
             ? 'The device code expired before it was approved.'
-            : 'The device code is invalid.'
+            : polled.error === 'invalid_target'
+              ? 'The device code was issued for another resource.'
+              : 'The device code is invalid.'
       return tokenError(event, 400, polled.error, description)
     }
     tokenLimiter.reset(bucket)

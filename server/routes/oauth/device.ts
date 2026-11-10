@@ -144,6 +144,16 @@ export default defineEventHandler(async (event) => {
 
   if (!userCode) return renderCodeForm('')
 
+  // An API token is an agent credential; it must not approve a device grant.
+  if (event.context.apiToken) {
+    setResponseStatus(event, 401)
+    return page('Browser session required', `
+      <p class="eyebrow">Device sign-in</p>
+      <h1>Open this page in a browser</h1>
+      <p>Device approval requires the owner's browser session, not an API token.</p>
+    `)
+  }
+
   // A signed-out owner cannot approve. Send them to login and come back here.
   if (!event.context.user) {
     const url = getRequestURL(event)

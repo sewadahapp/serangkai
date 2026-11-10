@@ -1,17 +1,18 @@
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { and, eq, like, or } from 'drizzle-orm'
+import { and, eq, isNull, like, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { toWebRequest } from 'h3'
-import { artifactVersions, artifacts, folders } from '../../db/schema'
+import { artifactVersions, artifacts, folders, oauthTokens } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { requireScope } from '../../utils/require-auth'
 import { readArtifactBytes, writeArtifact } from '../../utils/artifact-storage'
 import { reserveSlug } from '../../utils/artifacts'
 import { isSlugConflict } from '../../db/migrations'
+import { findGrantByApiTokenId, resourceMatches } from '../../utils/oauth'
+import { mcpResourceUrl, protectedResourceMetadataUrl } from '../../utils/oauth-urls'
 import { capabilities, capabilitiesText, htmlGuide, markdownGuide, promptMessages, templates } from '../../utils/authoring'
-import { protectedResourceMetadataUrl } from '../../utils/oauth-urls'
 import { componentCatalogMarkdown } from '../../../shared/artifact-components'
 
 const artifactType = z.enum(['markdown', 'html', 'javascript', 'pdf', 'image', 'json', 'bundle'])
@@ -299,12 +300,39 @@ export default defineEventHandler(async (event) => {
   }
   const user = requireScope(event, 'read')
   const db = await getRequestDatabase(event)
+  const token = event.context.apiToken
+
+  // RFC 8707 audience binding: an OAuth access token is only valid for the MCP
+  // resource it was issued for. Manual API tokens have no grant row and remain
+  // usable here, as before.
+  const grant = await findGrantByApiTokenId(db, token.id)
+  if (grant) {
+    const expectedResource = mcpResourceUrl(event).href
+    if (grant.userId !== user.id) {
+      throw createError({ statusCode: 401, message: 'The access token is not valid for this account.' })
+    }
+    if (grant.resource && !resourceMatches(grant.resource, expectedResource)) {
+      setHeader(
+        event,
+        'WWW-Authenticate',
+        `Bearer error="invalid_token", error_description="The access token was issued for a different resource. Start a new authorization.", resource_metadata="${protectedResourceMetadataUrl(event).href}"`,
+      )
+      throw createError({ statusCode: 401, message: 'The access token was issued for a different resource.' })
+    }
+    // Grants created before audience binding existed are adopted on first use.
+    // The conditional update keeps concurrent requests from writing twice.
+    if (!grant.resource) {
+      await db.update(oauthTokens)
+        .set({ resource: expectedResource })
+        .where(and(eq(oauthTokens.id, grant.id), isNull(oauthTokens.resource)))
+    }
+  }
+
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
     maxRequestBodySize: 10_000_000,
   })
-  const token = event.context.apiToken
   const canWrite = token.scopes.includes('write') || token.scopes.includes('full')
   const server = createMcpServer(user.id, canWrite, db)
   await server.connect(transport)

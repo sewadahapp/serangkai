@@ -7,6 +7,16 @@ declare module '#auth-utils' {
 
   interface UserSession {
     loggedInAt?: Date | string
+    /**
+     * Pending OAuth consent requests rendered by GET, keyed by a hash of the
+     * full authorization request. The POST consumes one exactly once.
+     */
+    oauthConsent?: Array<{
+      hash: string
+      nonce: string
+      userId: string
+      expiresAt: number
+    }>
   }
 }
 

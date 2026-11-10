@@ -6,15 +6,22 @@ import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
 import {
   consumeAuthorizationCode,
   createAuthorizationCode,
+  findGrantByRefreshToken,
+  issueTokens,
   redirectUriMatches,
   isAcceptableRedirectUri,
   normalizeScopes,
+  parseResourceIndicator,
   parseScopes,
+  resourceMatches,
+  rotateRefreshToken,
   verifyPkce,
   base64UrlEncode,
   timingSafeEqual,
   pruneAbandonedClients,
 } from '../server/utils/oauth.ts'
+import { BOOTSTRAP_SQL } from '../server/db/bootstrap.ts'
+import * as schema from '../server/db/schema.ts'
 
 /**
  * OAuth logic that is hard to observe through the HTTP surface: the
@@ -162,8 +169,12 @@ test('scope parsing never widens what was asked for', () => {
 
   // A client request with no scope defaults to the useful pair…
   assert.deepEqual(normalizeScopes(''), ['read', 'write'])
+  assert.deepEqual(normalizeScopes(undefined), ['read', 'write'])
   // …but an explicit selection is respected as-is.
   assert.deepEqual(normalizeScopes('read'), ['read'])
+  // A non-empty request that only names unsupported scopes is not widened
+  // into the default pair.
+  assert.deepEqual(normalizeScopes('full'), [])
 })
 
 test('PKCE verification accepts only the matching verifier', async () => {
@@ -217,4 +228,118 @@ test('pruning removes abandoned registrations but never an approved client', asy
 
   const remaining = sqlite.prepare('SELECT id FROM oauth_clients ORDER BY id').all().map(r => r.id)
   assert.deepEqual(remaining, ['abandoned-fresh', 'approved-old'])
+})
+
+test('resource indicators match structurally but never across origins or paths', () => {
+  const expected = 'https://serangkai.example/api/mcp'
+  assert.equal(resourceMatches(expected, expected), true)
+  assert.equal(resourceMatches('https://SERANGKAI.example:443/api/mcp', expected), true)
+  assert.equal(resourceMatches('https://serangkai.example/api/other', expected), false)
+  assert.equal(resourceMatches('http://serangkai.example/api/mcp', expected), false)
+  assert.equal(resourceMatches('https://evil.example/api/mcp', expected), false)
+  assert.equal(resourceMatches('https://serangkai.example/api/mcp?x=1', expected), false)
+  assert.equal(resourceMatches('https://serangkai.example/api/mcp#fragment', expected), false)
+  assert.equal(resourceMatches('https://user:pass@serangkai.example/api/mcp', expected), false)
+
+  assert.deepEqual(parseResourceIndicator(undefined, expected), { ok: true, resource: expected })
+  assert.deepEqual(parseResourceIndicator('', expected), { ok: true, resource: expected })
+  assert.deepEqual(parseResourceIndicator('https://SERANGKAI.example:443/api/mcp', expected), { ok: true, resource: expected })
+  assert.deepEqual(parseResourceIndicator('https://evil.example/api/mcp', expected), { ok: false })
+})
+
+function makeOAuthDb() {
+  const sqlite = new Database(':memory:')
+  sqlite.exec('PRAGMA foreign_keys = ON;')
+  sqlite.exec(BOOTSTRAP_SQL)
+  const db = drizzle(sqlite, { schema })
+  return { sqlite, db }
+}
+
+async function seedGrant(db, { resource = 'https://serangkai.example/api/mcp', scopes = ['read', 'write'] } = {}) {
+  const now = new Date()
+  await db.insert(schema.users).values({
+    id: 'user-1',
+    email: 'owner@example.test',
+    username: 'owner',
+    passwordHash: 'not-used',
+    createdAt: now,
+    updatedAt: now,
+  })
+  await db.insert(schema.oauthClients).values({
+    id: 'client-1',
+    clientName: 'Test client',
+    redirectUris: ['https://client.example/cb'],
+    scopes,
+    tokenEndpointAuthMethod: 'none',
+    createdAt: now,
+  })
+  return issueTokens(db, {
+    clientId: 'client-1',
+    userId: 'user-1',
+    scopes,
+    label: 'Test client',
+    resource,
+  })
+}
+
+test('concurrent refresh rotation has exactly one winner', async () => {
+  const { sqlite, db } = makeOAuthDb()
+  const issued = await seedGrant(db)
+
+  const [first, second] = await Promise.all([
+    rotateRefreshToken(db, issued.refreshToken, 'client-1', 'https://serangkai.example/api/mcp'),
+    rotateRefreshToken(db, issued.refreshToken, 'client-1', 'https://serangkai.example/api/mcp'),
+  ])
+
+  const winners = [first, second].filter(result => result.ok)
+  const losers = [first, second].filter(result => !result.ok)
+  assert.equal(winners.length, 1, 'one rotation must win')
+  assert.equal(losers.length, 1)
+  assert.equal(losers[0].error, 'invalid_grant')
+
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM oauth_tokens').get().n, 1)
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM api_tokens').get().n, 1)
+
+  // Only the winner's refresh token resolves to the surviving grant.
+  const survivor = await findGrantByRefreshToken(db, winners[0].tokens.refreshToken)
+  assert.ok(survivor)
+  assert.equal(await findGrantByRefreshToken(db, issued.refreshToken), undefined)
+})
+
+test('refresh rotation rejects a different audience and adopts a legacy null binding', async () => {
+  const { sqlite, db } = makeOAuthDb()
+  const issued = await seedGrant(db)
+
+  const mismatch = await rotateRefreshToken(
+    db,
+    issued.refreshToken,
+    'client-1',
+    'https://other.example/api/mcp',
+  )
+  assert.equal(mismatch.ok, false)
+  assert.equal(mismatch.error, 'invalid_target')
+  // The failed attempt must not consume the refresh token.
+  assert.ok(await findGrantByRefreshToken(db, issued.refreshToken))
+
+  // A grant created before audience binding existed is adopted on refresh.
+  sqlite.prepare('UPDATE oauth_tokens SET resource = NULL').run()
+  const rotated = await rotateRefreshToken(
+    db,
+    issued.refreshToken,
+    'client-1',
+    'https://serangkai.example/api/mcp',
+  )
+  assert.equal(rotated.ok, true)
+  assert.equal(
+    sqlite.prepare('SELECT resource FROM oauth_tokens').get().resource,
+    'https://serangkai.example/api/mcp',
+  )
+})
+
+test('issued OAuth tokens carry the audience and never gain full scope', async () => {
+  const { sqlite, db } = makeOAuthDb()
+  await seedGrant(db, { scopes: ['read', 'write', 'full'] })
+  const grant = sqlite.prepare('SELECT resource, scopes FROM oauth_tokens').get()
+  assert.equal(grant.resource, 'https://serangkai.example/api/mcp')
+  assert.equal(grant.scopes, JSON.stringify(['read', 'write']))
 })

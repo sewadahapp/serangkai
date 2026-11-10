@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, lt, notInArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull, lt, notInArray, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { apiTokens, oauthClients, oauthCodes, oauthDeviceCodes, oauthTokens } from '../db/schema'
 import { generateToken, hashToken } from './auth'
@@ -67,10 +67,64 @@ export function parseScopes(requested: unknown): OAuthScope[] {
  * Scopes for a client's authorization request. An empty request means "whatever
  * the client needs", so it defaults to read+write rather than issuing a token
  * that cannot do anything.
+ *
+ * A non-empty request that names no supported scope returns an empty list. It
+ * must not fall back to the default: a client asking only for `full` would
+ * otherwise be handed read+write without ever asking for them.
  */
 export function normalizeScopes(requested: unknown): OAuthScope[] {
+  const raw = Array.isArray(requested)
+    ? requested.map(value => String(value)).join(' ')
+    : typeof requested === 'string' ? requested : ''
   const parsed = parseScopes(requested)
-  return parsed.length ? parsed : [...DEFAULT_OAUTH_SCOPES]
+  if (parsed.length) return parsed
+  return raw.trim() ? [] : [...DEFAULT_OAUTH_SCOPES]
+}
+
+/**
+ * Compare an RFC 8707 resource indicator with the canonical resource this
+ * server protects. The comparison is structural rather than a raw string
+ * match so `https://example.com:443/api/mcp` and `https://EXAMPLE.com/api/mcp`
+ * are recognized as the same audience, while a different origin, path, query,
+ * fragment, or embedded credential is not.
+ */
+export function resourceMatches(requested: string, expected: string): boolean {
+  try {
+    const actual = new URL(requested)
+    const target = new URL(expected)
+    return actual.protocol === target.protocol
+      && actual.host === target.host
+      && actual.pathname === target.pathname
+      && !actual.search
+      && !actual.hash
+      && !actual.username
+      && !actual.password
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Resolve the `resource` parameter for a request.
+ *
+ * Omitted is safe here: Serangkai exposes exactly one MCP resource, so the
+ * documented default is that resource. A supplied value must name it exactly;
+ * anything else is rejected rather than silently substituted. The returned
+ * value is canonical, which keeps stored grants stable across equivalent URL
+ * spellings.
+ */
+export function parseResourceIndicator(
+  requested: unknown,
+  expected: string,
+): { ok: true; resource: string } | { ok: false } {
+  if (requested === undefined || requested === null || requested === '') {
+    return { ok: true, resource: expected }
+  }
+  if (typeof requested !== 'string') return { ok: false }
+  const value = requested.trim()
+  if (!value) return { ok: true, resource: expected }
+  if (!resourceMatches(value, expected)) return { ok: false }
+  return { ok: true, resource: expected }
 }
 
 /**
@@ -203,11 +257,16 @@ export async function createAuthorizationCode(db: any, input: CreateCodeInput): 
  * reports `meta.changes`. An unrecognized shape is treated as "not consumed"
  * so this fails closed rather than letting a replay through.
  */
-export async function consumeAuthorizationCode(db: any, code: string) {
+export async function consumeAuthorizationCode(db: any, code: string, expectedResource?: string) {
   const id = await sha256Hex(code)
   const row = await db.select().from(oauthCodes).where(eq(oauthCodes.id, id)).get()
   if (!row || row.consumedAt) return { ok: false as const, error: 'invalid_grant' as const }
   if (row.expiresAt.getTime() < Date.now()) return { ok: false as const, error: 'invalid_grant' as const }
+  // Audience mismatch is checked before the code is claimed, so a client that
+  // sent the wrong `resource` can retry the same code correctly.
+  if (expectedResource && row.resource && !resourceMatches(row.resource, expectedResource)) {
+    return { ok: false as const, error: 'invalid_target' as const }
+  }
 
   const result = await db.update(oauthCodes)
     .set({ consumedAt: new Date() })
@@ -230,6 +289,8 @@ export interface IssueTokensInput {
   scopes: string[]
   /** Label shown in Settings so the owner can tell grants apart. */
   label: string
+  /** RFC 8707 audience this grant is bound to. */
+  resource?: string | null
 }
 
 export interface IssuedTokens {
@@ -240,70 +301,201 @@ export interface IssuedTokens {
 }
 
 /**
+ * Read an affected-row count from any supported driver. An unrecognized shape
+ * is zero, which fails closed: callers only proceed when they can prove their
+ * conditional write won.
+ */
+function affectedRows(result: any): number {
+  const value = result?.changes ?? result?.rowsAffected ?? result?.meta?.changes
+  const count = Number(value)
+  return Number.isFinite(count) ? count : 0
+}
+
+/**
  * Mint an access token plus a rotating refresh token.
  *
  * The access token is stored in `api_tokens` so the existing request middleware
  * authenticates it with no special case. The OAuth row carries the client and
- * refresh state that a hand-minted token does not have.
+ * refresh state that a hand-minted token does not have. Both rows are written
+ * atomically: a failure must not leave a usable token with no grant behind.
  */
 export async function issueTokens(db: any, input: IssueTokensInput): Promise<IssuedTokens> {
   const accessToken = generateToken()
   const refreshToken = generateToken()
   const apiTokenId = nanoid()
+  const grantId = nanoid()
   const now = Date.now()
+  // Sanitize again at the storage boundary. A legacy or tampered row must never
+  // turn into a `full` OAuth credential.
+  const scopes = parseScopes(input.scopes)
 
-  await db.insert(apiTokens).values({
+  const apiTokenRow = {
     id: apiTokenId,
     userId: input.userId,
     name: input.label,
     tokenHash: await hashToken(accessToken),
-    scopes: input.scopes,
+    scopes,
     expiresAt: new Date(now + ACCESS_TTL_SECONDS * 1000),
     createdAt: new Date(),
-  })
-
-  await db.insert(oauthTokens).values({
-    id: nanoid(),
+  }
+  const grantRow = {
+    id: grantId,
     clientId: input.clientId,
     userId: input.userId,
     apiTokenId,
-    scopes: input.scopes,
+    scopes,
+    resource: input.resource || null,
     accessExpiresAt: new Date(now + ACCESS_TTL_SECONDS * 1000),
     refreshTokenHash: await sha256Hex(refreshToken),
     refreshExpiresAt: new Date(now + REFRESH_TTL_MS),
     createdAt: new Date(),
-  })
-
-  return { accessToken, refreshToken, expiresIn: ACCESS_TTL_SECONDS, scopes: input.scopes }
-}
-
-/**
- * Exchange a refresh token for a new pair. The grant row is updated in place,
- * so the presented refresh token stops working as soon as this returns.
- */
-export async function rotateRefreshToken(db: any, refreshToken: string, clientId?: string) {
-  const hash = await sha256Hex(refreshToken)
-  const row = await db.select().from(oauthTokens).where(eq(oauthTokens.refreshTokenHash, hash)).get()
-  if (!row) return { ok: false as const, error: 'invalid_grant' as const }
-  if (clientId && row.clientId !== clientId) return { ok: false as const, error: 'invalid_grant' as const }
-  if (row.refreshExpiresAt.getTime() < Date.now()) {
-    await revokeGrant(db, row.id)
-    return { ok: false as const, error: 'invalid_grant' as const }
   }
 
-  // Rotate: delete the old access token so it cannot outlive its grant, then
-  // reissue both halves.
-  await db.delete(apiTokens).where(eq(apiTokens.id, row.apiTokenId))
-  await db.delete(oauthTokens).where(eq(oauthTokens.id, row.id))
+  if (typeof db.batch === 'function') {
+    // D1: one batch is atomic, and there is no BEGIN/COMMIT.
+    await db.batch([
+      db.insert(apiTokens).values(apiTokenRow),
+      db.insert(oauthTokens).values(grantRow),
+    ])
+  } else if (typeof db.transaction === 'function') {
+    db.transaction((tx: any) => {
+      tx.insert(apiTokens).values(apiTokenRow).run()
+      tx.insert(oauthTokens).values(grantRow).run()
+    })
+  } else {
+    // Test doubles that provide neither primitive keep the old shape.
+    await db.insert(apiTokens).values(apiTokenRow)
+    await db.insert(oauthTokens).values(grantRow)
+  }
 
+  return { accessToken, refreshToken, expiresIn: ACCESS_TTL_SECONDS, scopes }
+}
+
+export type RotateRefreshResult =
+  | { ok: true; tokens: IssuedTokens }
+  | { ok: false; error: 'invalid_grant' | 'invalid_target' }
+
+/**
+ * Exchange a refresh token for a new pair.
+ *
+ * Rotation must be atomic across concurrent requests and across instances.
+ * Reading the row and then deleting it leaves a window where two requests both
+ * believe they won, each minting a live token. Instead the refresh hash is
+ * replaced by a conditional UPDATE; only the request whose UPDATE reports one
+ * affected row returns a token. The loser's freshly inserted token is removed
+ * in the same transaction/batch.
+ *
+ * The grant id is stable, so Settings keeps listing one connection across
+ * refreshes.
+ */
+export async function rotateRefreshToken(
+  db: any,
+  refreshToken: string,
+  clientId?: string,
+  expectedResource?: string,
+): Promise<RotateRefreshResult> {
+  const hash = await sha256Hex(refreshToken)
+  const now = Date.now()
+
+  const row = await db.select().from(oauthTokens).where(eq(oauthTokens.refreshTokenHash, hash)).get()
+  if (!row) return { ok: false, error: 'invalid_grant' }
+  if (clientId && row.clientId !== clientId) return { ok: false, error: 'invalid_grant' }
+  if (expectedResource && row.resource && !resourceMatches(row.resource, expectedResource)) {
+    return { ok: false, error: 'invalid_target' }
+  }
+  const scopes = parseScopes(row.scopes)
+  if (!scopes.length) return { ok: false, error: 'invalid_grant' }
+  const resource = row.resource || expectedResource || null
+
+  // The old token and grant are dead once the grant expires; clean them up
+  // without minting anything.
+  if (row.refreshExpiresAt.getTime() < now) {
+    await revokeGrant(db, row.id)
+    return { ok: false, error: 'invalid_grant' }
+  }
+
+  const accessToken = generateToken()
+  const newRefreshToken = generateToken()
+  const apiTokenId = nanoid()
   const client = await findClient(db, row.clientId)
-  const issued = await issueTokens(db, {
-    clientId: row.clientId,
+  const apiTokenRow = {
+    id: apiTokenId,
     userId: row.userId,
-    scopes: row.scopes,
-    label: client?.clientName || 'OAuth client',
-  })
-  return { ok: true as const, tokens: issued }
+    name: client?.clientName || 'OAuth client',
+    tokenHash: await hashToken(accessToken),
+    scopes,
+    expiresAt: new Date(now + ACCESS_TTL_SECONDS * 1000),
+    createdAt: new Date(),
+  }
+  const grantUpdate = {
+    apiTokenId,
+    scopes,
+    resource,
+    accessExpiresAt: new Date(now + ACCESS_TTL_SECONDS * 1000),
+    refreshTokenHash: await sha256Hex(newRefreshToken),
+    refreshExpiresAt: new Date(now + REFRESH_TTL_MS),
+  }
+  const tokens: IssuedTokens = {
+    accessToken,
+    refreshToken: newRefreshToken,
+    expiresIn: ACCESS_TTL_SECONDS,
+    scopes,
+  }
+
+  if (typeof db.batch === 'function') {
+    // D1: all four statements commit together. The conditional UPDATE is the
+    // single winner; the trailing deletes clean up the loser's orphan token.
+    const results = await db.batch([
+      db.insert(apiTokens).values(apiTokenRow),
+      db.update(oauthTokens).set(grantUpdate).where(and(
+        eq(oauthTokens.id, row.id),
+        eq(oauthTokens.refreshTokenHash, hash),
+      )),
+      db.delete(apiTokens).where(and(
+        eq(apiTokens.id, row.apiTokenId),
+        sql`NOT EXISTS (SELECT 1 FROM oauth_tokens WHERE id = ${row.id} AND api_token_id = ${row.apiTokenId})`,
+      )),
+      db.delete(apiTokens).where(and(
+        eq(apiTokens.id, apiTokenId),
+        sql`NOT EXISTS (SELECT 1 FROM oauth_tokens WHERE api_token_id = ${apiTokenId})`,
+      )),
+    ])
+    if (affectedRows(results?.[1]) !== 1) return { ok: false, error: 'invalid_grant' }
+    return { ok: true, tokens }
+  }
+
+  if (typeof db.transaction === 'function') {
+    const result = db.transaction((tx: any): RotateRefreshResult => {
+      tx.insert(apiTokens).values(apiTokenRow).run()
+      const updated = tx.update(oauthTokens).set(grantUpdate).where(and(
+        eq(oauthTokens.id, row.id),
+        eq(oauthTokens.refreshTokenHash, hash),
+      )).run()
+      if (affectedRows(updated) !== 1) {
+        // Another request rotated first. Remove the token this attempt created
+        // and fail closed.
+        tx.delete(apiTokens).where(eq(apiTokens.id, apiTokenId)).run()
+        return { ok: false, error: 'invalid_grant' }
+      }
+      tx.delete(apiTokens).where(eq(apiTokens.id, row.apiTokenId)).run()
+      return { ok: true, tokens }
+    })
+    return result
+  }
+
+  // Test doubles without transactions: still use the conditional UPDATE so the
+  // correctness property (one winner) is preserved.
+  await db.insert(apiTokens).values(apiTokenRow)
+  const updated = await db.update(oauthTokens).set(grantUpdate).where(and(
+    eq(oauthTokens.id, row.id),
+    eq(oauthTokens.refreshTokenHash, hash),
+  ))
+  if (affectedRows(updated) !== 1) {
+    await db.delete(apiTokens).where(eq(apiTokens.id, apiTokenId))
+    return { ok: false, error: 'invalid_grant' }
+  }
+  await db.delete(apiTokens).where(eq(apiTokens.id, row.apiTokenId))
+  return { ok: true, tokens }
 }
 
 /** Revoke one grant: the access token and the OAuth row disappear together. */
@@ -327,6 +519,49 @@ export async function findGrantByAccessToken(db: any, accessToken: string) {
 export async function findGrantByRefreshToken(db: any, refreshToken: string) {
   const hash = await sha256Hex(refreshToken)
   return db.select().from(oauthTokens).where(eq(oauthTokens.refreshTokenHash, hash)).get()
+}
+
+/**
+ * Resolve the OAuth grant behind an `api_tokens` row. Manual tokens have no
+ * grant and return undefined, which is how the MCP endpoint distinguishes an
+ * audience-bound OAuth credential from a hand-minted token.
+ */
+export async function findGrantByApiTokenId(db: any, apiTokenId: string) {
+  return db.select().from(oauthTokens).where(eq(oauthTokens.apiTokenId, apiTokenId)).get()
+}
+
+export interface ConsentFingerprintInput {
+  clientId: string
+  redirectUri: string
+  responseType: string
+  codeChallenge: string
+  codeChallengeMethod: string
+  scopes: string[]
+  state: string
+  resource: string
+  userId: string
+}
+
+/**
+ * Bind a consent POST to the GET that rendered it.
+ *
+ * The fingerprint covers every value that decides where the code goes and what
+ * it can do, plus the owner id. It is stored in the sealed session by the GET
+ * and compared by the POST, so a cross-site form cannot approve a request the
+ * owner never saw. No client-side JavaScript or hidden CSRF token is needed.
+ */
+export async function oauthConsentFingerprint(input: ConsentFingerprintInput): Promise<string> {
+  return sha256Hex(JSON.stringify([
+    input.clientId,
+    input.redirectUri,
+    input.responseType,
+    input.codeChallenge,
+    input.codeChallengeMethod,
+    input.scopes.join(' '),
+    input.state,
+    input.resource,
+    input.userId,
+  ]))
 }
 
 /**
@@ -462,10 +697,21 @@ export async function denyDeviceAuthorization(db: any, id: string) {
  * Returns the RFC 8628 error code the client expects while the owner has not
  * decided yet, and consumes the row exactly once when they have.
  */
-export async function pollDeviceAuthorization(db: any, deviceCode: string) {
+export async function pollDeviceAuthorization(
+  db: any,
+  deviceCode: string,
+  clientId?: string,
+  expectedResource?: string,
+) {
   const id = await sha256Hex(deviceCode)
   const row = await db.select().from(oauthDeviceCodes).where(eq(oauthDeviceCodes.id, id)).get()
   if (!row) return { ok: false as const, error: 'invalid_grant' as const }
+  // The device code is bound to the client that requested it. Without this
+  // check any registered client could redeem a code it observed.
+  if (clientId && row.clientId !== clientId) return { ok: false as const, error: 'invalid_grant' as const }
+  if (expectedResource && row.resource && !resourceMatches(row.resource, expectedResource)) {
+    return { ok: false as const, error: 'invalid_target' as const }
+  }
   if (row.consumedAt) return { ok: false as const, error: 'invalid_grant' as const }
   if (row.expiresAt.getTime() < Date.now()) return { ok: false as const, error: 'expired_token' as const }
   if (row.deniedAt) return { ok: false as const, error: 'access_denied' as const }
@@ -482,11 +728,14 @@ export async function pollDeviceAuthorization(db: any, deviceCode: string) {
   }
 
   const client = await findClient(db, row.clientId)
+  const scopes = parseScopes(row.scopes)
+  if (!scopes.length) return { ok: false as const, error: 'invalid_grant' as const }
   const issued = await issueTokens(db, {
     clientId: row.clientId,
     userId: row.userId,
-    scopes: row.scopes,
+    scopes,
     label: client?.clientName || 'OAuth client',
+    resource: row.resource || expectedResource || null,
   })
   return { ok: true as const, tokens: issued }
 }
