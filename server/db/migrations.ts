@@ -170,6 +170,7 @@ export async function ensureOAuthSchema(db: any) {
       approved_at INTEGER,
       denied_at INTEGER,
       consumed_at INTEGER,
+      api_token_id TEXT,
       expires_at INTEGER NOT NULL,
       created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
     )`,
@@ -191,6 +192,23 @@ export async function ensureOAuthSchema(db: any) {
   if (!hasResource) {
     try {
       await db.run(sql`ALTER TABLE oauth_tokens ADD COLUMN resource TEXT`)
+    } catch (error) {
+      if (!/duplicate column|already exists/i.test(errorText(error))) throw error
+    }
+  }
+
+  // Atomic device-code redemption links the winning API token to the device
+  // row. Additive and nullable: existing pending codes keep working.
+  let hasDeviceApiTokenId = false
+  try {
+    const columns = await db.all<{ name: string }>(sql`PRAGMA table_info(oauth_device_codes)`)
+    hasDeviceApiTokenId = columns.some(column => String(column.name) === 'api_token_id')
+  } catch {
+    // Some edge runtimes restrict PRAGMA; fall through to a guarded ALTER.
+  }
+  if (!hasDeviceApiTokenId) {
+    try {
+      await db.run(sql`ALTER TABLE oauth_device_codes ADD COLUMN api_token_id TEXT`)
     } catch (error) {
       if (!/duplicate column|already exists/i.test(errorText(error))) throw error
     }

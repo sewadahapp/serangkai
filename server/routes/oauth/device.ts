@@ -4,20 +4,39 @@ import { getRequestDatabase } from '../../db/adapter'
 import {
   approveDeviceAuthorization,
   denyDeviceAuthorization,
+  deviceConsentFingerprint,
   findDeviceByUserCode,
   formatUserCode,
   normalizeUserCode,
   parseScopes,
 } from '../../utils/oauth'
+import { consumeConsent, rememberConsent } from '../../utils/oauth-consent'
+import { readBoundedBody } from '../../utils/request-body'
+import { clientBucketKey, createRateLimiter } from '../../utils/rate-limit'
 
 /**
  * Device activation page (RFC 8628 §3.3).
  *
  * The owner opens this on whichever machine has a browser and types the code
  * the client printed. It mirrors the consent screen's guarantees: it needs the
- * owner's session, shows which client is asking and what it wants, and only
- * the permissions left checked are granted.
+ * owner's session, shows which client is asking and what it wants, only
+ * the permissions left checked are granted, and a decision POST must carry the
+ * nonce of a consent page this owner actually rendered.
  */
+
+function positiveInt(name: string, fallback: number) {
+  const value = Number(process.env[name])
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback
+}
+
+/**
+ * User-code lookup and approval attempts are cheap to script; the code is
+ * short. The limit is far above a human typing a code and clicking once.
+ */
+const devicePageLimiter = createRateLimiter({
+  limit: positiveInt('SERANGKAI_OAUTH_DEVICE_RATE_LIMIT', 30),
+  windowMs: 60 * 1000,
+})
 
 function escapeHtml(value: string) {
   return value
@@ -85,7 +104,7 @@ function renderCodeForm(prefill: string, error?: string) {
   `)
 }
 
-function renderConsent(clientName: string, userCode: string, scopes: string[], error?: string) {
+function renderConsent(clientName: string, userCode: string, scopes: string[], consentToken: string, error?: string) {
   const rows = scopes.map(scope => `
     <li>
       <label>
@@ -110,6 +129,7 @@ function renderConsent(clientName: string, userCode: string, scopes: string[], e
     </div>
     <form method="post" action="/oauth/device">
       <input type="hidden" name="user_code" value="${escapeHtml(userCode)}">
+      <input type="hidden" name="consent_token" value="${escapeHtml(consentToken)}">
       <ul>${rows}</ul>
       <div class="actions">
         <button class="approve" type="submit" name="decision" value="approve">Allow access</button>
@@ -131,14 +151,47 @@ function renderDone(kind: 'approved' | 'denied') {
   `)
 }
 
+/**
+ * Render the outcome that actually won. A failed conditional update means
+ * another request decided first (or the code expired/vanished), so the answer
+ * must come from the row, not from what this request intended.
+ */
+async function renderOutcome(db: any, userCode: string, intended: 'approved' | 'denied', ok: boolean) {
+  if (ok) return renderDone(intended)
+  const current = await findDeviceByUserCode(db, userCode)
+  if (current?.deniedAt) return renderDone('denied')
+  if (current?.approvedAt || current?.consumedAt) return renderDone('approved')
+  return renderCodeForm(formatUserCode(userCode), 'That code has expired. Start the connection again from the client.')
+}
+
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'no-store')
   setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
   setHeader(event, 'Referrer-Policy', 'no-referrer')
 
+  const limit = devicePageLimiter.hit(clientBucketKey(event))
+  if (limit.limited) {
+    setHeader(event, 'Retry-After', String(limit.retryAfterSeconds))
+    setResponseStatus(event, 429)
+    return page('Too many attempts', `
+      <p class="eyebrow">Device sign-in</p>
+      <h1>Too many attempts</h1>
+      <p>Wait a minute before trying again.</p>
+    `)
+  }
+
   const method = getMethod(event)
   const query = getQuery(event)
-  const body = method === 'POST' ? await readBody<Record<string, any>>(event).catch(() => ({})) : {}
+  let body: Record<string, any> = {}
+  if (method === 'POST') {
+    try {
+      // A code and a decision are a few hundred bytes; anything larger is abuse.
+      body = await readBoundedBody(event, { maxBytes: 8 * 1024, parse: 'form' })
+    } catch (error: any) {
+      setResponseStatus(event, Number(error?.statusCode) === 413 ? 413 : 400)
+      return renderCodeForm('', 'The request could not be read. Enter the code again.')
+    }
+  }
   const rawCode = String(body?.user_code ?? query.user_code ?? '')
   const userCode = normalizeUserCode(rawCode)
 
@@ -154,10 +207,11 @@ export default defineEventHandler(async (event) => {
     `)
   }
 
-  // A signed-out owner cannot approve. Send them to login and come back here.
+  // A signed-out owner cannot approve. Send them to login and come back to the
+  // code they entered, even when it arrived in a POST body.
   if (!event.context.user) {
-    const url = getRequestURL(event)
-    return sendRedirect(event, `/auth/login?redirect=${encodeURIComponent(`${url.pathname}${url.search}`)}`, 302)
+    const target = `/oauth/device?user_code=${encodeURIComponent(formatUserCode(userCode))}`
+    return sendRedirect(event, `/auth/login?redirect=${encodeURIComponent(target)}`, 302)
   }
 
   const db = await getRequestDatabase(event)
@@ -171,33 +225,59 @@ export default defineEventHandler(async (event) => {
   if (device.consumedAt || device.approvedAt || device.deniedAt) {
     return renderDone(device.deniedAt ? 'denied' : 'approved')
   }
-  if (method === 'GET' && body?.decision === undefined && query.decision === undefined && query.user_code) {
-    // Fall through to the consent view: a valid, pending code was supplied.
-  }
 
   const client = await db.select().from(oauthClients).where(eq(oauthClients.id, device.clientId)).get()
   const clientName = client?.clientName || 'This client'
+  const user = event.context.user
+
+  // Everything in the fingerprint comes from the stored request, so a POST
+  // cannot retarget the decision by editing the code, client, or scopes.
+  const fingerprint = await deviceConsentFingerprint({
+    deviceId: device.id,
+    clientId: device.clientId,
+    userCode,
+    scopes: device.scopes as string[],
+    resource: device.resource || '',
+    userId: user.id,
+  })
 
   if (method === 'POST') {
     const decision = String(body?.decision || '')
-    if (decision === 'deny') {
-      await denyDeviceAuthorization(db, device.id)
-      return renderDone('denied')
-    }
-    if (decision === 'approve') {
+
+    if (decision === 'approve' || decision === 'deny') {
+      // Both decisions are state-changing: a cross-site form must not be able
+      // to approve OR deny a grant using the owner's SameSite=Lax cookie.
+      const consentToken = typeof body?.consent_token === 'string' ? body.consent_token : ''
+      if (!consentToken || !await consumeConsent(event, fingerprint, user.id, consentToken)) {
+        setResponseStatus(event, 400)
+        return renderCodeForm(formatUserCode(userCode), 'This request could not be verified. Continue to review it again.')
+      }
+
+      if (decision === 'deny') {
+        const denied = await denyDeviceAuthorization(db, device.id)
+        return renderOutcome(db, userCode, 'denied', denied.ok)
+      }
+
       // Only what the owner left checked, intersected with what was requested.
       const chosen = parseScopes(body?.scopes).filter(scope => (device.scopes as string[]).includes(scope))
       if (!chosen.length) {
-        return renderConsent(clientName, userCode, device.scopes as string[], 'Select at least one permission to continue.')
+        const fresh = await rememberConsent(event, fingerprint, user.id)
+        return renderConsent(clientName, userCode, device.scopes as string[], fresh, 'Select at least one permission to continue.')
       }
-      const approved = await approveDeviceAuthorization(db, device.id, event.context.user.id, chosen)
-      if (!approved.ok) {
-        return renderDone(approved.error === 'expired' ? 'denied' : 'approved')
-      }
-      return renderDone('approved')
+      const approved = await approveDeviceAuthorization(db, device.id, user.id, chosen)
+      return renderOutcome(db, userCode, 'approved', approved.ok)
     }
+
+    if (decision === 'continue') {
+      // The lookup form only renders the consent page; nothing is decided yet.
+      const consentToken = await rememberConsent(event, fingerprint, user.id)
+      return renderConsent(clientName, userCode, device.scopes as string[], consentToken)
+    }
+
+    setResponseStatus(event, 400)
     return renderCodeForm(formatUserCode(userCode), 'The request was not understood.')
   }
 
-  return renderConsent(clientName, userCode, device.scopes as string[])
+  const consentToken = await rememberConsent(event, fingerprint, user.id)
+  return renderConsent(clientName, userCode, device.scopes as string[], consentToken)
 })

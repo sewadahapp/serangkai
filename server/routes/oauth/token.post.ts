@@ -31,6 +31,16 @@ import { clientBucketKey, createRateLimiter } from '../../utils/rate-limit'
  */
 const tokenLimiter = createRateLimiter({ limit: 10, windowMs: 60 * 1000 })
 
+/**
+ * RFC 8628 clients poll every `interval` (5s) while the owner decides: 12
+ * requests per minute is normal, not a failure pattern. Device polls get their
+ * own bucket sized above that rate; exceeding it answers `slow_down`, which
+ * tells the client to increase its interval.
+ */
+const devicePollLimiter = createRateLimiter({ limit: 30, windowMs: 60 * 1000 })
+
+const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
+
 function tokenError(event: any, status: number, error: string, description: string) {
   setResponseStatus(event, status)
   setHeader(event, 'Cache-Control', 'no-store')
@@ -77,11 +87,6 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'Pragma', 'no-cache')
 
   const bucket = clientBucketKey(event)
-  const limit = tokenLimiter.hit(bucket)
-  if (limit.limited) {
-    setHeader(event, 'Retry-After', String(limit.retryAfterSeconds))
-    return tokenError(event, 429, 'slow_down', 'Too many token requests. Try again shortly.')
-  }
 
   let body: Record<string, any>
   try {
@@ -89,6 +94,16 @@ export default defineEventHandler(async (event) => {
   } catch (error: any) {
     const status = Number(error?.statusCode) === 413 ? 413 : 400
     return tokenError(event, status, 'invalid_request', 'The token request could not be read.')
+  }
+
+  const grantType = String(body.grant_type || '')
+  const limiter = grantType === DEVICE_GRANT ? devicePollLimiter : tokenLimiter
+  const limit = limiter.hit(bucket)
+  if (limit.limited) {
+    setHeader(event, 'Retry-After', String(limit.retryAfterSeconds))
+    return tokenError(event, 429, 'slow_down', grantType === DEVICE_GRANT
+      ? 'Polling too frequently. Increase the polling interval and try again.'
+      : 'Too many token requests. Try again shortly.')
   }
 
   // RFC 8707: a token may only be issued for this server's single MCP
@@ -100,7 +115,6 @@ export default defineEventHandler(async (event) => {
   const resource = resourceResult.resource
 
   const db = await getRequestDatabase(event)
-  const grantType = String(body.grant_type || '')
   const auth = await authenticateClient(event, db, body)
   if (!auth.ok) {
     setHeader(event, 'WWW-Authenticate', 'Basic realm="serangkai"')
@@ -158,7 +172,7 @@ export default defineEventHandler(async (event) => {
     })
     // A successful exchange clears the bucket: only failed attempts should
     // accumulate toward the limit.
-    tokenLimiter.reset(bucket)
+    limiter.reset(bucket)
     return {
       access_token: issued.accessToken,
       token_type: 'Bearer',
@@ -179,7 +193,7 @@ export default defineEventHandler(async (event) => {
       }
       return tokenError(event, 400, 'invalid_grant', 'The refresh token is invalid or expired.')
     }
-    tokenLimiter.reset(bucket)
+    limiter.reset(bucket)
     return {
       access_token: rotated.tokens.accessToken,
       token_type: 'Bearer',
@@ -189,7 +203,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  if (grantType === 'urn:ietf:params:oauth:grant-type:device_code') {
+  if (grantType === DEVICE_GRANT) {
     const deviceCode = String(body.device_code || '')
     if (!deviceCode) return tokenError(event, 400, 'invalid_request', 'device_code is required.')
 
@@ -208,7 +222,7 @@ export default defineEventHandler(async (event) => {
               : 'The device code is invalid.'
       return tokenError(event, 400, polled.error, description)
     }
-    tokenLimiter.reset(bucket)
+    limiter.reset(bucket)
     return {
       access_token: polled.tokens.accessToken,
       token_type: 'Bearer',

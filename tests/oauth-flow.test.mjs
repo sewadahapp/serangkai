@@ -594,6 +594,38 @@ test('a consent POST without rendering the page is refused', async () => {
   assert.ok(new URL(success.headers.get('location')).searchParams.get('code'))
 })
 
+test('a consumed consent nonce cannot issue a second code', async () => {
+  const redirectUri = 'https://client.example/callback'
+  const { body: client } = await registerClient(redirectUri)
+  const { challenge } = pkcePair()
+  const page = await consentPage({ clientId: client.client_id, redirectUri, challenge })
+  const fields = consentFields(page.html)
+  assert.ok(fields.consent_token)
+
+  const post = sessionCookie => fetch(`${base}/oauth/authorize`, {
+    method: 'POST',
+    headers: { cookie: sessionCookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: (() => {
+      const body = new URLSearchParams(fields)
+      body.set('decision', 'approve')
+      body.append('scopes', 'read')
+      return body
+    })(),
+    redirect: 'manual',
+  })
+
+  const first = await post(page.cookie)
+  assert.equal(first.status, 302)
+  assert.ok(new URL(first.headers.get('location')).searchParams.get('code'))
+
+  // The session the POST returns must no longer contain the nonce. (Merging
+  // the trimmed state list back into the session used to resurrect it.)
+  const updated = first.headers.get('set-cookie') || page.cookie
+  const replay = await post(updated)
+  assert.equal(replay.status, 400)
+  assert.equal(replay.headers.get('location'), null)
+})
+
 test('refresh tokens rotate and the old one stops working', async () => {
   const redirectUri = 'https://client.example/callback'
   const { body: client } = await registerClient(redirectUri)
@@ -860,6 +892,63 @@ test('device authorization rejects a foreign resource', async () => {
   assert.equal((await response.json()).error, 'invalid_target')
 })
 
+/** Start a device authorization and return the endpoint's response JSON. */
+async function startDevice(clientId, scope = 'read write') {
+  const response = await fetch(`${base}/oauth/device-authorization`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: clientId, scope }),
+  })
+  assert.equal(response.status, 200)
+  return response.json()
+}
+
+/** Render the device consent page, keeping the session cookie it updates. */
+async function deviceConsentPage(userCode, ip, sessionCookie = cookie) {
+  const response = await fetch(`${base}/oauth/device?user_code=${encodeURIComponent(userCode)}`, {
+    headers: { cookie: sessionCookie, 'x-forwarded-for': ip },
+    redirect: 'manual',
+  })
+  return {
+    response,
+    html: await response.text(),
+    cookie: response.headers.get('set-cookie') || sessionCookie,
+  }
+}
+
+/** POST a device decision the way the rendered form does. */
+async function deviceDecision({ userCode, decision = 'approve', scopes = 'read write', page, ip, omitToken = false }) {
+  const body = new URLSearchParams(page ? consentFields(page.html) : { user_code: userCode })
+  body.set('user_code', userCode)
+  body.set('decision', decision)
+  if (omitToken) body.delete('consent_token')
+  if (decision === 'approve') {
+    for (const value of String(scopes).split(/\s+/).filter(Boolean)) body.append('scopes', value)
+  }
+  return fetch(`${base}/oauth/device`, {
+    method: 'POST',
+    headers: {
+      cookie: page?.cookie || cookie,
+      'content-type': 'application/x-www-form-urlencoded',
+      'x-forwarded-for': ip,
+    },
+    body,
+    redirect: 'manual',
+  })
+}
+
+function pollDevice(clientId, deviceCode, ip) {
+  return fetch(`${base}/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', ...(ip ? { 'x-forwarded-for': ip } : {}) },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+      device_code: deviceCode,
+      client_id: clientId,
+    }),
+  })
+}
+
 test('the device flow connects a client that has no browser callback', async () => {
   // RFC 8628: the client prints a short code and polls, while the owner
   // approves from any machine. This is the SSH/container path.
@@ -900,16 +989,17 @@ test('the device flow connects a client that has no browser callback', async () 
   assert.match(signedOut.headers.get('location') || '', /^\/auth\/login\?redirect=/)
 
   // Signed in: the code resolves to a consent view naming the client.
-  const consent = await fetch(`${base}/oauth/device?user_code=${encodeURIComponent(device.user_code)}`, { headers: { cookie } })
-  assert.equal(consent.status, 200)
-  const consentHtml = await consent.text()
-  assert.match(consentHtml, /Allow Test MCP client to access your workspace\?/)
+  const consent = await deviceConsentPage(device.user_code, '198.51.100.20')
+  assert.equal(consent.response.status, 200)
+  assert.match(consent.html, /Allow Test MCP client to access your workspace\?/)
+  assert.ok(consentFields(consent.html).consent_token, 'the consent form carries a session-bound nonce')
 
   // Approve with only `read` checked.
-  const approval = await fetch(`${base}/oauth/device`, {
-    method: 'POST',
-    headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ user_code: device.user_code, decision: 'approve', scopes: 'read' }),
+  const approval = await deviceDecision({
+    userCode: device.user_code,
+    scopes: 'read',
+    page: consent,
+    ip: '198.51.100.20',
   })
   assert.equal(approval.status, 200)
   assert.match(await approval.text(), /Device connected/)
@@ -946,28 +1036,14 @@ test('the device flow connects a client that has no browser callback', async () 
 
 test('a denied device authorization returns access_denied', async () => {
   const { body: client } = await registerClient('https://unused.example/cb')
-  const start = await fetch(`${base}/oauth/device-authorization`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: client.client_id, scope: 'read' }),
-  })
-  const device = await start.json()
+  const device = await startDevice(client.client_id, 'read')
 
-  await fetch(`${base}/oauth/device`, {
-    method: 'POST',
-    headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ user_code: device.user_code, decision: 'deny' }),
-  })
+  const page = await deviceConsentPage(device.user_code, '198.51.100.21')
+  const denial = await deviceDecision({ userCode: device.user_code, decision: 'deny', page, ip: '198.51.100.21' })
+  assert.equal(denial.status, 200)
+  assert.match(await denial.text(), /Request denied/)
 
-  const polled = await fetch(`${base}/oauth/token`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-      device_code: device.device_code,
-      client_id: client.client_id,
-    }),
-  })
+  const polled = await pollDevice(client.client_id, device.device_code)
   assert.equal(polled.status, 400)
   assert.equal((await polled.json()).error, 'access_denied')
 })
@@ -991,4 +1067,176 @@ test('discovery advertises the device authorization endpoint', async () => {
   const metadata = await (await fetch(`${base}/.well-known/oauth-authorization-server`)).json()
   assert.equal(metadata.device_authorization_endpoint, `${base}/oauth/device-authorization`)
   assert.ok(metadata.grant_types_supported.includes('urn:ietf:params:oauth:grant-type:device_code'))
+})
+
+test('forged device decision POSTs cannot approve or deny a grant', async () => {
+  const { body: client } = await registerClient('https://unused.example/cb')
+  const device = await startDevice(client.client_id)
+
+  // A cross-site form knows the user code (it is printed in the clear) but
+  // never sees the consent page, so it cannot know the session-bound nonce.
+  for (const decision of ['approve', 'deny']) {
+    const forged = await deviceDecision({ userCode: device.user_code, decision, ip: '198.51.100.22' })
+    assert.equal(forged.status, 400, `forged ${decision} must be refused`)
+  }
+  const stillPending = await pollDevice(client.client_id, device.device_code)
+  assert.equal((await stillPending.json()).error, 'authorization_pending')
+
+  // Rendering the page does not help the attacker either: without the nonce
+  // the POST fails, and the failed attempt must not consume the real state.
+  const page = await deviceConsentPage(device.user_code, '198.51.100.22')
+  assert.ok(consentFields(page.html).consent_token)
+  const noToken = await deviceDecision({ userCode: device.user_code, page, omitToken: true, ip: '198.51.100.22' })
+  assert.equal(noToken.status, 400)
+
+  const legitimate = await deviceDecision({ userCode: device.user_code, page, ip: '198.51.100.22' })
+  assert.equal(legitimate.status, 200)
+  assert.match(await legitimate.text(), /Device connected/)
+  const granted = await pollDevice(client.client_id, device.device_code)
+  assert.equal(granted.status, 200)
+})
+
+test('a device consent nonce cannot be retargeted to another code', async () => {
+  const { body: client } = await registerClient('https://unused.example/cb')
+  const first = await startDevice(client.client_id)
+  const second = await startDevice(client.client_id)
+
+  const page = await deviceConsentPage(first.user_code, '198.51.100.23')
+  // Same owner, valid nonce, different code: the fingerprint binds the nonce
+  // to the request that was actually displayed.
+  const tampered = await deviceDecision({ userCode: second.user_code, page, ip: '198.51.100.23' })
+  assert.equal(tampered.status, 400)
+  const pending = await pollDevice(client.client_id, second.device_code)
+  assert.equal((await pending.json()).error, 'authorization_pending')
+
+  // The nonce still belongs to the first code and works there.
+  const legitimate = await deviceDecision({ userCode: first.user_code, page, ip: '198.51.100.23' })
+  assert.equal(legitimate.status, 200)
+})
+
+test('device approval cannot widen the displayed permissions', async () => {
+  const { body: client } = await registerClient('https://unused.example/cb')
+  const device = await startDevice(client.client_id, 'read')
+
+  const page = await deviceConsentPage(device.user_code, '198.51.100.24')
+  // The page displayed read-only; the POST tries to add write anyway.
+  const approval = await deviceDecision({ userCode: device.user_code, scopes: 'read write', page, ip: '198.51.100.24' })
+  assert.equal(approval.status, 200)
+  const granted = await pollDevice(client.client_id, device.device_code)
+  assert.equal(granted.status, 200)
+  assert.equal((await granted.json()).scope, 'read')
+})
+
+test('unchecking every device scope re-renders consent instead of granting', async () => {
+  const { body: client } = await registerClient('https://unused.example/cb')
+  const device = await startDevice(client.client_id)
+
+  const page = await deviceConsentPage(device.user_code, '198.51.100.25')
+  const empty = await deviceDecision({ userCode: device.user_code, scopes: '', page, ip: '198.51.100.25' })
+  assert.equal(empty.status, 200)
+  const emptyHtml = await empty.text()
+  assert.match(emptyHtml, /Select at least one permission/)
+  // The re-render carries a fresh nonce, so the owner can correct the form.
+  const freshPage = { html: emptyHtml, cookie: empty.headers.get('set-cookie') || page.cookie }
+  assert.ok(consentFields(freshPage.html).consent_token)
+
+  const pending = await pollDevice(client.client_id, device.device_code)
+  assert.equal((await pending.json()).error, 'authorization_pending')
+
+  const retried = await deviceDecision({ userCode: device.user_code, scopes: 'read', page: freshPage, ip: '198.51.100.25' })
+  assert.equal(retried.status, 200)
+  const granted = await pollDevice(client.client_id, device.device_code)
+  assert.equal(granted.status, 200)
+  assert.equal((await granted.json()).scope, 'read')
+})
+
+test('an evicted device consent state is refused', async () => {
+  const { body: client } = await registerClient('https://unused.example/cb')
+  const device = await startDevice(client.client_id)
+
+  // The session keeps at most eight consent states. Nine renders push the
+  // first nonce out, so a page left open that long can no longer be submitted.
+  const first = await deviceConsentPage(device.user_code, '198.51.100.26')
+  let latest = first
+  for (let i = 0; i < 8; i++) latest = await deviceConsentPage(device.user_code, '198.51.100.26', latest.cookie)
+
+  // The owner submits the old page's nonce against the current session.
+  const stale = await deviceDecision({
+    userCode: device.user_code,
+    page: { html: first.html, cookie: latest.cookie },
+    ip: '198.51.100.26',
+  })
+  assert.equal(stale.status, 400)
+  const pending = await pollDevice(client.client_id, device.device_code)
+  assert.equal((await pending.json()).error, 'authorization_pending')
+
+  const current = await deviceDecision({ userCode: device.user_code, page: latest, ip: '198.51.100.26' })
+  assert.equal(current.status, 200)
+})
+
+test('the device login redirect preserves the code from a POST', async () => {
+  const { body: client } = await registerClient('https://unused.example/cb')
+  const device = await startDevice(client.client_id)
+
+  const response = await fetch(`${base}/oauth/device`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': '198.51.100.27' },
+    body: new URLSearchParams({ user_code: device.user_code, decision: 'continue' }),
+    redirect: 'manual',
+  })
+  assert.equal(response.status, 302)
+  const location = response.headers.get('location') || ''
+  assert.match(location, /^\/auth\/login\?redirect=/)
+  const target = decodeURIComponent(location.split('redirect=')[1])
+  assert.equal(target, `/oauth/device?user_code=${device.user_code}`)
+})
+
+test('the device page bounds bodies and shrugs off malformed codes', async () => {
+  const oversized = await fetch(`${base}/oauth/device`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': '198.51.100.28' },
+    body: new URLSearchParams({ user_code: 'AAAA-AAAA', decision: 'continue', junk: 'x'.repeat(9 * 1024) }),
+  })
+  assert.equal(oversized.status, 413)
+
+  const malformed = await fetch(`${base}/oauth/device?user_code=not-a-code`, {
+    headers: { cookie, 'x-forwarded-for': '198.51.100.28' },
+  })
+  assert.equal(malformed.status, 200)
+  assert.match(await malformed.text(), /was not found/)
+})
+
+test('repeated user-code guesses are throttled', async () => {
+  let limited = false
+  for (let attempt = 0; attempt < 35; attempt++) {
+    const response = await fetch(`${base}/oauth/device?user_code=AAAA-AAAA`, {
+      headers: { cookie, 'x-forwarded-for': '198.51.100.29' },
+    })
+    if (response.status === 429) {
+      limited = true
+      assert.match(response.headers.get('retry-after') || '', /^\d+$/)
+      break
+    }
+  }
+  assert.equal(limited, true, 'guessing user codes must hit the rate limit')
+})
+
+test('excessive device polling answers slow_down per RFC 8628', async () => {
+  const { body: client } = await registerClient('https://unused.example/cb')
+  const device = await startDevice(client.client_id)
+
+  let slowDown = false
+  for (let attempt = 0; attempt < 35; attempt++) {
+    const response = await pollDevice(client.client_id, device.device_code, '198.51.100.30')
+    if (response.status === 429) {
+      slowDown = true
+      assert.equal((await response.json()).error, 'slow_down')
+      assert.match(response.headers.get('retry-after') || '', /^\d+$/)
+      break
+    }
+    // A well-behaved poll under the limit stays authorization_pending.
+    assert.equal(response.status, 400)
+    assert.equal((await response.json()).error, 'authorization_pending')
+  }
+  assert.equal(slowDown, true, 'polling faster than the interval must be throttled')
 })

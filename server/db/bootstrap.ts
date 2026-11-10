@@ -100,6 +100,7 @@ export const BOOTSTRAP_STATEMENTS = [
     approved_at INTEGER,
     denied_at INTEGER,
     consumed_at INTEGER,
+    api_token_id TEXT,
     expires_at INTEGER NOT NULL,
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
   )`,

@@ -4,10 +4,16 @@ import { Database } from 'bun:sqlite'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
 import {
+  approveDeviceAuthorization,
   consumeAuthorizationCode,
   createAuthorizationCode,
+  createDeviceAuthorization,
+  denyDeviceAuthorization,
+  deviceConsentFingerprint,
+  findDeviceByUserCode,
   findGrantByRefreshToken,
   issueTokens,
+  pollDeviceAuthorization,
   redirectUriMatches,
   isAcceptableRedirectUri,
   normalizeScopes,
@@ -342,4 +348,219 @@ test('issued OAuth tokens carry the audience and never gain full scope', async (
   const grant = sqlite.prepare('SELECT resource, scopes FROM oauth_tokens').get()
   assert.equal(grant.resource, 'https://serangkai.example/api/mcp')
   assert.equal(grant.scopes, JSON.stringify(['read', 'write']))
+})
+
+/** Seed an owner, a client, and a device authorization (approved by default). */
+async function seedDevice(db, { scopes = ['read', 'write'], approve = true } = {}) {
+  const now = new Date()
+  await db.insert(schema.users).values({
+    id: 'user-1',
+    email: 'owner@example.test',
+    username: 'owner',
+    passwordHash: 'not-used',
+    createdAt: now,
+    updatedAt: now,
+  })
+  await db.insert(schema.oauthClients).values({
+    id: 'client-1',
+    clientName: 'Device client',
+    redirectUris: ['https://client.example/cb'],
+    scopes,
+    tokenEndpointAuthMethod: 'none',
+    createdAt: now,
+  })
+  const created = await createDeviceAuthorization(db, {
+    clientId: 'client-1',
+    scopes,
+    resource: 'https://serangkai.example/api/mcp',
+  })
+  assert.equal(created.ok, true)
+  if (approve) {
+    const row = await findDeviceByUserCode(db, created.userCode)
+    const approved = await approveDeviceAuthorization(db, row.id, 'user-1', scopes)
+    assert.equal(approved.ok, true)
+  }
+  return created
+}
+
+const RESOURCE = 'https://serangkai.example/api/mcp'
+
+test('concurrent device-code redemption has exactly one winner', async () => {
+  const { sqlite, db } = makeOAuthDb()
+  const device = await seedDevice(db)
+
+  const [first, second] = await Promise.all([
+    pollDeviceAuthorization(db, device.deviceCode, 'client-1', RESOURCE),
+    pollDeviceAuthorization(db, device.deviceCode, 'client-1', RESOURCE),
+  ])
+  const winners = [first, second].filter(result => result.ok)
+  const losers = [first, second].filter(result => !result.ok)
+  assert.equal(winners.length, 1, 'one redemption must win')
+  assert.equal(losers[0].error, 'invalid_grant')
+
+  // The loser's inserts were cleaned up: exactly one usable token pair exists.
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM api_tokens').get().n, 1)
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM oauth_tokens').get().n, 1)
+  const row = sqlite.prepare('SELECT consumed_at, api_token_id FROM oauth_device_codes').get()
+  assert.ok(row.consumed_at)
+  const grant = sqlite.prepare('SELECT api_token_id FROM oauth_tokens').get()
+  assert.equal(row.api_token_id, grant.api_token_id)
+
+  // The code is single-use after the win.
+  const replay = await pollDeviceAuthorization(db, device.deviceCode, 'client-1', RESOURCE)
+  assert.equal(replay.ok, false)
+  assert.equal(replay.error, 'invalid_grant')
+})
+
+test('a token-issuance failure rolls back the device-code claim', async () => {
+  const { sqlite, db } = makeOAuthDb()
+  const device = await seedDevice(db)
+
+  // Inject a storage failure between minting the token and writing the grant.
+  sqlite.exec(`CREATE TRIGGER fail_grant BEFORE INSERT ON oauth_tokens BEGIN SELECT RAISE(ABORT, 'injected failure'); END`)
+  await assert.rejects(() => pollDeviceAuthorization(db, device.deviceCode, 'client-1', RESOURCE))
+
+  // Nothing was consumed and nothing usable was left behind.
+  const row = sqlite.prepare('SELECT consumed_at, api_token_id FROM oauth_device_codes').get()
+  assert.equal(row.consumed_at, null)
+  assert.equal(row.api_token_id, null)
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM api_tokens').get().n, 0)
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM oauth_tokens').get().n, 0)
+
+  // The same code redeemable once the storage fault clears.
+  sqlite.exec('DROP TRIGGER fail_grant')
+  const retry = await pollDeviceAuthorization(db, device.deviceCode, 'client-1', RESOURCE)
+  assert.equal(retry.ok, true)
+  assert.ok(retry.tokens.accessToken)
+})
+
+test('the D1 batch path checks the claim result and fails closed on unknown shapes', async () => {
+  const deviceRow = {
+    id: 'device-hash',
+    clientId: 'client-1',
+    userId: 'user-1',
+    scopes: ['read'],
+    resource: null,
+    approvedAt: new Date(),
+    deniedAt: null,
+    consumedAt: null,
+    expiresAt: new Date(Date.now() + 60_000),
+  }
+  function mockD1(claimResult) {
+    const statements = []
+    return {
+      statements,
+      select: () => ({ from: table => ({ where: () => ({ get: async () =>
+        table === schema.oauthDeviceCodes ? deviceRow : { id: 'client-1', clientName: 'Mock' } }) }) }),
+      insert: table => ({ values: (values) => { const s = { op: 'insert', table, values }; statements.push(s); return s } }),
+      update: table => ({ set: set => ({ where: (where) => { const s = { op: 'update', table, set, where }; statements.push(s); return s } }) }),
+      delete: table => ({ where: (where) => { const s = { op: 'delete', table, where }; statements.push(s); return s } }),
+      batch: async statements => statements.map(s => s.op === 'update' ? claimResult : {}),
+    }
+  }
+
+  const winner = mockD1({ meta: { changes: 1 } })
+  const won = await pollDeviceAuthorization(winner, 'device-code', 'client-1', RESOURCE)
+  assert.equal(won.ok, true)
+  assert.ok(won.tokens.accessToken)
+  // Insert, insert, claim, then the two orphan cleanups — one atomic batch.
+  assert.deepEqual(winner.statements.map(s => s.op), ['insert', 'insert', 'update', 'delete', 'delete'])
+  assert.equal(winner.statements[2].table, schema.oauthDeviceCodes)
+  assert.ok(winner.statements[2].set.apiTokenId, 'the claim links the minted API token')
+  assert.equal(winner.statements[3].table, schema.oauthTokens)
+  assert.equal(winner.statements[4].table, schema.apiTokens)
+
+  for (const shape of [{ meta: { changes: 0 } }, {}]) {
+    const db = mockD1(shape)
+    const result = await pollDeviceAuthorization(db, 'device-code', 'client-1', RESOURCE)
+    assert.equal(result.ok, false, `must fail closed for ${JSON.stringify(shape)}`)
+    assert.equal(result.error, 'invalid_grant')
+  }
+})
+
+test('concurrent device decisions have exactly one winner', async () => {
+  // approve/approve, approve/deny, deny/deny: the conditional update decides.
+  for (const kind of ['approve/approve', 'approve/deny', 'deny/deny']) {
+    const { sqlite, db } = makeOAuthDb()
+    const device = await seedDevice(db, { approve: false })
+    const row = await findDeviceByUserCode(db, device.userCode)
+    const approve = () => approveDeviceAuthorization(db, row.id, 'user-1', ['read'])
+    const deny = () => denyDeviceAuthorization(db, row.id)
+    const [a, b] = kind === 'approve/approve' ? await Promise.all([approve(), approve()])
+      : kind === 'approve/deny' ? await Promise.all([approve(), deny()])
+        : await Promise.all([deny(), deny()])
+    assert.equal([a, b].filter(r => r.ok).length, 1, `${kind}: one decision must win`)
+    assert.equal([a, b].filter(r => !r.ok)[0].error, 'already_decided', kind)
+    const after = sqlite.prepare('SELECT approved_at, denied_at FROM oauth_device_codes').get()
+    assert.ok(!(after.approved_at && after.denied_at), `${kind}: never both decided`)
+    assert.ok(after.approved_at || after.denied_at, `${kind}: exactly one decision stored`)
+  }
+})
+
+test('expired or consumed device requests cannot change state', async () => {
+  const { sqlite, db } = makeOAuthDb()
+  const device = await seedDevice(db, { approve: false })
+  const row = await findDeviceByUserCode(db, device.userCode)
+  sqlite.prepare('UPDATE oauth_device_codes SET expires_at = ?').run(Math.floor((Date.now() - 1000) / 1000))
+  assert.equal((await approveDeviceAuthorization(db, row.id, 'user-1', ['read'])).error, 'expired')
+  assert.equal((await denyDeviceAuthorization(db, row.id)).error, 'expired')
+
+  // A consumed code is past every decision, even after restoring expiry.
+  sqlite.prepare('UPDATE oauth_device_codes SET expires_at = ?').run(Math.floor((Date.now() + 600_000) / 1000))
+  assert.equal((await approveDeviceAuthorization(db, row.id, 'user-1', ['read'])).ok, true)
+  assert.equal((await pollDeviceAuthorization(db, device.deviceCode, 'client-1', RESOURCE)).ok, true)
+  assert.equal((await approveDeviceAuthorization(db, row.id, 'user-1', ['read'])).error, 'already_decided')
+  assert.equal((await denyDeviceAuthorization(db, row.id)).error, 'already_decided')
+})
+
+test('device polling reports pending, denied, expired, and binding errors', async () => {
+  const { sqlite, db } = makeOAuthDb()
+  const device = await seedDevice(db, { approve: false })
+  assert.equal((await pollDeviceAuthorization(db, device.deviceCode, 'client-1')).error, 'authorization_pending')
+  assert.equal((await pollDeviceAuthorization(db, device.deviceCode, 'other-client')).error, 'invalid_grant')
+  assert.equal((await pollDeviceAuthorization(db, device.deviceCode, 'client-1', 'https://evil.example/api/mcp')).error, 'invalid_target')
+
+  const row = await findDeviceByUserCode(db, device.userCode)
+  await denyDeviceAuthorization(db, row.id)
+  assert.equal((await pollDeviceAuthorization(db, device.deviceCode, 'client-1')).error, 'access_denied')
+
+  const second = await createDeviceAuthorization(db, { clientId: 'client-1', scopes: ['read'] })
+  sqlite.prepare('UPDATE oauth_device_codes SET expires_at = ? WHERE user_code = ?')
+    .run(Math.floor((Date.now() - 1000) / 1000), second.userCode.replace('-', ''))
+  assert.equal((await pollDeviceAuthorization(db, second.deviceCode, 'client-1')).error, 'expired_token')
+})
+
+test('device authorization creation is bounded per client', async () => {
+  const { db } = makeOAuthDb()
+  await seedDevice(db, { approve: false })
+  for (let i = 1; i < 100; i++) {
+    const result = await createDeviceAuthorization(db, { clientId: 'client-1', scopes: ['read'] })
+    assert.equal(result.ok, true, `create ${i + 1} should pass`)
+  }
+  const overflow = await createDeviceAuthorization(db, { clientId: 'client-1', scopes: ['read'] })
+  assert.equal(overflow.ok, false)
+  assert.equal(overflow.error, 'slow_down')
+})
+
+test('the device consent fingerprint binds every displayed value', async () => {
+  const input = {
+    deviceId: 'device-1',
+    clientId: 'client-1',
+    userCode: 'ABCDABCD',
+    scopes: ['read', 'write'],
+    resource: RESOURCE,
+    userId: 'user-1',
+  }
+  const hash = await deviceConsentFingerprint(input)
+  assert.equal(await deviceConsentFingerprint(input), hash)
+  for (const patch of [
+    { deviceId: 'device-2' },
+    { clientId: 'client-2' },
+    { userCode: 'BCDEBCDE' },
+    { scopes: ['read'] },
+    { resource: 'https://evil.example/api/mcp' },
+    { userId: 'user-2' },
+  ]) {
+    assert.notEqual(await deviceConsentFingerprint({ ...input, ...patch }), hash, JSON.stringify(patch))
+  }
 })

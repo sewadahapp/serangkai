@@ -67,6 +67,10 @@ export default defineEventHandler(async (event) => {
     scopes,
     resource: resourceResult.resource,
   })
+  if (!authorization.ok) {
+    setHeader(event, 'Retry-After', '60')
+    return deviceError(event, 429, 'slow_down', 'Too many pending codes for this client. Wait for them to expire.')
+  }
 
   // `verification_uri_complete` saves the owner from typing the code, which is
   // the whole point when the client is on another machine.

@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, lt, notInArray, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, lt, notInArray, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { apiTokens, oauthClients, oauthCodes, oauthDeviceCodes, oauthTokens } from '../db/schema'
 import { generateToken, hashToken } from './auth'
@@ -320,6 +320,34 @@ function affectedRows(result: any): number {
  * atomically: a failure must not leave a usable token with no grant behind.
  */
 export async function issueTokens(db: any, input: IssueTokensInput): Promise<IssuedTokens> {
+  const { apiTokenRow, grantRow, tokens } = await buildTokenRows(input)
+
+  if (typeof db.batch === 'function') {
+    // D1: one batch is atomic, and there is no BEGIN/COMMIT.
+    await db.batch([
+      db.insert(apiTokens).values(apiTokenRow),
+      db.insert(oauthTokens).values(grantRow),
+    ])
+  } else if (typeof db.transaction === 'function') {
+    db.transaction((tx: any) => {
+      tx.insert(apiTokens).values(apiTokenRow).run()
+      tx.insert(oauthTokens).values(grantRow).run()
+    })
+  } else {
+    // Test doubles that provide neither primitive keep the old shape.
+    await db.insert(apiTokens).values(apiTokenRow)
+    await db.insert(oauthTokens).values(grantRow)
+  }
+
+  return tokens
+}
+
+/**
+ * Build the two rows a grant is made of. Shared by `issueTokens` and the
+ * device-code redemption, which must write them in the same atomic step as
+ * the single-use claim.
+ */
+async function buildTokenRows(input: IssueTokensInput) {
   const accessToken = generateToken()
   const refreshToken = generateToken()
   const apiTokenId = nanoid()
@@ -350,25 +378,8 @@ export async function issueTokens(db: any, input: IssueTokensInput): Promise<Iss
     refreshExpiresAt: new Date(now + REFRESH_TTL_MS),
     createdAt: new Date(),
   }
-
-  if (typeof db.batch === 'function') {
-    // D1: one batch is atomic, and there is no BEGIN/COMMIT.
-    await db.batch([
-      db.insert(apiTokens).values(apiTokenRow),
-      db.insert(oauthTokens).values(grantRow),
-    ])
-  } else if (typeof db.transaction === 'function') {
-    db.transaction((tx: any) => {
-      tx.insert(apiTokens).values(apiTokenRow).run()
-      tx.insert(oauthTokens).values(grantRow).run()
-    })
-  } else {
-    // Test doubles that provide neither primitive keep the old shape.
-    await db.insert(apiTokens).values(apiTokenRow)
-    await db.insert(oauthTokens).values(grantRow)
-  }
-
-  return { accessToken, refreshToken, expiresIn: ACCESS_TTL_SECONDS, scopes }
+  const tokens: IssuedTokens = { accessToken, refreshToken, expiresIn: ACCESS_TTL_SECONDS, scopes }
+  return { apiTokenRow, grantRow, apiTokenId, grantId, tokens }
 }
 
 export type RotateRefreshResult =
@@ -564,6 +575,37 @@ export async function oauthConsentFingerprint(input: ConsentFingerprintInput): P
   ]))
 }
 
+export interface DeviceConsentFingerprintInput {
+  /** Row id (the hashed device code) of the stored authorization request. */
+  deviceId: string
+  clientId: string
+  userCode: string
+  /** The permissions displayed on the consent page, from the stored row. */
+  scopes: string[]
+  resource: string
+  userId: string
+}
+
+/**
+ * Bind a device approval/denial POST to the consent page the owner rendered.
+ *
+ * Every value comes from the stored device authorization, not from the POST
+ * body, so tampering with the submitted code or scopes cannot match the
+ * fingerprint. The domain prefix keeps these hashes distinct from
+ * authorization-code consent hashes.
+ */
+export async function deviceConsentFingerprint(input: DeviceConsentFingerprintInput): Promise<string> {
+  return sha256Hex(JSON.stringify([
+    'device',
+    input.deviceId,
+    input.clientId,
+    input.userCode,
+    input.scopes.join(' '),
+    input.resource,
+    input.userId,
+  ]))
+}
+
 /**
  * Delete abandoned registrations and expired codes.
  *
@@ -632,9 +674,28 @@ export interface DeviceAuthorizationInput {
   resource?: string | null
 }
 
-export async function createDeviceAuthorization(db: any, input: DeviceAuthorizationInput) {
+/**
+ * Bound the rows one client can keep alive. Expired rows are pruned on every
+ * create, but within the TTL a scripted client could otherwise pile up records
+ * without limit. A human connecting devices never approaches this.
+ */
+const MAX_LIVE_DEVICE_CODES_PER_CLIENT = 100
+
+export type CreateDeviceAuthorizationResult =
+  | { ok: true; deviceCode: string; userCode: string; expiresIn: number }
+  | { ok: false; error: 'slow_down' }
+
+export async function createDeviceAuthorization(db: any, input: DeviceAuthorizationInput): Promise<CreateDeviceAuthorizationResult> {
   // Opportunistic cleanup, same rationale as authorization codes.
   await db.delete(oauthDeviceCodes).where(lt(oauthDeviceCodes.expiresAt, new Date()))
+
+  const live = await db.select({ id: oauthDeviceCodes.id })
+    .from(oauthDeviceCodes)
+    .where(and(eq(oauthDeviceCodes.clientId, input.clientId), gt(oauthDeviceCodes.expiresAt, new Date())))
+    .limit(MAX_LIVE_DEVICE_CODES_PER_CLIENT)
+  if (live.length >= MAX_LIVE_DEVICE_CODES_PER_CLIENT) {
+    return { ok: false, error: 'slow_down' }
+  }
 
   const deviceCode = generateToken()
   // Collisions are possible in principle; retry a few times rather than
@@ -657,7 +718,7 @@ export async function createDeviceAuthorization(db: any, input: DeviceAuthorizat
     createdAt: new Date(),
   })
 
-  return { deviceCode, userCode: formatUserCode(userCode), expiresIn: Math.floor(DEVICE_CODE_TTL_MS / 1000) }
+  return { ok: true, deviceCode, userCode: formatUserCode(userCode), expiresIn: Math.floor(DEVICE_CODE_TTL_MS / 1000) }
 }
 
 /** Look up a pending device authorization by the code the owner typed. */
@@ -668,26 +729,45 @@ export async function findDeviceByUserCode(db: any, input: string) {
     .where(eq(oauthDeviceCodes.userCode, userCode)).get()
 }
 
-/** Owner approval. Sets the user and marks the request approved. */
+/**
+ * Owner approval. Sets the user and marks the request approved.
+ *
+ * The conditional UPDATE is the decision: under concurrent approve/deny
+ * requests exactly one affects a row, and a zero-row result must be reported
+ * as "already decided", never as success.
+ */
 export async function approveDeviceAuthorization(db: any, id: string, userId: string, scopes: string[]) {
   const row = await db.select().from(oauthDeviceCodes).where(eq(oauthDeviceCodes.id, id)).get()
   if (!row) return { ok: false as const, error: 'not_found' as const }
-  if (row.approvedAt || row.deniedAt) return { ok: false as const, error: 'already_decided' as const }
+  if (row.approvedAt || row.deniedAt || row.consumedAt) return { ok: false as const, error: 'already_decided' as const }
   if (row.expiresAt.getTime() < Date.now()) return { ok: false as const, error: 'expired' as const }
 
-  await db.update(oauthDeviceCodes)
+  const result = await db.update(oauthDeviceCodes)
     .set({ userId, approvedAt: new Date(), scopes })
-    .where(and(eq(oauthDeviceCodes.id, id), isNull(oauthDeviceCodes.approvedAt), isNull(oauthDeviceCodes.deniedAt)))
+    .where(and(
+      eq(oauthDeviceCodes.id, id),
+      isNull(oauthDeviceCodes.approvedAt),
+      isNull(oauthDeviceCodes.deniedAt),
+      isNull(oauthDeviceCodes.consumedAt),
+    ))
+  if (affectedRows(result) !== 1) return { ok: false as const, error: 'already_decided' as const }
   return { ok: true as const }
 }
 
 export async function denyDeviceAuthorization(db: any, id: string) {
   const row = await db.select().from(oauthDeviceCodes).where(eq(oauthDeviceCodes.id, id)).get()
   if (!row) return { ok: false as const, error: 'not_found' as const }
-  if (row.approvedAt || row.deniedAt) return { ok: false as const, error: 'already_decided' as const }
-  await db.update(oauthDeviceCodes)
+  if (row.approvedAt || row.deniedAt || row.consumedAt) return { ok: false as const, error: 'already_decided' as const }
+  if (row.expiresAt.getTime() < Date.now()) return { ok: false as const, error: 'expired' as const }
+  const result = await db.update(oauthDeviceCodes)
     .set({ deniedAt: new Date() })
-    .where(and(eq(oauthDeviceCodes.id, id), isNull(oauthDeviceCodes.approvedAt), isNull(oauthDeviceCodes.deniedAt)))
+    .where(and(
+      eq(oauthDeviceCodes.id, id),
+      isNull(oauthDeviceCodes.approvedAt),
+      isNull(oauthDeviceCodes.deniedAt),
+      isNull(oauthDeviceCodes.consumedAt),
+    ))
+  if (affectedRows(result) !== 1) return { ok: false as const, error: 'already_decided' as const }
   return { ok: true as const }
 }
 
@@ -695,7 +775,11 @@ export async function denyDeviceAuthorization(db: any, id: string) {
  * Poll result for the token endpoint.
  *
  * Returns the RFC 8628 error code the client expects while the owner has not
- * decided yet, and consumes the row exactly once when they have.
+ * decided yet. Once approved, claiming the code and issuing its tokens are one
+ * atomic step: a failure rolls both back so the code stays redeemable, and
+ * concurrent polls produce exactly one token pair. The claim stores the minted
+ * API token id on the device row, which lets the loser of a race recognize and
+ * clean up its own inserts inside the same batch/transaction.
  */
 export async function pollDeviceAuthorization(
   db: any,
@@ -716,26 +800,68 @@ export async function pollDeviceAuthorization(
   if (row.expiresAt.getTime() < Date.now()) return { ok: false as const, error: 'expired_token' as const }
   if (row.deniedAt) return { ok: false as const, error: 'access_denied' as const }
   if (!row.approvedAt || !row.userId) return { ok: false as const, error: 'authorization_pending' as const }
-
-  // Claim it: the conditional update means two concurrent polls cannot both
-  // receive tokens. An unrecognized shape fails closed.
-  const result = await db.update(oauthDeviceCodes)
-    .set({ consumedAt: new Date() })
-    .where(and(eq(oauthDeviceCodes.id, id), isNull(oauthDeviceCodes.consumedAt)))
-  const affected = Number(result?.changes ?? result?.rowsAffected ?? result?.meta?.changes)
-  if (!Number.isFinite(affected) || affected <= 0) {
-    return { ok: false as const, error: 'invalid_grant' as const }
-  }
-
-  const client = await findClient(db, row.clientId)
   const scopes = parseScopes(row.scopes)
   if (!scopes.length) return { ok: false as const, error: 'invalid_grant' as const }
-  const issued = await issueTokens(db, {
+
+  const client = await findClient(db, row.clientId)
+  const { apiTokenRow, grantRow, apiTokenId, grantId, tokens } = await buildTokenRows({
     clientId: row.clientId,
     userId: row.userId,
     scopes,
     label: client?.clientName || 'OAuth client',
     resource: row.resource || expectedResource || null,
   })
-  return { ok: true as const, tokens: issued }
+
+  const claim = { consumedAt: new Date(), apiTokenId }
+  const claimWhere = and(eq(oauthDeviceCodes.id, id), isNull(oauthDeviceCodes.consumedAt))
+  // Only the request whose claim linked this API token keeps it; everyone
+  // else's inserts are removed in the same atomic step.
+  const orphanGrant = and(
+    eq(oauthTokens.id, grantId),
+    sql`NOT EXISTS (SELECT 1 FROM oauth_device_codes WHERE id = ${id} AND api_token_id = ${apiTokenId})`,
+  )
+  const orphanToken = and(
+    eq(apiTokens.id, apiTokenId),
+    sql`NOT EXISTS (SELECT 1 FROM oauth_device_codes WHERE id = ${id} AND api_token_id = ${apiTokenId})`,
+  )
+
+  if (typeof db.batch === 'function') {
+    // D1: all five statements commit together; the conditional claim is the
+    // single winner and the trailing deletes clean up the loser's rows.
+    const results = await db.batch([
+      db.insert(apiTokens).values(apiTokenRow),
+      db.insert(oauthTokens).values(grantRow),
+      db.update(oauthDeviceCodes).set(claim).where(claimWhere),
+      db.delete(oauthTokens).where(orphanGrant),
+      db.delete(apiTokens).where(orphanToken),
+    ])
+    if (affectedRows(results?.[2]) !== 1) return { ok: false as const, error: 'invalid_grant' as const }
+    return { ok: true as const, tokens }
+  }
+
+  if (typeof db.transaction === 'function') {
+    return db.transaction((tx: any) => {
+      tx.insert(apiTokens).values(apiTokenRow).run()
+      tx.insert(oauthTokens).values(grantRow).run()
+      const updated = tx.update(oauthDeviceCodes).set(claim).where(claimWhere).run()
+      if (affectedRows(updated) !== 1) {
+        tx.delete(oauthTokens).where(eq(oauthTokens.id, grantId)).run()
+        tx.delete(apiTokens).where(eq(apiTokens.id, apiTokenId)).run()
+        return { ok: false as const, error: 'invalid_grant' as const }
+      }
+      return { ok: true as const, tokens }
+    })
+  }
+
+  // Test doubles without transactions: the conditional claim still guarantees
+  // a single winner, and a loser removes its own rows.
+  await db.insert(apiTokens).values(apiTokenRow)
+  await db.insert(oauthTokens).values(grantRow)
+  const updated = await db.update(oauthDeviceCodes).set(claim).where(claimWhere)
+  if (affectedRows(updated) !== 1) {
+    await db.delete(oauthTokens).where(eq(oauthTokens.id, grantId))
+    await db.delete(apiTokens).where(eq(apiTokens.id, apiTokenId))
+    return { ok: false as const, error: 'invalid_grant' as const }
+  }
+  return { ok: true as const, tokens }
 }

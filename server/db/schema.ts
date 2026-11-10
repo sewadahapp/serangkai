@@ -106,6 +106,11 @@ export const oauthDeviceCodes = sqliteTable('oauth_device_codes', {
   deniedAt: integer('denied_at', { mode: 'timestamp' }),
   /** Set once the client has exchanged the device code; makes it single-use. */
   consumedAt: integer('consumed_at', { mode: 'timestamp' }),
+  /**
+   * The API token minted by the winning redemption. Lets a concurrent poll
+   * loser identify and clean up its own inserts in the same atomic step.
+   */
+  apiTokenId: text('api_token_id'),
   expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
 })

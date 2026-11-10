@@ -11,9 +11,9 @@ import {
   parseScopes,
 } from '../../utils/oauth'
 import { mcpResourceUrl } from '../../utils/oauth-urls'
+import { consumeConsent, rememberConsent } from '../../utils/oauth-consent'
 import { readBoundedBody } from '../../utils/request-body'
 import { clientBucketKey, createRateLimiter } from '../../utils/rate-limit'
-import { generateToken } from '../../utils/auth'
 
 /**
  * The consent page is cheap to render but expensive to spam: every hit reads a
@@ -80,61 +80,6 @@ function appendQuery(uri: string, params: Record<string, string>): string {
     if (value) url.searchParams.set(key, value)
   }
   return url.href
-}
-
-/** How long a rendered consent page may be submitted. */
-const CONSENT_TTL_MS = 10 * 60 * 1000
-const MAX_CONSENT_STATES = 8
-
-interface ConsentState {
-  hash: string
-  nonce: string
-  userId: string
-  expiresAt: number
-}
-
-/**
- * Remember the exact request a GET rendered, inside the sealed session.
- *
- * Keeping a short list instead of one value lets the owner open several
- * clients in different tabs without the last page invalidating the others. The
- * random nonce is rendered as a hidden field: a cross-site form cannot read it,
- * so binding the request is not enough on its own. The fingerprint still makes
- * the nonce useless for a different client, redirect URI, or scope set.
- */
-async function rememberConsent(event: any, hash: string, userId: string): Promise<string> {
-  const session: any = await getUserSession(event)
-  const now = Date.now()
-  const states: ConsentState[] = Array.isArray(session?.oauthConsent)
-    ? session.oauthConsent.filter((state: ConsentState) =>
-      state && typeof state.hash === 'string'
-      && typeof state.nonce === 'string'
-      && typeof state.userId === 'string'
-      && Number(state.expiresAt) > now)
-    : []
-  const nonce = generateToken()
-  states.push({ hash, nonce, userId, expiresAt: now + CONSENT_TTL_MS })
-  await setUserSession(event, { oauthConsent: states.slice(-MAX_CONSENT_STATES) })
-  return nonce
-}
-
-/** Consume a previously rendered consent state exactly once. */
-async function consumeConsent(event: any, hash: string, userId: string, nonce: string): Promise<boolean> {
-  const session: any = await getUserSession(event)
-  const now = Date.now()
-  const states: ConsentState[] = Array.isArray(session?.oauthConsent)
-    ? session.oauthConsent.filter((state: ConsentState) =>
-      state && typeof state.hash === 'string'
-      && typeof state.nonce === 'string'
-      && typeof state.userId === 'string'
-      && Number(state.expiresAt) > now)
-    : []
-  const index = states.findIndex(state =>
-    state.hash === hash && state.userId === userId && state.nonce === nonce)
-  if (index < 0) return false
-  states.splice(index, 1)
-  await setUserSession(event, { oauthConsent: states })
-  return true
 }
 
 function errorPage(event: any, status: number, message: string, detail?: string) {
