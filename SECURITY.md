@@ -183,11 +183,15 @@ On Cloudflare, a missing or misconfigured R2 binding fails startup instead of
 silently mounting an in-memory driver. `STORAGE_DRIVER=s3` selects an external
 S3-compatible provider (such as Backblaze B2) instead of R2; the adapter signs
 every request with SigV4 and a signed payload hash, treats only missing-object
-reads as `null`, and fails loudly on failed writes. There is no ephemeral-memory
-fallback for S3: its bucket probe runs once on the first request (Workers forbid
-network I/O during plugin initialization), so wrong credentials, endpoint, or
-bucket name fail the deployment before it serves anything, and a 404 on a write
-is never treated as success.
+reads as `null`, and fails loudly on failed writes. Its configuration is
+validated when the driver mounts — an endpoint without a scheme, an invalid
+bucket name, or missing credentials is reported with an actionable message
+naming the variable — and the bucket is probed on first storage use (Workers
+forbid network I/O during plugin initialization). Every failure path mounts a
+driver whose operations throw rather than leaving the mount empty: Nitro
+swallows plugin errors on Workers, and an empty mount would let unstorage's
+in-memory default absorb uploads silently. A 404 on a write is never treated as
+success, and S3 has no memory fallback.
 `SERANGKAI_ALLOW_EPHEMERAL_STORAGE=true` is honored only outside production and
 only for tests/local previews — never as a production fallback.
 

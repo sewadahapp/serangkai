@@ -34,6 +34,15 @@ test('the probe accepts a valid bucket and rejects bad credentials or a missing 
   await assert.rejects(() => makeDriver({ bucket: 'no-such-bucket' }).getInstance(), /404/)
 })
 
+test('misconfigured options fail with an actionable message before any request', () => {
+  // Backblaze displays the endpoint as a bare hostname; the full URL is required.
+  assert.throws(() => makeDriver({ endpoint: 's3.us-west-004.backblazeb2.com' }), /S3_ENDPOINT must be an absolute URL including the scheme/)
+  assert.throws(() => makeDriver({ endpoint: 'ftp://s3.example.com' }), /S3_ENDPOINT must use http or https/)
+  assert.throws(() => makeDriver({ bucket: 'not a bucket' }), /S3_BUCKET must be a valid bucket name/)
+  assert.throws(() => makeDriver({ secretAccessKey: '' }), /S3_SECRET_ACCESS_KEY is required/)
+  assert.throws(() => makeDriver({ accessKeyId: '' }), /S3_ACCESS_KEY_ID is required/)
+})
+
 test('binary objects round-trip byte-for-byte through create, read, update, delete', async () => {
   const driver = makeDriver()
   const key = 'user-1/artifact-1/content.bin'

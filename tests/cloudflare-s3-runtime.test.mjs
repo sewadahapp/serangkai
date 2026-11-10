@@ -40,12 +40,19 @@ async function stopWorker() {
   child = undefined
 }
 
-async function startWorker() {
+async function startWorker(workerPort = port, s3 = null) {
+  const storage = s3 || {
+    endpoint: mock.endpoint,
+    region: mock.region,
+    bucket: mock.bucket,
+    keyId: mock.keyId,
+    secret: mock.secret,
+  }
   const jwtSecret = randomBytes(32).toString('hex')
   const shareSecret = randomBytes(32).toString('hex')
   child = spawn('bunx', [
     'wrangler', 'dev', '--config', 'wrangler.b2.jsonc', '--local',
-    '--port', String(port), '--show-interactive-dev-session=false',
+    '--port', String(workerPort), '--show-interactive-dev-session=false',
     '--var', `JWT_SECRET:${jwtSecret}`,
     '--var', `SHARE_SECRET:${shareSecret}`,
     '--var', `ADMIN_USERNAME:${adminUsername}`,
@@ -53,16 +60,17 @@ async function startWorker() {
     '--var', `NUXT_APP_SECRET:${process.env.NUXT_APP_SECRET}`,
     '--var', 'NUXT_SESSION_COOKIE_SECURE:false',
     '--var', 'STORAGE_DRIVER:s3',
-    '--var', `S3_ENDPOINT:${mock.endpoint}`,
-    '--var', `S3_REGION:${mock.region}`,
-    '--var', `S3_BUCKET:${mock.bucket}`,
-    '--var', `S3_ACCESS_KEY_ID:${mock.keyId}`,
-    '--var', `S3_SECRET_ACCESS_KEY:${mock.secret}`,
+    '--var', `S3_ENDPOINT:${storage.endpoint}`,
+    '--var', `S3_REGION:${storage.region}`,
+    '--var', `S3_BUCKET:${storage.bucket}`,
+    '--var', `S3_ACCESS_KEY_ID:${storage.keyId}`,
+    '--var', `S3_SECRET_ACCESS_KEY:${storage.secret}`,
   ], { cwd: process.cwd(), env: { ...process.env }, stdio: ['ignore', 'pipe', 'pipe'], detached: true })
   child.stdout.on('data', chunk => { output += chunk.toString() })
   child.stderr.on('data', chunk => { output += chunk.toString() })
+  const workerBase = `http://127.0.0.1:${workerPort}`
   for (let i = 0; i < 150; i++) {
-    try { if ((await fetch(`${base}/api/health`)).ok) return } catch {}
+    try { if ((await fetch(`${workerBase}/api/health`)).ok) return } catch {}
     await new Promise(resolve => setTimeout(resolve, 200))
   }
   throw new Error(`Wrangler local Worker did not start\n${output}`)
@@ -151,4 +159,37 @@ test('B2-style storage works on Workers with D1 and no R2 binding', { timeout: 9
   // No ephemeral fallback and no R2 involvement.
   assert.doesNotMatch(output, /ephemeral memory storage/)
   assert.doesNotMatch(output, /R2 binding/)
+})
+
+test('a misconfigured S3 endpoint fails storage loudly instead of using Worker memory', { timeout: 90000 }, async () => {
+  // Backblaze displays its endpoint as a bare hostname; deploying it without
+  // the scheme used to surface as a cryptic "Invalid URL string." on upload.
+  // The misconfiguration must be reported, and uploads must NOT fall through
+  // to unstorage's in-memory default (which would lose the file silently).
+  await stopWorker()
+  const badPort = port + 1
+  const badBase = `http://127.0.0.1:${badPort}`
+  await startWorker(badPort, {
+    endpoint: 's3.us-west-004.backblazeb2.com',
+    region: mock.region,
+    bucket: mock.bucket,
+    keyId: mock.keyId,
+    secret: mock.secret,
+  })
+
+  const { cookie } = await login(badBase)
+  const before = mock.requests.length
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const created = await fetch(`${badBase}/api/artifacts`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ title: `Broken storage ${attempt}`, type: 'markdown', content: '# nope' }),
+    })
+    // A loud failure, both times: the second attempt must not "succeed"
+    // because the first one quietly wrote into memory.
+    assert.equal(created.status, 500, await created.text())
+  }
+  assert.equal(mock.requests.length, before, 'no request may reach the S3 endpoint with an invalid config')
+  assert.match(output, /S3 storage is misconfigured: S3_ENDPOINT must be an absolute URL including the scheme/)
+  assert.doesNotMatch(output, /ephemeral memory storage/)
 })

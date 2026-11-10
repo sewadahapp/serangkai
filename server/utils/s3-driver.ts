@@ -12,6 +12,29 @@ export interface S3DriverOptions {
 const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
 
 /**
+ * Fail with an actionable message before any request is attempted. A bare
+ * hostname (as Backblaze displays it) is a common configuration mistake and
+ * would otherwise surface as a cryptic URL parse error on the first upload.
+ */
+function validateOptions(options: S3DriverOptions) {
+  if (!options.accessKeyId) throw new Error('S3_ACCESS_KEY_ID is required when STORAGE_DRIVER=s3.')
+  if (!options.secretAccessKey) throw new Error('S3_SECRET_ACCESS_KEY is required when STORAGE_DRIVER=s3.')
+  if (!options.region) throw new Error('S3_REGION is required when STORAGE_DRIVER=s3.')
+  if (!options.bucket || !/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(options.bucket)) {
+    throw new Error('S3_BUCKET must be a valid bucket name (3-63 lowercase letters, digits, dots, or hyphens).')
+  }
+  let endpoint: URL
+  try {
+    endpoint = new URL(options.endpoint)
+  } catch {
+    throw new Error('S3_ENDPOINT must be an absolute URL including the scheme, for example https://s3.us-west-004.backblazeb2.com.')
+  }
+  if (endpoint.protocol !== 'https:' && endpoint.protocol !== 'http:') {
+    throw new Error('S3_ENDPOINT must use http or https, for example https://s3.us-west-004.backblazeb2.com.')
+  }
+}
+
+/**
  * Minimal S3-compatible object storage driver for Backblaze B2 (and any other
  * S3 API that accepts SigV4 with a signed payload hash).
  *
@@ -23,6 +46,7 @@ const EMPTY_SHA256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b78
  * and Cloudflare Workers without Node-only APIs.
  */
 export function s3Driver(options: S3DriverOptions) {
+  validateOptions(options)
   const client = new AwsClient({
     accessKeyId: options.accessKeyId,
     secretAccessKey: options.secretAccessKey,

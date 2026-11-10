@@ -117,9 +117,14 @@ wrangler deploy --config wrangler.b2.jsonc
 
 Then set the secrets once with `wrangler secret put S3_ENDPOINT`, `S3_REGION`,
 `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and the four required
-authentication secrets plus `NUXT_APP_SECRET`. `bun run deploy:b2` builds and
-deploys with the same config. On Workers, uploads and downloads are stored in B2
-and survive redeployments as long as the secrets stay stable; D1 holds the
+authentication secrets plus `NUXT_APP_SECRET`. `S3_ENDPOINT` must be the full
+URL including `https://` (Backblaze displays the hostname without the scheme);
+`S3_REGION` is the region segment of that endpoint, such as `us-west-004`. If
+storage is misconfigured, artifact writes fail with a clear error instead of
+falling back to Worker memory — the rest of the app still loads, so a health
+check alone does not prove uploads work. `bun run deploy:b2` builds and deploys
+with the same config. On Workers, uploads and downloads are stored in B2 and
+survive redeployments as long as the secrets stay stable; D1 holds the
 metadata.
 
 The B2 path is verified locally with the Workers runtime against a
