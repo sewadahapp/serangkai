@@ -169,9 +169,12 @@ bun run build:vercel
 
 Cloudflare uses Nitro's `cloudflare_module` preset, a request-scoped Drizzle D1
 adapter, and a native R2 binding. The local Wrangler/Miniflare test covers owner
-login, artifact creation, binary upload, and download. Vercel uses Nitro's
-`vercel` preset and a Node 24 function runtime, but its filesystem is ephemeral:
-durable data needs an external database plus `STORAGE_DRIVER=s3`.
+login, artifact creation, binary upload, and download; a second local Worker
+run covers the B2 path with D1, no R2 binding, and a Backblaze-compatible mock
+(signing, binary integrity, artifact update/delete, and persistence across a
+Worker restart). Vercel uses Nitro's `vercel` preset and a Node 24 function
+runtime, but its filesystem is ephemeral: durable data needs an external
+database plus `STORAGE_DRIVER=s3`.
 
 ### What has actually been exercised
 
