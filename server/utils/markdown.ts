@@ -3,24 +3,7 @@ import { textContent } from 'comark/utils'
 import security from 'comark/plugins/security'
 import shiki from 'comark/plugins/shiki'
 import toc from 'comark/plugins/toc'
-import githubLight from '@shikijs/themes/github-light'
-import githubDark from '@shikijs/themes/github-dark'
-import bash from '@shikijs/langs/bash'
-import css from '@shikijs/langs/css'
-import dockerfile from '@shikijs/langs/dockerfile'
-import go from '@shikijs/langs/go'
-import html from '@shikijs/langs/html'
-import http from '@shikijs/langs/http'
-import javascript from '@shikijs/langs/javascript'
-import json from '@shikijs/langs/json'
-import jsonc from '@shikijs/langs/jsonc'
-import markdown from '@shikijs/langs/markdown'
-import python from '@shikijs/langs/python'
-import rust from '@shikijs/langs/rust'
-import sql from '@shikijs/langs/sql'
-import typescript from '@shikijs/langs/typescript'
-import vue from '@shikijs/langs/vue'
-import yaml from '@shikijs/langs/yaml'
+import { SHIKI_LANGUAGES, SHIKI_THEMES } from './shiki'
 import {
   artifactComponents,
   findComponent,
@@ -59,10 +42,11 @@ const blockedTags = [
   'track', 'canvas', 'svg', 'math',
 ]
 
-const shikiLanguages = [
-  bash, css, dockerfile, go, html, http, javascript, json, jsonc, markdown,
-  python, rust, sql, typescript, vue, yaml,
-]
+const shikiPlugin = shiki({
+  themes: SHIKI_THEMES,
+  languages: SHIKI_LANGUAGES,
+  registerDefaultThemes: false,
+})
 
 const securityPlugin = security({
   allowedTags: [...htmlTags, ...supportedTags],
@@ -70,12 +54,6 @@ const securityPlugin = security({
   allowedProtocols: ['http', 'https', 'mailto'],
   allowDataImages: false,
   tagFallback: element => textContent(element),
-})
-
-const shikiPlugin = shiki({
-  themes: { light: githubLight, dark: githubDark },
-  languages: shikiLanguages,
-  registerDefaultThemes: false,
 })
 
 const tocPlugin = toc({ depth: 3, searchDepth: 3 })

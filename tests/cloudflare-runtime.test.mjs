@@ -74,4 +74,16 @@ test('Cloudflare local D1 runtime supports owner login, artifact creation, and l
   assert.equal(bearerListed.status, 200)
   const titles = (await bearerListed.json()).artifacts.map(artifact => artifact.title)
   assert.deepEqual(titles.sort(), ['CF image', 'D1 runtime artifact'])
+
+  // Shiki must initialize on Workers. The full shiki bundle's Oniguruma WASM
+  // fails here, so this endpoint has to use the core + JavaScript engine.
+  const highlighted = await fetch(`${base}/api/highlight`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ code: '{"type":"http"}', lang: 'json' }),
+  })
+  assert.equal(highlighted.status, 200)
+  const highlightedBody = await highlighted.json()
+  assert.equal(highlightedBody.highlighted, true, 'syntax highlighting must work on the Workers runtime')
+  assert.match(highlightedBody.html, /--shiki-light:#[0-9A-F]{3,8}/)
 })
