@@ -77,13 +77,32 @@ export function createRateLimiter(options: RateLimitOptions) {
   }
 }
 
+function envList(value: string | undefined): string[] {
+  return String(value || '').split(',').map(item => item.trim()).filter(Boolean)
+}
+
 /**
- * Coarse client bucket: the first `X-Forwarded-For` hop, else the socket
- * address. A caller can rotate the header, so this must never gate
- * authorization — only throughput.
+ * Coarse client bucket.
+ *
+ * `X-Forwarded-For` is caller-controlled unless a trusted proxy overwrites it,
+ * so it is ignored by default. Set `TRUST_PROXY=true` when the app is behind a
+ * proxy that sanitizes the header, or list the proxy's socket addresses in
+ * `TRUSTED_PROXY_IPS`. The socket peer must match for the per-IP list to apply.
+ *
+ * This value only bounds throughput; it never authorizes anything.
  */
-export function clientBucketKey(event: any): string {
-  const forwarded = String(event?.node?.req?.headers?.['x-forwarded-for'] || '').split(',')[0].trim()
-  if (forwarded) return forwarded
-  return event?.node?.req?.socket?.remoteAddress || 'unknown'
+export function clientBucketKey(event: any, env: NodeJS.ProcessEnv = process.env): string {
+  const socket = event?.node?.req?.socket?.remoteAddress
+    || event?.context?.cloudflare?.request?.headers?.get?.('cf-connecting-ip')
+    || 'unknown'
+
+  const trustAll = String(env.TRUST_PROXY || '').toLowerCase() === 'true'
+  const trustedPeers = envList(env.TRUSTED_PROXY_IPS)
+  const trusted = trustAll || (socket !== 'unknown' && trustedPeers.includes(socket))
+  if (!trusted) return socket
+
+  const forwarded = String(event?.node?.req?.headers?.['x-forwarded-for'] || '')
+    .split(',')[0]
+    .trim()
+  return forwarded || socket
 }

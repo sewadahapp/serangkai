@@ -182,3 +182,27 @@ test('an expired or forged token never falls back to the browser session', async
   })
   assert.equal(response.status, 401)
 })
+
+test('the bearer scheme is case-insensitive and malformed headers never fall back', async () => {
+  const fresh = await login(base)
+  const tokenResponse = await fetch(`${base}/api/tokens`, {
+    method: 'POST',
+    headers: { cookie: fresh.cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'case-test', scopes: ['read'] }),
+  })
+  const { token } = await tokenResponse.json()
+
+  const lower = await fetch(`${base}/api/artifacts`, {
+    headers: { authorization: `bearer ${token}` },
+  })
+  assert.equal(lower.status, 200)
+
+  // Any Authorization header marks an agent request. A malformed value must
+  // not silently inherit the owner's cookie.
+  for (const value of ['Bearer', 'Bearer ', 'Basic abc', 'token']) {
+    const response = await fetch(`${base}/api/artifacts`, {
+      headers: { cookie: fresh.cookie, authorization: value },
+    })
+    assert.equal(response.status, 401, `authorization: ${value}`)
+  }
+})

@@ -24,12 +24,18 @@ export default defineEventHandler(async (event) => {
   // starting an account-less server.
   await ensureOwnerAccount(db)
 
-  // A request that explicitly presents a bearer token is an agent request. Do
-  // not let a browser cookie authorize it as a fallback: an invalid/expired
-  // token must fail, not silently inherit the owner's session.
+  // A request that explicitly presents an Authorization header is an agent
+  // request. Do not let a browser cookie authorize it as a fallback: an
+  // invalid/expired/malformed token must fail, not silently inherit the
+  // owner's session. The scheme is case-insensitive (RFC 7235).
   const authHeader = getHeader(event, 'authorization')
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7)
+  if (authHeader !== undefined) {
+    const match = /^Bearer[ \t]+(\S+)[ \t]*$/i.exec(authHeader)
+    if (!match) {
+      event.context.authFailure = 'invalid_token'
+      return
+    }
+    const token = match[1]
     const tokenHash = await hashToken(token)
     const apiToken = await db.select().from(apiTokens).where(eq(apiTokens.tokenHash, tokenHash)).get()
     if (!apiToken) {

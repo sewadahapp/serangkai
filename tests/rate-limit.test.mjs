@@ -46,9 +46,24 @@ test('the bucket map stays bounded under many distinct keys', () => {
   assert.ok(limiter.size() <= 50, `bucket size ${limiter.size()} should stay bounded`)
 })
 
-test('the client key prefers the first forwarded hop and falls back to the socket', () => {
-  assert.equal(clientBucketKey({ node: { req: { headers: { 'x-forwarded-for': '203.0.113.9, 10.0.0.1' }, socket: { remoteAddress: '10.0.0.1' } } } }), '203.0.113.9')
-  assert.equal(clientBucketKey({ node: { req: { headers: {}, socket: { remoteAddress: '127.0.0.1' } } } }), '127.0.0.1')
-  assert.equal(clientBucketKey({}), 'unknown')
-  assert.equal(clientBucketKey(undefined), 'unknown')
+test('the client key ignores X-Forwarded-For unless the proxy is trusted', () => {
+  const event = {
+    node: {
+      req: {
+        headers: { 'x-forwarded-for': '203.0.113.9, 10.0.0.1' },
+        socket: { remoteAddress: '10.0.0.1' },
+      },
+    },
+  }
+
+  // Default: a caller can rotate the header freely, so it is not an identity.
+  assert.equal(clientBucketKey(event, {}), '10.0.0.1')
+  assert.equal(clientBucketKey(event, { TRUST_PROXY: 'true' }), '203.0.113.9')
+  assert.equal(clientBucketKey(event, { TRUSTED_PROXY_IPS: '10.0.0.1' }), '203.0.113.9')
+  // A peer outside the allowlist still cannot spoof the header.
+  assert.equal(clientBucketKey(event, { TRUSTED_PROXY_IPS: '10.0.0.2' }), '10.0.0.1')
+
+  assert.equal(clientBucketKey({ node: { req: { headers: {}, socket: { remoteAddress: '127.0.0.1' } } } }, {}), '127.0.0.1')
+  assert.equal(clientBucketKey({}, {}), 'unknown')
+  assert.equal(clientBucketKey(undefined, {}), 'unknown')
 })
