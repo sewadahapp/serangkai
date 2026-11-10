@@ -59,6 +59,27 @@ artifacts, folders, versions, and API tokens are preserved. If the database has
 more than one user, startup lists the ids; choose one with
 `SERANGKAI_MIGRATION_OWNER_USER_ID`.
 
+## Deploy to Cloudflare
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sewadahapp/serangkai)
+
+The button clones this repository into your GitHub or GitLab account, provisions
+a D1 database and R2 bucket, and prompts for the secrets listed in
+`.dev.vars.example`. It then configures Workers Builds, so pushes to the new
+repository's production branch redeploy automatically.
+
+`NUXT_APP_SECRET` is required on Workers: unlike the Docker and Node entry
+points, the Worker cannot run `scripts/start.mjs` to derive a session key from
+`JWT_SECRET`. Generate each random value with `openssl rand -base64 32` and keep
+them stable across deploys. The `deploy` script builds with
+`NITRO_PRESET=cloudflare_module` before running Wrangler; the Worker creates its
+D1 schema on the first request, so no separate migration command is needed.
+
+If the setup page pre-populates a separate build command, it may be left blank
+or set to `bun run build:cloudflare`; the deploy script performs the Cloudflare
+build itself. Manual deployments can add the D1 `database_id` and R2
+`bucket_name` returned by Wrangler instead of relying on automatic provisioning.
+
 ## Development
 
 Requires **Bun 1.4+** and Node 24 only when exercising the Node fallback.

@@ -126,6 +126,36 @@ test('the rehearsal builds and smoke tests without publishing', async () => {
   assert.doesNotMatch(workflow, /docker\/login-action/)
 })
 
+test('the Deploy to Cloudflare button has a build path, secrets, and auto-provisioned bindings', async () => {
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
+  const devVars = await readFile(new URL('../.dev.vars.example', import.meta.url), 'utf8')
+  const config = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8')
+  const gitignore = await readFile(new URL('../.gitignore', import.meta.url), 'utf8')
+
+  // The button must point at this repository and be visible in the README.
+  assert.match(readme, /deploy\.workers\.cloudflare\.com\/button/)
+  assert.match(readme, /deploy\.workers\.cloudflare\.com\/\?url=https:\/\/github\.com\/sewadahapp\/serangkai/)
+
+  // The deploy script must build the Cloudflare preset before Wrangler runs;
+  // a node-server build would pull in better-sqlite3 and fail on Workers.
+  assert.match(pkg.scripts.deploy, /build:cloudflare/)
+  assert.match(pkg.scripts.deploy, /wrangler deploy/)
+
+  // Every runtime secret is prompted from the example file and described in
+  // the deploy setup page.
+  for (const key of ['ADMIN_USERNAME', 'ADMIN_PASSWORD', 'JWT_SECRET', 'SHARE_SECRET', 'NUXT_APP_SECRET']) {
+    assert.match(devVars, new RegExp(`^${key}=`, 'm'), `${key} must be in .dev.vars.example`)
+    assert.ok(pkg.cloudflare?.bindings?.[key], `${key} must have a Cloudflare binding description`)
+  }
+  assert.match(gitignore, /!\.dev\.vars\.example/)
+
+  // Account-specific ids and bucket names are omitted so the button and
+  // Wrangler can provision them for the deploying account.
+  assert.doesNotMatch(config, /"database_id"/)
+  assert.doesNotMatch(config, /"bucket_name"/)
+})
+
 test('the checked-in Wrangler config serves static assets', async () => {
   // Nitro's Cloudflare preset would generate an `assets` binding, but a
   // checked-in wrangler config takes precedence. Without this block

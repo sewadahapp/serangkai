@@ -15,6 +15,7 @@
     "build:cloudflare": "bun run build:runtime && NITRO_PRESET=cloudflare_module bun --bun run nuxt build",
     "build:vercel": "bun run build:runtime && NITRO_PRESET=vercel bun --bun run nuxt build",
     "build:runtime": "bun scripts/build-artifact-runtime.ts",
+    "deploy": "bun run build:cloudflare && wrangler deploy",
     "dev": "bun run build:runtime && bun --bun run nuxt dev --port 6969 --host 127.0.0.1",
     "preview": "bun scripts/start.mjs",
     "start": "bun scripts/start.mjs",
@@ -101,5 +102,24 @@
   "packageManager": "bun@1.4.0",
   "engines": {
     "node": ">=22.22.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "ADMIN_USERNAME": {
+        "description": "Owner login name for this Serangkai instance."
+      },
+      "ADMIN_PASSWORD": {
+        "description": "Owner password. Choose a strong value; it is stored as a scrypt hash."
+      },
+      "JWT_SECRET": {
+        "description": "Stable root secret for browser sessions. Generate with `openssl rand -base64 32`."
+      },
+      "SHARE_SECRET": {
+        "description": "Different stable secret for signed share links. Generate with `openssl rand -base64 32`."
+      },
+      "NUXT_APP_SECRET": {
+        "description": "Stable session-sealing key for Workers. Generate with `openssl rand -base64 32`; it must not change between deploys."
+      }
+    }
   }
 }

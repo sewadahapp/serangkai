@@ -518,3 +518,8 @@ convenience path for clients that support it. Both resolve to the same scoped
   and checks the owner, artifacts, uploads, tokens, and share links.
 - **Edge**: Cloudflare uses D1/R2; Vercel uses Node + S3 for durable data. Edge
   entry points set `NUXT_APP_SECRET` explicitly because they cannot be wrapped.
+- **Cloudflare button**: `wrangler.jsonc` omits account-specific D1/R2 ids so
+  Wrangler or the Deploy to Cloudflare button provisions them. The `deploy`
+  script builds the `cloudflare_module` preset before running Wrangler, and
+  `.dev.vars.example` lists the five secrets the deploy page prompts for. The
+  Worker creates its schema on the first request, so there is no migration step.

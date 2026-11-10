@@ -15,20 +15,18 @@
   "vars": {
     "NODE_ENV": "production"
   },
-  // Replace both values with your own after `wrangler d1 create` and
-  // `wrangler r2 bucket create`. The local names below are placeholders that
-  // Miniflare is happy with; a real deploy needs the ids Cloudflare returns.
+  // No account-specific ids or bucket names: Wrangler and the Deploy to
+  // Cloudflare button provision both resources and bind them to the Worker.
+  // Manual deployments can add the ids returned by `wrangler d1 create` and
+  // `wrangler r2 bucket create` instead.
   "d1_databases": [
     {
-      "binding": "DB",
-      "database_name": "serangkai-local",
-      "database_id": "local-serangkai-d1"
+      "binding": "DB"
     }
   ],
   "r2_buckets": [
     {
-      "binding": "ARTIFACTS",
-      "bucket_name": "serangkai-artifacts"
+      "binding": "ARTIFACTS"
     }
   ]
 }
