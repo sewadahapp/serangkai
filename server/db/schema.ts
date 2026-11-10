@@ -69,6 +69,12 @@ export const oauthTokens = sqliteTable('oauth_tokens', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   apiTokenId: text('api_token_id').notNull().references(() => apiTokens.id, { onDelete: 'cascade' }),
   scopes: text('scopes', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  /**
+   * RFC 8707 resource indicator this grant is bound to. New grants always
+   * carry the canonical MCP resource; legacy rows may be null and are bound on
+   * first use or refresh.
+   */
+  resource: text('resource'),
   accessExpiresAt: integer('access_expires_at', { mode: 'timestamp' }).notNull(),
   refreshTokenHash: text('refresh_token_hash').notNull().unique(),
   refreshExpiresAt: integer('refresh_expires_at', { mode: 'timestamp' }).notNull(),

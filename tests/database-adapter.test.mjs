@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { getDatabaseProvider, initializeD1Schema, getRequestDatabase } from '../server/db/adapter.ts'
+import {
+  getDatabaseProvider,
+  initializeD1Schema,
+  getRequestDatabase,
+  resetD1InitializationForTests,
+} from '../server/db/adapter.ts'
 import { BOOTSTRAP_STATEMENTS } from '../server/db/bootstrap.ts'
 
 // Derived, not hardcoded: a new table must not require editing a magic number,
@@ -28,6 +33,7 @@ test('uses D1 batch when the binding provides it', async () => {
 })
 
 test('resolves and caches a request-scoped Cloudflare D1 binding', async () => {
+  resetD1InitializationForTests()
   const calls = []
   const binding = {
     prepare(sql) {
@@ -45,4 +51,55 @@ test('resolves and caches a request-scoped Cloudflare D1 binding', async () => {
   assert.equal(first, second)
   assert.ok(afterFirstRequest >= 5, 'the bootstrap schema must run')
   assert.equal(calls.length, afterFirstRequest, 'schema work must not repeat per request')
+})
+
+test('concurrent D1 requests wait for the same initialization', async () => {
+  resetD1InitializationForTests()
+  let completed = 0
+  let calls = 0
+  const binding = {
+    prepare() {
+      calls++
+      return {
+        run: async () => {
+          // Make every migration step slow enough that an early return is
+          // observable. The old boolean flag let the second request resolve
+          // before these finished.
+          await new Promise(resolve => setTimeout(resolve, 2))
+          completed++
+          return {}
+        },
+        bind: () => ({
+          run: async () => {
+            await new Promise(resolve => setTimeout(resolve, 2))
+            completed++
+            return {}
+          },
+          all: async () => {
+            completed++
+            return { results: [] }
+          },
+        }),
+      }
+    },
+  }
+
+  const firstEvent = { context: { cloudflare: { env: { DB: binding } } } }
+  const secondEvent = { context: { cloudflare: { env: { DB: binding } } } }
+
+  let completedWhenSecondResolved = -1
+  const first = getRequestDatabase(firstEvent)
+  const second = getRequestDatabase(secondEvent).then((db) => {
+    completedWhenSecondResolved = completed
+    return db
+  })
+
+  await Promise.all([first, second])
+  assert.equal(completed, calls, 'every prepared statement must have run')
+  assert.equal(
+    completedWhenSecondResolved,
+    completed,
+    'the second request must not resolve while migrations are still running',
+  )
+  assert.ok(completed >= BOOTSTRAP_STATEMENTS.length, 'bootstrap and migrations must both run')
 })

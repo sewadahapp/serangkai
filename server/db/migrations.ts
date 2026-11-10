@@ -14,6 +14,20 @@ import { sql } from 'drizzle-orm'
  * longest-lived share URL keeps working), and later ones get a short suffix.
  */
 export async function ensureGlobalSlugUniqueness(db: any) {
+  try {
+    await ensureGlobalSlugUniquenessOnce(db)
+  } catch (error) {
+    // Two Cloudflare isolates can run this migration at the same time. One may
+    // lose the race while the other is still rewriting duplicate slugs; retry
+    // once so the winner's work is visible and the index can be created.
+    if (!/SQLITE_BUSY|database is locked|unique constraint failed.*artifacts_slug_unique|artifacts_slug_unique/i.test(errorText(error))) {
+      throw error
+    }
+    await ensureGlobalSlugUniquenessOnce(db)
+  }
+}
+
+async function ensureGlobalSlugUniquenessOnce(db: any) {
   const existingIndex = await db.all<{ name: string }>(sql`
     SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'artifacts_slug_unique'
   `)
@@ -140,6 +154,7 @@ export async function ensureOAuthSchema(db: any) {
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       api_token_id TEXT NOT NULL REFERENCES api_tokens(id) ON DELETE CASCADE,
       scopes TEXT NOT NULL DEFAULT '[]',
+      resource TEXT,
       access_expires_at INTEGER NOT NULL,
       refresh_token_hash TEXT NOT NULL UNIQUE,
       refresh_expires_at INTEGER NOT NULL,
@@ -160,6 +175,24 @@ export async function ensureOAuthSchema(db: any) {
     )`,
     `CREATE INDEX IF NOT EXISTS oauth_codes_expires_idx ON oauth_codes (expires_at)`,
     `CREATE INDEX IF NOT EXISTS oauth_tokens_client_idx ON oauth_tokens (client_id)`,
+    `CREATE INDEX IF NOT EXISTS oauth_tokens_api_token_idx ON oauth_tokens (api_token_id)`,
   ]
   for (const statement of statements) await db.run(sql.raw(statement))
+
+  // RFC 8707 audience binding was added after OAuth shipped. Existing grants
+  // keep working: they are bound on first refresh or first MCP request.
+  let hasResource = false
+  try {
+    const columns = await db.all<{ name: string }>(sql`PRAGMA table_info(oauth_tokens)`)
+    hasResource = columns.some(column => String(column.name) === 'resource')
+  } catch {
+    // Some edge runtimes restrict PRAGMA; fall through to a guarded ALTER.
+  }
+  if (!hasResource) {
+    try {
+      await db.run(sql`ALTER TABLE oauth_tokens ADD COLUMN resource TEXT`)
+    } catch (error) {
+      if (!/duplicate column|already exists/i.test(errorText(error))) throw error
+    }
+  }
 }

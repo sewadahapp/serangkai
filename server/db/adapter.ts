@@ -19,9 +19,17 @@ export function createD1Database(client: D1Like) {
   return drizzleD1(client as any, { schema })
 }
 
-// Migrations must run once per isolate, not once per request. D1 has no
-// connection-level state to hold the flag, so it lives at module scope.
-let d1Migrated = false
+// Migrations must run once per isolate, not once per request. A boolean flag
+// was a race: the second request saw `true` while the first was still running
+// and queried a half-created schema. The shared promise makes every concurrent
+// request wait for the same work, and a failure clears it so the next request
+// retries instead of permanently serving an uninitialized database.
+let d1Initialization: Promise<void> | null = null
+
+/** Test hook: each adapter test needs a fresh per-isolate initialization. */
+export function resetD1InitializationForTests() {
+  d1Initialization = null
+}
 
 /**
  * Resolve the database for the current request.
@@ -36,15 +44,26 @@ export async function getRequestDatabase(event: any) {
   if (binding) {
     if (!event.context.d1Database) {
       event.context.d1Database = createD1Database(binding)
-      await initializeD1Schema(binding)
-      if (!d1Migrated) {
-        d1Migrated = true
-        await ensureUserSchema(event.context.d1Database)
-        await ensureGlobalSlugUniqueness(event.context.d1Database)
-        await ensureOAuthSchema(event.context.d1Database)
-      }
     }
-    return event.context.d1Database
+    const db = event.context.d1Database
+
+    if (!d1Initialization) {
+      const initialization = (async () => {
+        await initializeD1Schema(binding)
+        await ensureUserSchema(db)
+        await ensureGlobalSlugUniqueness(db)
+        await ensureOAuthSchema(db)
+      })()
+      d1Initialization = initialization
+      // Do not leave a rejected promise cached forever: a transient D1 error
+      // should be retried by the next request.
+      initialization.catch(() => {
+        if (d1Initialization === initialization) d1Initialization = null
+      })
+    }
+
+    await d1Initialization
+    return db
   }
 
   const { getDatabase } = await import('#serangkai-db-runtime')

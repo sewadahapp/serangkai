@@ -84,6 +84,7 @@ export const BOOTSTRAP_STATEMENTS = [
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     api_token_id TEXT NOT NULL REFERENCES api_tokens(id) ON DELETE CASCADE,
     scopes TEXT NOT NULL DEFAULT '[]',
+    resource TEXT,
     access_expires_at INTEGER NOT NULL,
     refresh_token_hash TEXT NOT NULL UNIQUE,
     refresh_expires_at INTEGER NOT NULL,
