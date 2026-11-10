@@ -17,7 +17,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOST=0.0.0.0
-# The conventional persistent volume path. InstaCloud mounts /data by default.
+# Persistent data lives under /data; mount a volume here in production.
 ENV DATABASE_PATH=/data/serangkai.db
 ENV STORAGE_PATH=/data/files
 ENV STORAGE_DRIVER=local

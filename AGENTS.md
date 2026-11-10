@@ -17,7 +17,7 @@ Serangkai is a production-minded, open-source, self-hosted artifact and knowledg
   are separate and never fall back to a browser session
 - **Database**: Drizzle ORM; `bun:sqlite` under Bun, `better-sqlite3` under Node, request-scoped D1 on Cloudflare
 - **Storage**: Nitro `useStorage()` over unstorage; filesystem by default, R2 binding on Cloudflare, S3-compatible storage on Vercel
-- **Deployment**: Docker (primary, persistent volume at `/data`), Cloudflare Workers, Vercel; InstaCloud remains unverified
+- **Deployment**: Docker (primary, persistent volume at `/data`), Cloudflare Workers, Vercel
 
 ## Core Principles
 - **Agent-first**: Agents create/update/publish via MCP and REST APIs

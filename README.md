@@ -106,21 +106,13 @@ durable data needs an external database plus `STORAGE_DRIVER=s3`.
 
 ### What has actually been exercised
 
-An InstaCloud-hosted instance was deployed by hand and checked from the outside:
-`/api/health` returns 200, the OAuth discovery documents resolve, an
-unauthenticated `/api/mcp` request returns 401 with a `WWW-Authenticate`
-challenge, CORS preflight answers, dynamic client registration succeeds, and
-static assets load. That instance predates the current build, so it needs a
-redeploy to pick up later changes (including the device grant).
-
-That is a smoke test of one deployment, not a supported platform contract.
-InstaCloud's container and template specifics are not documented here, nothing
-in this repository deploys anywhere on its own, and data persistence across a
-container replacement has only been verified locally with Podman. Vercel and
-Cloudflare have likewise only been exercised locally. Run
-`bun run test:provider-local` for the credential-free local matrix, and verify
-health plus persistence after any real deployment before treating it as
-supported.
+Docker persistence is checked locally with Podman: the container is replaced on
+the same volume and the owner, artifacts, uploads, tokens, and share links are
+verified. Vercel and Cloudflare are exercised through their credential-free
+local test matrices, not a hosted deployment. Nothing in this repository deploys
+anywhere on its own, and no platform is a supported contract until health and
+persistence have been verified after a real deployment. Run
+`bun run test:provider-local` for the local matrix.
 
 ### Publishing an image
 

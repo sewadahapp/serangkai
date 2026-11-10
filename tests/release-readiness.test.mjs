@@ -8,19 +8,16 @@ import { test } from 'node:test'
  * documents it used to check were removed when the repo was prepared to go
  * public; deployment-file invariants live in deployment-files.test.mjs.
  */
-test('the README describes one smoke-tested instance without claiming support', async () => {
+test('the README describes only locally exercised deployment paths', async () => {
   const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
 
-  // One deployment was exercised, and it is named as such.
-  assert.match(readme, /deployed by hand and checked from the outside/)
+  // Docker persistence is exercised locally; hosted platforms are not claimed.
+  assert.match(readme, /Docker persistence is checked locally with Podman/)
 
-  // But that must never be upgraded into a supported platform contract, and no
+  // That must never be upgraded into a supported platform contract, and no
   // workflow here deploys on its own.
-  assert.match(readme, /not a supported platform contract/)
-  assert.match(readme, /nothing\s+in this repository deploys anywhere on its own/)
-
-  // The live instance URL is deliberately not advertised in a public README.
-  assert.doesNotMatch(readme, /instacloud-edge\.com/)
+  assert.match(readme, /no platform is a supported contract/)
+  assert.match(readme, /nothing\s+in this repository deploys\s+anywhere on its own/i)
 })
 
 test('the README only names commands and images that actually resolve', async () => {
