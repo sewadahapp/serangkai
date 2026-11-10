@@ -43,12 +43,17 @@ Optional deployment settings:
 
 - `PUBLIC_BASE_URL` — canonical origin for OAuth metadata and audience checks.
   Set it when a reverse proxy rewrites `Host`.
+- `STORAGE_DRIVER` — `local` (default for Docker/Node), `s3` (any S3-compatible
+  provider, including Backblaze B2), or `r2-binding` (Cloudflare Workers only,
+  and the default there). With `s3`, set `S3_ENDPOINT`, `S3_REGION`,
+  `S3_BUCKET`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`.
 - `TRUST_PROXY=true`, or `TRUSTED_PROXY_IPS` with the proxy's socket addresses,
   makes rate limiting honor `X-Forwarded-For`. Leave both unset otherwise: the
   header is caller-controlled and is ignored by default.
 - `SERANGKAI_LOGIN_RATE_LIMIT` / `SERANGKAI_LOGIN_RATE_WINDOW_MS` tune the
-  per-process login throttle; `SERANGKAI_OAUTH_REGISTER_RATE_LIMIT` and
-  `SERANGKAI_OAUTH_AUTHORIZE_RATE_LIMIT` tune OAuth throttling.
+  per-process login throttle; `SERANGKAI_OAUTH_REGISTER_RATE_LIMIT`,
+  `SERANGKAI_OAUTH_AUTHORIZE_RATE_LIMIT`, and
+  `SERANGKAI_OAUTH_DEVICE_RATE_LIMIT` tune OAuth throttling.
 
 `SERANGKAI_ALLOW_EPHEMERAL_STORAGE` is test-only and must not be set in
 production.
@@ -79,6 +84,49 @@ If the setup page pre-populates a separate build command, it may be left blank
 or set to `bun run build:cloudflare`; the deploy script performs the Cloudflare
 build itself. Manual deployments can add the D1 `database_id` and R2
 `bucket_name` returned by Wrangler instead of relying on automatic provisioning.
+
+### Deploy to Cloudflare with Backblaze B2
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sewadahapp/serangkai/tree/master/deploy/cloudflare-b2)
+
+Backblaze B2 provides an S3-compatible API, so it can replace R2 while D1 keeps
+every database row. This path needs no R2 bucket — and therefore no R2
+activation or billing card. The free B2 tier is limited (currently 10 GB of
+storage with a daily download/transaction allowance); beyond that, Backblaze
+bills storage, egress, and API calls, so this is not a permanently free setup.
+
+Before deploying, create **a private bucket** and **a bucket-scoped application
+key** in Backblaze, then note the endpoint (`https://s3.<region>.backblazeb2.com`),
+region, bucket name, key ID, and application key.
+
+The second button deploys from the thin template in
+[`deploy/cloudflare-b2/`](deploy/cloudflare-b2/README.md): it provisions D1,
+prompts for the same owner and session secrets plus the five `S3_*` values, and
+builds the application source at deploy time. Two buttons exist because the
+Deploy to Cloudflare platform reads one Wrangler configuration per repository;
+the template is self-contained, so the application code is still maintained
+here only.
+
+Manual deployment works from the repository root:
+
+```bash
+bun run build:cloudflare
+wrangler d1 create serangkai        # paste the database_id into wrangler.b2.jsonc
+wrangler deploy --config wrangler.b2.jsonc
+```
+
+Then set the secrets once with `wrangler secret put S3_ENDPOINT`, `S3_REGION`,
+`S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and the four required
+authentication secrets plus `NUXT_APP_SECRET`. `bun run deploy:b2` builds and
+deploys with the same config. On Workers, uploads and downloads are stored in B2
+and survive redeployments as long as the secrets stay stable; D1 holds the
+metadata.
+
+The B2 path is verified locally with the Workers runtime against a
+Backblaze-compatible mock — signed requests, binary round-trips, and persistence
+across a Worker restart — but the hosted button flow has not been run against a
+real Cloudflare account and B2 bucket. Treat the first hosted deployment as
+something to verify.
 
 ## Development
 

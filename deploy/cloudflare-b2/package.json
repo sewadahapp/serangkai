@@ -1,0 +1,43 @@
+{
+  "name": "serangkai-b2",
+  "private": true,
+  "description": "Deploy Serangkai to Cloudflare Workers with D1 and Backblaze B2 (no R2).",
+  "scripts": {
+    "build": "node build.mjs",
+    "deploy": "node build.mjs && npx --yes wrangler@4 deploy"
+  },
+  "cloudflare": {
+    "bindings": {
+      "ADMIN_USERNAME": {
+        "description": "Owner login name for this Serangkai instance."
+      },
+      "ADMIN_PASSWORD": {
+        "description": "Owner password. Choose a strong value; it is stored as a scrypt hash."
+      },
+      "JWT_SECRET": {
+        "description": "Stable root secret for browser sessions. Generate with `openssl rand -base64 32`."
+      },
+      "SHARE_SECRET": {
+        "description": "Different stable secret for signed share links. Generate with `openssl rand -base64 32`."
+      },
+      "NUXT_APP_SECRET": {
+        "description": "Stable session-sealing key for Workers. Generate with `openssl rand -base64 32`; it must not change between deploys."
+      },
+      "S3_ENDPOINT": {
+        "description": "Backblaze B2 S3 endpoint, for example `https://s3.us-west-004.backblazeb2.com`. Find it under your bucket's details."
+      },
+      "S3_REGION": {
+        "description": "The B2 region from the endpoint, for example `us-west-004`."
+      },
+      "S3_BUCKET": {
+        "description": "The private B2 bucket name. Keep the bucket private; do not enable public access."
+      },
+      "S3_ACCESS_KEY_ID": {
+        "description": "B2 application key ID, scoped to the bucket. Do not use the account master key."
+      },
+      "S3_SECRET_ACCESS_KEY": {
+        "description": "The application key. It is shown once by Backblaze when created."
+      }
+    }
+  }
+}

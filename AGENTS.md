@@ -16,7 +16,7 @@ Serangkai is a production-minded, open-source, self-hosted artifact and knowledg
   owner account (`ADMIN_USERNAME` / `ADMIN_PASSWORD`); scoped SHA-256 API tokens
   are separate and never fall back to a browser session
 - **Database**: Drizzle ORM; `bun:sqlite` under Bun, `better-sqlite3` under Node, request-scoped D1 on Cloudflare
-- **Storage**: Nitro `useStorage()` over unstorage; filesystem by default, R2 binding on Cloudflare, S3-compatible storage on Vercel
+- **Storage**: Nitro `useStorage()` over unstorage; filesystem by default, R2 binding on Cloudflare, S3-compatible storage (including Backblaze B2) on any runtime via `STORAGE_DRIVER=s3`
 - **Deployment**: Docker (primary, persistent volume at `/data`), Cloudflare Workers, Vercel
 
 ## Core Principles

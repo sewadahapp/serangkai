@@ -1,0 +1,24 @@
+{
+  "$schema": "https://developers.cloudflare.com/workers/wrangler/config-schema.json",
+  "name": "serangkai",
+  "compatibility_date": "2025-07-15",
+  "main": "./.output/server/index.mjs",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./.output/public"
+  },
+  // Backblaze B2 replaces only object storage; D1 stays the database.
+  // No r2_buckets block on purpose: this path must not provision or require
+  // R2, so no R2 activation or billing card is involved.
+  "vars": {
+    "NODE_ENV": "production",
+    "STORAGE_DRIVER": "s3"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB"
+    }
+  ]
+  // S3_* values are Worker secrets, prompted from .dev.vars.example.
+}

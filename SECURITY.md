@@ -109,10 +109,28 @@ on the server and does not run build jobs for uploaded bundles.
   cross-origin page gains nothing without already holding a bearer token.
 - The device grant (RFC 8628) lets a headless client sign in without a callback
   port. Device codes are bound to the requesting client and resource, stored
-  hashed, and single use; the short user code is accepted only while pending,
-  within its ten-minute lifetime, and approval still requires the owner's
-  session. Polling an undecided code returns `authorization_pending`, never a
-  token, and a bearer token cannot approve a device grant.
+  hashed, and single use. Approval and denial require a browser session **and**
+  the same session-bound nonce as the consent screen, with a fingerprint over
+  the stored request (device id, client, user code, displayed scopes, resource,
+  owner); a forged cross-site POST cannot decide a grant, and a nonce cannot be
+  retargeted to another code. Only checked scopes are stored, intersected with
+  what was requested, so editing the form cannot widen the grant.
+- Redeeming a device code is atomic: the conditional claim and both token rows
+  are written in one SQLite transaction or D1 batch, and the claim links the
+  winning API token to the device row so a concurrent loser removes its own
+  inserts. A token-issuance failure rolls the claim back; the code stays
+  redeemable instead of being consumed without credentials. Exactly one
+  concurrent poll can win.
+- Device decisions are conditional updates whose affected-row counts are
+  checked: concurrent approve/approve, approve/deny, and deny/deny requests
+  produce one winner, the other response reports the state that actually won,
+  and expired or consumed requests cannot change state.
+- Device verification is bounded: form-only parsing with an 8 KiB cap, a
+  per-address rate limit on user-code lookup and decisions, at most 100 live
+  device codes per client, and a ten-minute code lifetime. Device polling has
+  its own per-address bucket sized for the advertised five-second interval;
+  exceeding it answers `slow_down` as RFC 8628 expects. Bearer tokens cannot
+  approve a device grant.
 - Credential management (`/api/tokens`, `/api/oauth/clients`) is session-only. A
   bearer token can never list, mint, or revoke credentials — including an OAuth
   grant trying to enumerate or disconnect its siblings.
@@ -162,8 +180,16 @@ on the server and does not run build jobs for uploaded bundles.
 ## Storage durability
 
 On Cloudflare, a missing or misconfigured R2 binding fails startup instead of
-silently mounting an in-memory driver. `SERANGKAI_ALLOW_EPHEMERAL_STORAGE=true`
-is honored only outside production and only for tests/local previews.
+silently mounting an in-memory driver. `STORAGE_DRIVER=s3` selects an external
+S3-compatible provider (such as Backblaze B2) instead of R2; the adapter signs
+every request with SigV4 and a signed payload hash, treats only missing-object
+reads as `null`, and fails loudly on failed writes. There is no ephemeral-memory
+fallback for S3: its bucket probe runs once on the first request (Workers forbid
+network I/O during plugin initialization), so wrong credentials, endpoint, or
+bucket name fail the deployment before it serves anything, and a 404 on a write
+is never treated as success.
+`SERANGKAI_ALLOW_EPHEMERAL_STORAGE=true` is honored only outside production and
+only for tests/local previews — never as a production fallback.
 
 The Docker image keeps SQLite, uploads, and versions under `/data`. The
 entrypoint refuses to start when the configured paths are missing or read-only.
@@ -191,5 +217,11 @@ bearer tokens that must not fall back to a session, login throttling and
 `X-Forwarded-For` spoofing, concurrent refresh rotation, audience mismatches,
 consent POSTs without a rendered session-bound nonce, oversized or non-JSON
 registration bodies, unsupported client auth methods, and concurrent D1
-initialization. Public exposure still merits an independent security review
-before treating the product as hardened.
+initialization. Device-flow coverage adds forged approval and denial POSTs,
+retargeted and evicted consent nonces, scope widening, bounded bodies, repeated
+user-code guesses, excessive polling, concurrent redemption, failure-injection
+rollback (claim rollback on token-issuance failure), concurrent approve/deny
+races, and expired or consumed decisions. Storage coverage verifies B2-style
+SigV4 signing, binary integrity, prefix listing, loud write failures, and
+D1 + B2 persistence across a Worker restart. Public exposure still merits an
+independent security review before treating the product as hardened.

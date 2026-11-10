@@ -110,16 +110,20 @@ filesystem layout and all existing artifacts remain compatible.
 
 - Local/Docker: `fs` driver mounted at `STORAGE_PATH` (default `./data/files`)
 - Cloudflare: `cloudflare-r2-binding` driver mounted at `R2_BINDING`
-  (default `ARTIFACTS`)
-- Vercel/portable: `s3` driver when `STORAGE_DRIVER=s3`
+  (default `ARTIFACTS`), or the `serangkai-s3` driver when `STORAGE_DRIVER=s3`
+- Vercel/portable: `serangkai-s3` driver when `STORAGE_DRIVER=s3`
 - Static bundles are extracted into the same store under
   `userId/artifactId/bundle/...`; no route reads the filesystem directly.
 
 `server/plugins/storage.ts` mounts the driver once at startup, and
-`server/utils/artifact-storage.ts` is the single read/write surface. On
+`server/utils/artifact-storage.ts` is the single read/write surface. The S3
+driver (`server/utils/s3-driver.ts`) is a small unstorage adapter over
+`aws4fetch` (SigV4 with a signed payload hash): Workers-compatible, prefix-aware
+listing, loud write failures, and a bucket probe on the first request — Workers
+forbid network I/O during plugin initialization, so it cannot run at mount. On
 Cloudflare, a missing R2 binding fails startup rather than mounting an in-memory
 driver; `SERANGKAI_ALLOW_EPHEMERAL_STORAGE=true` (non-production only) exists
-solely for tests and local previews.
+solely for tests and local previews, and S3 has no memory fallback at all.
 
 ### API Routes (Nitro)
 - `POST /api/auth/login` - Owner login (username + password)
@@ -516,10 +520,18 @@ convenience path for clients that support it. Both resolve to the same scoped
 - **Healthcheck**: /api/health endpoint
 - **Persistence**: `bun run test:docker` replaces a container on the same volume
   and checks the owner, artifacts, uploads, tokens, and share links.
-- **Edge**: Cloudflare uses D1/R2; Vercel uses Node + S3 for durable data. Edge
-  entry points set `NUXT_APP_SECRET` explicitly because they cannot be wrapped.
+- **Edge**: Cloudflare uses D1/R2 by default, or D1 + S3-compatible storage
+  (Backblaze B2) with `STORAGE_DRIVER=s3`; Vercel uses Node + S3 for durable
+  data. Edge entry points set `NUXT_APP_SECRET` explicitly because they cannot
+  be wrapped.
 - **Cloudflare button**: `wrangler.jsonc` omits account-specific D1/R2 ids so
   Wrangler or the Deploy to Cloudflare button provisions them. The `deploy`
   script builds the `cloudflare_module` preset before running Wrangler, and
   `.dev.vars.example` lists the five secrets the deploy page prompts for. The
   Worker creates its schema on the first request, so there is no migration step.
+- **B2 button**: `deploy/cloudflare-b2/` is a thin, self-contained template for
+  a second Deploy to Cloudflare button. The platform copies only that
+  subdirectory, so the template's `build.mjs` fetches the application source at
+  deploy time instead of duplicating it. Its Wrangler config has no R2 binding:
+  D1 is provisioned, object storage is Backblaze B2 via `S3_*` secrets. Manual
+  deployments use `wrangler.b2.jsonc` and `bun run deploy:b2` from the root.
