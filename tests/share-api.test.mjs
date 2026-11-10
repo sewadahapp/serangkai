@@ -42,6 +42,31 @@ test('unlisted artifacts require signed links', async () => {
   assert.equal((await fetch(tampered)).status, 404)
 })
 
+test('unlisted downloads require the capability key, and read-only tokens cannot mint one', async () => {
+  // Knowing the opaque artifact id is not authorization for an unlisted file.
+  assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}/download`)).status, 404)
+
+  const link = await fetch(`${base}/api/artifacts/${artifact.id}/share`, { method: 'POST', headers: { cookie } })
+  const share = await link.json()
+  const key = new URL(share.url).searchParams.get('k')
+  const downloaded = await fetch(`${base}/api/artifacts/${artifact.id}/download?k=${encodeURIComponent(key)}`)
+  assert.equal(downloaded.status, 200)
+  assert.match(await downloaded.text(), /Secret link/)
+
+  // A read-only agent can read but must not create a public entry point.
+  const tokenResponse = await fetch(`${base}/api/tokens`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'read-only-share', scopes: ['read'] }),
+  })
+  const { token } = await tokenResponse.json()
+  const denied = await fetch(`${base}/api/artifacts/${artifact.id}/share`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}` },
+  })
+  assert.equal(denied.status, 403)
+})
+
 test('HTML shares get the opt-in chart runtime without widening the CSP', async () => {
   const create = (content) => fetch(`${base}/api/artifacts`, {
     method: 'POST',

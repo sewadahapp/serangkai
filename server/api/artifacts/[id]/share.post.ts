@@ -1,13 +1,15 @@
 import { and, eq } from 'drizzle-orm'
 import { artifacts } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
-import { requireUser } from '../../../utils/require-auth'
+import { requireScope } from '../../../utils/require-auth'
 import { signShareKey } from '../../../utils/share'
 import { getServerConfig } from '../../../utils/config'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
-  const user = requireUser(event)
+  // Generating a capability URL is a write operation: a read-only agent must
+  // not be able to create a public/unlisted entry point.
+  const user = requireScope(event, 'write')
   const id = getRouterParam(event, 'id')
   const artifact = await db.select().from(artifacts).where(and(eq(artifacts.id, id || ''), eq(artifacts.userId, user.id))).get()
   if (!artifact) throw createError({ statusCode: 404, message: 'Artifact not found' })
