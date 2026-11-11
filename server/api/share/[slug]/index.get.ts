@@ -1,7 +1,7 @@
 import { renderMarkdownContent } from '../../../utils/markdown'
 import { normalizeColorMode, withColorMode } from '../../../utils/artifact-color-mode'
 import { withArtifactRuntime } from '../../../utils/artifact-runtime'
-import { withDocumentTheme } from '../../../utils/artifact-theme'
+import { withDocumentTheme, readerTheme } from '../../../utils/artifact-theme'
 import { loadSharedArtifact } from '../../../utils/share-access'
 import { readArtifactBytes } from '../../../utils/artifact-storage'
 
@@ -93,7 +93,7 @@ export default defineEventHandler(async (event) => {
     // client's prefers-color-scheme take over afterwards.
     setHeader(event, 'Vary', 'Sec-CH-Prefers-Color-Scheme')
     setHeader(event, 'Accept-CH', 'Sec-CH-Prefers-Color-Scheme')
-    return withArtifactRuntime(withDocumentTheme(withColorMode(content.toString(), normalizeColorMode(getHeader(event, 'sec-ch-prefers-color-scheme')))))
+    return withArtifactRuntime(withDocumentTheme(withColorMode(content.toString(), normalizeColorMode(getHeader(event, 'sec-ch-prefers-color-scheme'))), readerTheme(event)))
   }
 
   if (artifact.type === 'json') {

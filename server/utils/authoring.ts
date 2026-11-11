@@ -1,4 +1,5 @@
 import { artifactComponents, applicationOnlyComponents, componentCatalogMarkdown } from '../../shared/artifact-components'
+import { ALL_SELARAS_TOKENS } from '../../shared/selaras-tokens'
 
 /**
  * Authoring guidance exposed to MCP clients.
@@ -46,6 +47,12 @@ export const capabilities = {
   html: {
     defaultStyling: 'self-styled; no automatic Selaras or Tailwind injection',
     documentTheme: 'opt in with <meta name="serangkai-theme" content="selaras-document">',
+    designTokens: {
+      contract: 'var(--selaras-resolved-<token>)',
+      follows: 'the viewer\'s active theme (serangkai | rose-pine) and light/dark mode',
+      reference: 'serangkai://tokens/selaras',
+      tokens: ALL_SELARAS_TOKENS.map(token => token.name),
+    },
     security: 'sandboxed iframe, connect-src none, no CDN or arbitrary remote scripts',
   },
   authoring: {
@@ -166,6 +173,32 @@ For a report or documentation page, opt in to the Serangkai document theme:
 This adds polished prose typography, spacing, tables, code blocks, and light/dark
 colors. It does not inject Vue or make Selaras components available. If you need
 actual Selaras components, build a Vue application and upload it as a bundle.
+
+## Design tokens (match the active theme)
+
+With the document theme opted in, style with the resolved Selaras tokens instead
+of hard-coded colors. They resolve against the viewer's active theme (Serangkai
+or Rosé Pine) and light/dark mode, so the same HTML looks native everywhere:
+
+\`\`\`html
+<style>
+  .card {
+    background: var(--selaras-resolved-surface-default);
+    color: var(--selaras-resolved-text-default);
+    border: 1px solid var(--selaras-resolved-border-default);
+    border-radius: var(--selaras-resolved-radius-md);
+  }
+  .card a { color: var(--selaras-resolved-color-primary-text); }
+  .badge {
+    background: var(--selaras-resolved-color-accent-subtle);
+    color: var(--selaras-resolved-color-accent-on-subtle);
+  }
+</style>
+\`\`\`
+
+Read the \`serangkai://tokens/selaras\` resource for the full token table
+(surfaces, text, borders, primary/accent/secondary, radius, elevation). Always
+use the \`--selaras-resolved-*\` wrapper; never import Selaras CSS or a CDN.
 
 ## Charts and Mermaid
 

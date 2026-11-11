@@ -1,6 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { buildArtifactTokenCss } from '../shared/selaras-tokens'
 
 /**
  * Builds the trusted bundles and opt-in document theme for sandboxed HTML
@@ -66,21 +67,15 @@ const theme = `/*
 }
 
 :root {
-  color-scheme: light dark;
   --serangkai-doc-font: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --serangkai-doc-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --selaras-prose-font-mono: var(--serangkai-doc-mono);
-  --selaras-resolved-text-default: light-dark(#0f172a, #e2e8f0);
-  --selaras-resolved-text-muted: light-dark(#64748b, #94a3b8);
-  --selaras-resolved-color-primary-text: light-dark(#1d4ed8, #93c5fd);
-  --selaras-resolved-color-primary-text-hover: light-dark(#1e40af, #bfdbfe);
-  --selaras-resolved-border-default: light-dark(#dbe3ee, #263349);
-  --selaras-resolved-border-muted: light-dark(#e8eef6, #1b2637);
-  --selaras-resolved-surface-elevated: light-dark(#f1f5f9, #111827);
-  --selaras-resolved-surface-canvas: light-dark(#f8fafc, #090d18);
-  --selaras-resolved-radius-sm: 0.375rem;
-  --selaras-resolved-radius-md: 0.5rem;
 }
+
+/* Selaras design tokens, generated from shared/selaras-tokens.ts so the MCP
+   token reference and this stylesheet can never drift apart. The resolved
+   wrappers follow the viewer's active theme and light/dark mode. */
+${buildArtifactTokenCss()}
 
 html {
   color-scheme: light dark;

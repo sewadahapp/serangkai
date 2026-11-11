@@ -11,6 +11,7 @@
  * typography and colors only; it does not inject Vue or make Selaras components
  * available inside the artifact.
  */
+import { isThemeId } from '../../shared/themes'
 
 export const DOCUMENT_THEME = 'selaras-document'
 export const DOCUMENT_THEME_PATH = '/artifact-themes/selaras-document.css'
@@ -24,17 +25,35 @@ export function wantsDocumentTheme(content: string) {
   return value.split(/\s+/).includes(DOCUMENT_THEME)
 }
 
+/**
+ * The viewer's active app theme, read from the `serangkai-theme` cookie that
+ * `useAppTheme` writes. Both delivery routes are same-origin requests (the
+ * preview frame and the share reader's iframe), so the cookie is present and the
+ * document theme can resolve tokens against the theme the viewer actually sees.
+ */
+export function readerTheme(event: any): string | undefined {
+  const value = getCookie(event, 'serangkai-theme')
+  return isThemeId(value) ? value : undefined
+}
+
 /** Injects the theme link once; respects an existing explicit link. */
-export function withDocumentTheme(content: string) {
+export function withDocumentTheme(content: string, themeId?: string) {
   if (!wantsDocumentTheme(content)) return content
   if (/data-serangkai-document-theme\b/i.test(content)) return content
 
   const tag = `<link rel="stylesheet" href="${DOCUMENT_THEME_PATH}" data-serangkai-document-theme>`
+  let out: string
   if (/<head[^>]*>/i.test(content)) {
-    return content.replace(/<head[^>]*>/i, head => `${head}${tag}`)
+    out = content.replace(/<head[^>]*>/i, head => `${head}${tag}`)
+  } else if (/<html[^>]*>/i.test(content)) {
+    out = content.replace(/<html[^>]*>/i, html => `${html}<head>${tag}</head>`)
+  } else {
+    out = tag + content
   }
-  if (/<html[^>]*>/i.test(content)) {
-    return content.replace(/<html[^>]*>/i, html => `${html}<head>${tag}</head>`)
+
+  // Scope the generated token overrides to the viewer's active theme.
+  if (themeId && isThemeId(themeId) && /<html\b/i.test(out) && !/data-serangkai-theme=/i.test(out)) {
+    out = out.replace(/<html\b/i, match => `${match} data-serangkai-theme="${themeId}"`)
   }
-  return tag + content
+  return out
 }

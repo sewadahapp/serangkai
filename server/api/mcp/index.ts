@@ -14,12 +14,14 @@ import { findGrantByApiTokenId, resourceMatches } from '../../utils/oauth'
 import { mcpResourceUrl, protectedResourceMetadataUrl } from '../../utils/oauth-urls'
 import { capabilities, capabilitiesText, htmlGuide, markdownGuide, promptMessages, templates } from '../../utils/authoring'
 import { componentCatalogMarkdown } from '../../../shared/artifact-components'
+import { selarasTokensGuide } from '../../../shared/selaras-tokens'
 
 const artifactType = z.enum(['markdown', 'html', 'javascript', 'pdf', 'image', 'json', 'bundle'])
 const guideResources = [
   { name: 'Markdown authoring guide', uri: 'serangkai://guides/markdown', description: 'Comark Markdown, Selaras components, Mermaid, charts, and security limits.', text: markdownGuide },
   { name: 'HTML authoring guide', uri: 'serangkai://guides/html', description: 'Self-styled HTML, the optional Selaras document theme, markers, and sandbox rules.', text: htmlGuide },
   { name: 'Selaras component catalog', uri: 'serangkai://components/selaras', description: 'Supported component tags, props, slots, examples, and application-only exclusions.', text: componentCatalogMarkdown() },
+  { name: 'Selaras design tokens', uri: 'serangkai://tokens/selaras', description: 'Theme-aware CSS custom properties for HTML artifacts: surfaces, text, borders, primary/accent/secondary, radius, elevation.', text: selarasTokensGuide() },
 ] as const
 const templateResources = Object.entries(templates).map(([name, text]) => ({ name: `Template: ${name}`, uri: `serangkai://templates/${name}`, description: `Starting ${name} artifact.`, text }))
 const visibility = z.enum(['private', 'public', 'unlisted'])
