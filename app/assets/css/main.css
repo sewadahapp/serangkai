@@ -39,6 +39,16 @@
   --serangkai-shell-max: 84rem;
   --serangkai-prose-max: 46rem;
   --serangkai-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* TanStack Charts' categorical palette. The chart renderer resolves these
+     inside SVG marks, so setting them here makes charts follow the active
+     theme without rebuilding the chart definition. */
+  --ts-chart-1: #2563eb;
+  --ts-chart-2: #f97316;
+  --ts-chart-3: #10b981;
+  --ts-chart-4: #8b5cf6;
+  --ts-chart-5: #ec4899;
+  --ts-chart-6: #06b6d4;
 }
 
 html {
@@ -125,6 +135,14 @@ input[type='search']::-webkit-search-decoration {
   --selaras-border-hover: #cecacd;
 
   --selaras-scrim: rgb(87 82 121 / 0.35);
+
+  /* TanStack Charts categorical palette: iris, gold, pine, rose, love, foam */
+  --ts-chart-1: #907aa9;
+  --ts-chart-2: #ea9d34;
+  --ts-chart-3: #286983;
+  --ts-chart-4: #d7827e;
+  --ts-chart-5: #b4637a;
+  --ts-chart-6: #56949f;
 
   /* Primary: iris */
   --selaras-color-primary-fill: #907aa9;
@@ -270,6 +288,14 @@ input[type='search']::-webkit-search-decoration {
   --selaras-border-hover: #524f67;
 
   --selaras-scrim: rgb(10 9 15 / 0.72);
+
+  /* TanStack Charts categorical palette: iris, gold, pine, rose, love, foam */
+  --ts-chart-1: #c4a7e7;
+  --ts-chart-2: #f6c177;
+  --ts-chart-3: #5fa8c2;
+  --ts-chart-4: #ebbcba;
+  --ts-chart-5: #eb6f92;
+  --ts-chart-6: #9ccfd8;
 
   /* Primary: iris */
   --selaras-color-primary-fill: #c4a7e7;

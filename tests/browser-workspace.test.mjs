@@ -203,6 +203,10 @@ test('Markdown renders Mermaid diagrams and JSON charts', async () => {
   assert.equal(await page.locator('.serangkai-mermaid svg').count(), 1)
   assert.equal(await page.locator('.ts-chart-host svg').count(), 1)
   assert.equal(await page.locator('.serangkai-chart pre').count(), 0)
+  // Charts must use the active theme's categorical palette, not TanStack's
+  // hard-coded fallback. The first mark uses --ts-chart-1.
+  const chartFills = await page.locator('.ts-chart-host svg rect').evaluateAll(rects => rects.map(rect => getComputedStyle(rect).fill))
+  assert.ok(chartFills.includes('rgb(37, 99, 235)'), `expected Serangkai chart blue, got ${chartFills.join(', ')}`)
 
   // Headings get ids for deep links...
   const headingId = await page.locator('h2', { hasText: 'Diagram' }).getAttribute('id')
@@ -883,6 +887,9 @@ test('share errors use the error design and short share pages keep the footer at
 test('the appearance theme applies instantly and persists across reloads', async () => {
   const themePage = await browser.newPage()
   try {
+    await themePage.request.post(`${base}/api/auth/login`, {
+      data: { username: adminUsername, password: adminPassword },
+    })
     await themePage.goto(`${base}/settings`, { waitUntil: 'networkidle' })
     await assert.doesNotReject(() => themePage.getByRole('heading', { name: 'Appearance' }).waitFor())
     assert.equal(await themePage.locator('html').getAttribute('data-serangkai-theme'), 'serangkai')
@@ -911,6 +918,28 @@ test('the appearance theme applies instantly and persists across reloads', async
     assert.equal(await rosePine.getAttribute('aria-checked'), 'true')
     const serverHtml = await (await themePage.request.get(`${base}/settings`)).text()
     assert.match(serverHtml, /data-serangkai-theme="rose-pine"/)
+
+    // TanStack Charts reads its categorical palette from --ts-chart-*; the
+    // rendered SVG must pick up Rosé Pine's iris instead of the fallback blue.
+    const chartArtifactId = await themePage.evaluate(async () => {
+      const res = await fetch('/api/artifacts', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Theme chart check',
+          type: 'markdown',
+          content: '```chart\n{"type":"bar","data":[{"label":"A","value":1}]}\n```',
+        }),
+      })
+      return (await res.json()).artifact.id
+    })
+    await themePage.goto(`${base}/artifacts/${chartArtifactId}`, { waitUntil: 'networkidle' })
+    await themePage.locator('.ts-chart-host svg').first().waitFor()
+    const chartFills = await themePage.locator('.ts-chart-host svg rect').evaluateAll(rects => rects.map(rect => getComputedStyle(rect).fill))
+    assert.ok(
+      chartFills.includes(themed.dark ? 'rgb(196, 167, 231)' : 'rgb(144, 122, 169)'),
+      `expected the Rosé Pine chart palette, got ${chartFills.join(', ')}`,
+    )
 
     // The error page renders outside the normal app tree; the plugin must still
     // publish the theme there.

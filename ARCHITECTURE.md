@@ -281,6 +281,11 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   which JSON cannot carry; evaluating author JavaScript instead would break the
   artifact security model. Invalid or empty definitions fall back to the raw
   JSON rather than a blank panel.
+- Charts consume TanStack's `--ts-chart-1` … `--ts-chart-6` categorical tokens,
+  bound to each theme in `app/assets/css/main.css`; switching Serangkai/Rosé
+  Pine repaints the SVG without rebuilding the chart definition. Charts inside
+  sandboxed HTML artifacts remain self-styled and receive only light/dark mode,
+  because the iframe does not inherit application CSS variables.
 - Mermaid diagrams re-render when the color mode changes: `MermaidDiagram` uses
   `theme: 'neutral'` in light mode and `'dark'` in dark mode, observing the
   `class` attribute on `<html>`. Mermaid and chart components are wrapped in

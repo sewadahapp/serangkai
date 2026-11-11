@@ -33,6 +33,12 @@ const globals = [
   '--selaras-border-muted',
   '--selaras-border-hover',
   '--selaras-scrim',
+  '--ts-chart-1',
+  '--ts-chart-2',
+  '--ts-chart-3',
+  '--ts-chart-4',
+  '--ts-chart-5',
+  '--ts-chart-6',
 ]
 
 function cssBlock(selector) {
@@ -95,6 +101,7 @@ test('every non-default theme has complete light and dark token recipes', () => 
       assert.equal(value(block, '--selaras-surface-default'), theme.preview[mode].surface)
       assert.equal(value(block, '--selaras-color-primary-fill'), theme.preview[mode].primary)
       assert.equal(value(block, '--selaras-color-accent-fill'), theme.preview[mode].accent)
+      assert.equal(value(block, '--ts-chart-1'), value(block, '--selaras-color-primary-fill'))
     }
   }
 })
