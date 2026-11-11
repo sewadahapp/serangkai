@@ -68,7 +68,12 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await assert.doesNotReject(() => page.getByText(/· Archive \/ Programs/).waitFor())
   await page.getByPlaceholder('Search artifacts and folders…').fill('Browser')
   await assert.doesNotReject(() => page.getByText(/In Programs and its subfolders/).waitFor())
-  await page.getByPlaceholder('Search artifacts and folders…').fill('')
+  // Searching must keep the folder tree and the row's folder path intact.
+  await assert.doesNotReject(() => page.getByRole('button', { name: /Programs/ }).waitFor())
+  await assert.doesNotReject(() => page.getByText(/· Archive \/ Programs/).waitFor())
+  await page.getByRole('button', { name: 'Clear', exact: true }).click()
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Programs', exact: true }).waitFor())
+  await assert.doesNotReject(() => page.getByText('1 artifact', { exact: true }).waitFor())
   await page.getByRole('link', { name: /^Browser-created artifact/ }).click()
   await page.waitForURL('**/artifacts/**')
   await page.getByRole('combobox', { name: 'Visibility' }).click()

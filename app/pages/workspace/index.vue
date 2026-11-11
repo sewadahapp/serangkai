@@ -121,7 +121,7 @@
                 <SIcon name="lucide:layers" class="size-4 shrink-0" aria-hidden="true" />
                 All artifacts
               </span>
-              <span class="serangkai-tabular text-xs text-[var(--selaras-resolved-text-muted)]">{{ artifacts.length }}</span>
+              <span class="serangkai-tabular text-xs text-[var(--selaras-resolved-text-muted)]">{{ allArtifacts.length }}</span>
             </button>
             <button
               v-for="row in folderRows"
@@ -173,10 +173,11 @@
         <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 id="artifact-list" class="text-lg font-semibold tracking-tight">
-              {{ searchQuery.trim() ? 'Search results' : selectedFolder ? selectedFolder.name : 'All artifacts' }}
+              {{ appliedQuery ? 'Search results' : selectedFolder ? selectedFolder.name : 'All artifacts' }}
             </h2>
             <p class="mt-0.5 text-sm text-[var(--selaras-resolved-text-muted)]">
-              <template v-if="searchQuery.trim()">
+              <template v-if="searchPending">Searching…</template>
+              <template v-else-if="appliedQuery">
                 {{ selectedFolder ? `In ${selectedFolder.name} and its subfolders` : 'Across all artifacts and folders' }} · {{ visibleArtifacts.length }} found
               </template>
               <template v-else>{{ visibleArtifacts.length }} {{ visibleArtifacts.length === 1 ? 'artifact' : 'artifacts' }}</template>
@@ -185,14 +186,14 @@
 
           <div class="w-full sm:w-72">
             <SInput
-              v-model="searchQuery"
+              :model-value="searchQuery"
               type="search"
               aria-label="Search artifacts and folders"
               placeholder="Search artifacts and folders…"
               icon="lucide:search"
               clearable
               class="w-full"
-              @input="search"
+              @update:model-value="updateSearch"
             />
           </div>
         </div>
@@ -256,8 +257,8 @@
         <SEmptyState
           v-else
           icon="lucide:file-text"
-          :title="searchQuery.trim() ? 'No matches' : 'No artifacts yet'"
-          :description="searchQuery.trim() ? 'Try another phrase, or clear the search to see everything.' : 'Create an artifact or upload a file to get started.'"
+          :title="appliedQuery ? 'No matches' : 'No artifacts yet'"
+          :description="appliedQuery ? 'Try another phrase, or clear the search to see everything.' : 'Create an artifact or upload a file to get started.'"
         >
           <template #actions>
             <SButton v-if="searchQuery.trim()" variant="outline" icon="lucide:x" @click="clearSearch">Clear search</SButton>
@@ -294,7 +295,13 @@ interface Artifact {
 
 const folders = ref<Folder[]>([])
 const artifacts = ref<Artifact[]>([])
+// The sidebar counts describe the whole workspace, not the current search.
+const allArtifacts = ref<Artifact[]>([])
 const searchQuery = ref('')
+// The query whose results are currently on screen. Keeping it separate from
+// the input value avoids labeling the previous list as the new search.
+const appliedQuery = ref('')
+const searchPending = ref(false)
 const folderName = ref('')
 const parentFolderId = ref<string | undefined>(NO_FOLDER)
 const artifactFolderId = ref<string | undefined>(NO_FOLDER)
@@ -311,6 +318,8 @@ const folderMessage = ref('')
 const error = ref('')
 const loadError = ref('')
 const loadingWorkspace = ref(true)
+let searchSequence = 0
+let searchTimer: ReturnType<typeof setTimeout> | undefined
 
 const { confirm } = useConfirm()
 const { add: toast } = useToast()
@@ -433,7 +442,7 @@ const descendantIds = (folderId: string) => {
 
 const visibleArtifacts = computed(() => {
   let list = artifacts.value
-  if (!searchQuery.value.trim() && selectedFolderId.value) {
+  if (!appliedQuery.value && selectedFolderId.value) {
     const ids = descendantIds(selectedFolderId.value)
     list = list.filter(artifact => artifact.folderId && ids.has(artifact.folderId))
   }
@@ -442,7 +451,7 @@ const visibleArtifacts = computed(() => {
 
 const folderArtifactCount = (folderId: string) => {
   const ids = descendantIds(folderId)
-  return artifacts.value.filter(artifact => artifact.folderId && ids.has(artifact.folderId)).length
+  return allArtifacts.value.filter(artifact => artifact.folderId && ids.has(artifact.folderId)).length
 }
 
 const folderPathLabel = (folderId: string) => {
@@ -510,11 +519,27 @@ const selectFolder = (folderId: string | null) => {
   if (searchQuery.value.trim()) search()
 }
 
-const loadWorkspace = async () => {
-  loadError.value = ''
+const fetchWorkspace = async () => {
   const [foldersRes, artifactsRes] = await Promise.all([$fetch('/api/folders'), $fetch('/api/artifacts')])
-  folders.value = foldersRes.folders || []
-  artifacts.value = artifactsRes.artifacts || []
+  return {
+    folders: foldersRes.folders || [],
+    artifacts: artifactsRes.artifacts || [],
+  }
+}
+
+const loadWorkspace = async () => {
+  const sequence = ++searchSequence
+  loadError.value = ''
+  const data = await fetchWorkspace()
+  if (sequence !== searchSequence) return
+  folders.value = data.folders
+  allArtifacts.value = data.artifacts
+  if (searchQuery.value.trim()) {
+    // A write should not swap the search results for the full workspace.
+    await search()
+  } else {
+    artifacts.value = data.artifacts
+  }
 }
 
 const workspaceError = (e: any) => (
@@ -548,28 +573,63 @@ onMounted(async () => {
 })
 
 const search = async () => {
+  // A manual search (folder change, retry, clear) supersedes any queued one.
+  clearTimeout(searchTimer)
+  const sequence = ++searchSequence
+  const query = searchQuery.value.trim()
   loadError.value = ''
-  if (!searchQuery.value.trim()) {
-    try {
-      await loadWorkspace()
-    } catch (e: any) {
-      loadError.value = workspaceError(e)
-    }
-    return
-  }
+  searchPending.value = true
   try {
-    const result = await $fetch('/api/search', { query: { q: searchQuery.value, ...(selectedFolderId.value ? { folderId: selectedFolderId.value } : {}) } })
-    folders.value = result.folders || []
+    if (!query) {
+      const data = await fetchWorkspace()
+      if (sequence !== searchSequence || query !== searchQuery.value.trim()) return
+      folders.value = data.folders
+      allArtifacts.value = data.artifacts
+      artifacts.value = data.artifacts
+      appliedQuery.value = ''
+      return
+    }
+    const result = await $fetch('/api/search', {
+      query: { q: query, ...(selectedFolderId.value ? { folderId: selectedFolderId.value } : {}) },
+    })
+    // Fast typing can finish an older request last; keep only the newest answer.
+    if (sequence !== searchSequence || query !== searchQuery.value.trim()) return
+    // Keep the full folder tree so the sidebar and folder paths stay stable.
     artifacts.value = result.artifacts || []
+    appliedQuery.value = query
   } catch (e: any) {
+    if (sequence !== searchSequence || query !== searchQuery.value.trim()) return
     loadError.value = workspaceError(e)
+  } finally {
+    if (sequence === searchSequence) searchPending.value = false
   }
 }
 
-const clearSearch = async () => {
+const restoreWorkspace = () => {
+  clearTimeout(searchTimer)
+  searchSequence++
   searchQuery.value = ''
-  await retryWorkspace()
+  artifacts.value = allArtifacts.value
+  appliedQuery.value = ''
+  searchPending.value = false
+  loadError.value = ''
 }
+
+const updateSearch = (value: string) => {
+  searchQuery.value = value
+  clearTimeout(searchTimer)
+  // Clearing is an explicit action, so restore the workspace immediately.
+  if (!value.trim()) {
+    restoreWorkspace()
+    return
+  }
+  searchPending.value = true
+  searchTimer = setTimeout(() => { void search() }, 200)
+}
+
+const clearSearch = () => restoreWorkspace()
+
+onBeforeUnmount(() => clearTimeout(searchTimer))
 
 const createFolder = async () => {
   saving.value = true; error.value = ''

@@ -87,6 +87,15 @@ html.dark * {
   color: var(--selaras-resolved-color-primary-on-subtle);
 }
 
+/* Selaras renders its own clear control on clearable fields. Hide the
+   browser-native search cancel button so search inputs show one action. */
+input[type='search']::-webkit-search-cancel-button,
+input[type='search']::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
 /* Respect the OS motion preference for every transition and animation. */
 @media (prefers-reduced-motion: reduce) {
   *,
