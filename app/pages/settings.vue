@@ -14,6 +14,7 @@
           :model-value="theme"
           variant="card"
           :items="themeOptions"
+          :ui="{ root: 'grid grid-cols-1 gap-3 sm:grid-cols-2' }"
           aria-label="Color theme"
           @update:model-value="setTheme"
         >
