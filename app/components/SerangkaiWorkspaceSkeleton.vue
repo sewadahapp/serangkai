@@ -43,17 +43,17 @@
         <div
           v-for="(width, index) in artifactWidths"
           :key="index"
-          class="flex items-start justify-between gap-4 rounded-lg border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] p-4"
+          class="flex items-center gap-3 rounded-lg border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] p-3.5"
         >
+          <SSkeleton animation="shimmer" class="size-10 shrink-0 rounded-md" />
           <div class="min-w-0 flex-1">
-            <SSkeleton animation="shimmer" class="h-4" :style="{ width }" />
-            <div class="mt-2 flex flex-wrap items-center gap-1.5">
-              <SSkeleton animation="shimmer" class="h-5 w-16 rounded-full" />
-              <SSkeleton animation="shimmer" class="h-5 w-14 rounded-full" />
-              <SSkeleton animation="shimmer" class="h-3.5 w-20" />
+            <div class="flex min-w-0 items-center gap-2">
+              <SSkeleton animation="shimmer" class="h-4" :style="{ width }" />
+              <SSkeleton animation="shimmer" class="h-4 w-14 shrink-0 rounded-full" />
             </div>
+            <SSkeleton animation="shimmer" class="mt-2 h-3 w-40 max-w-full" />
           </div>
-          <SSkeleton animation="shimmer" class="h-3 w-12 shrink-0" />
+          <SSkeleton animation="shimmer" class="h-8 w-8 shrink-0 rounded-md sm:w-20" />
         </div>
       </div>
     </section>

@@ -198,29 +198,59 @@
         </div>
 
         <div v-if="visibleArtifacts.length" class="space-y-2">
-          <NuxtLink
+          <div
             v-for="artifact in visibleArtifacts"
             :key="artifact.id"
-            :to="`/artifacts/${artifact.id}`"
-            class="group flex items-start justify-between gap-4 rounded-lg border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] p-4 transition-colors hover:border-[var(--selaras-resolved-border-hover)] hover:bg-[var(--selaras-resolved-surface-elevated)]"
+            class="group flex items-center gap-3 rounded-lg border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] p-3.5 transition-colors hover:border-[var(--selaras-resolved-border-hover)] hover:bg-[var(--selaras-resolved-surface-elevated)]"
           >
-            <div class="min-w-0">
-              <h3 class="truncate font-medium group-hover:underline group-hover:underline-offset-4">{{ artifact.title }}</h3>
-              <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-[var(--selaras-resolved-text-muted)]">
-                <SBadge :label="artifact.type" variant="subtle" color="neutral" size="sm" />
-                <SBadge
-                  :label="artifact.visibility"
-                  variant="subtle"
-                  :color="artifact.visibility === 'private' ? 'neutral' : artifact.visibility === 'public' ? 'success' : 'accent'"
-                  size="sm"
-                />
-                <span v-if="artifact.folderId" class="truncate">· {{ folderLabel(artifact.folderId) }}</span>
+            <NuxtLink
+              :to="`/artifacts/${artifact.id}`"
+              class="flex min-w-0 flex-1 items-center gap-3 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--selaras-resolved-color-primary-focus)]"
+            >
+              <span
+                class="grid size-10 shrink-0 place-items-center rounded-md border border-[var(--selaras-resolved-border-muted)] bg-[var(--selaras-resolved-surface-elevated)] text-[var(--selaras-resolved-text-muted)] transition-colors group-hover:text-[var(--selaras-resolved-color-primary-text)]"
+                aria-hidden="true"
+              >
+                <SIcon :name="artifactIcon(artifact.type)" class="size-5" />
+              </span>
+              <div class="min-w-0">
+                <div class="flex min-w-0 items-center gap-2">
+                  <h3 class="truncate font-medium group-hover:underline group-hover:underline-offset-4">{{ artifact.title }}</h3>
+                  <SBadge
+                    :label="visibilityLabel(artifact.visibility)"
+                    variant="subtle"
+                    :color="visibilityColor(artifact.visibility)"
+                    size="sm"
+                    class="shrink-0"
+                  />
+                </div>
+                <div class="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[var(--selaras-resolved-text-muted)]">
+                  <span>{{ artifactTypeLabel(artifact.type) }}</span>
+                  <span v-if="artifact.folderId" class="max-w-[16rem] truncate">· {{ folderPathLabel(artifact.folderId) }}</span>
+                  <span aria-hidden="true">·</span>
+                  <span class="whitespace-nowrap">
+                    Updated
+                    <time :datetime="artifact.updatedAt" :title="fullDate(artifact.updatedAt)">{{ formatDate(artifact.updatedAt) }}</time>
+                  </span>
+                </div>
               </div>
-            </div>
-            <time class="shrink-0 text-xs text-[var(--selaras-resolved-text-muted)]" :datetime="artifact.updatedAt">
-              {{ formatDate(artifact.updatedAt) }}
-            </time>
-          </NuxtLink>
+            </NuxtLink>
+
+            <SButton
+              v-if="artifact.shareUrl"
+              variant="ghost"
+              size="sm"
+              icon="lucide:external-link"
+              :to="artifact.shareUrl || undefined"
+              target="_blank"
+              rel="noopener"
+              :aria-label="`Preview ${artifact.title}`"
+              :title="`Preview ${artifact.title}`"
+              class="shrink-0"
+            >
+              <span class="hidden sm:inline">Preview</span>
+            </SButton>
+          </div>
         </div>
 
         <SEmptyState
@@ -259,6 +289,7 @@ interface Artifact {
   visibility: string
   folderId: string | null
   updatedAt: string
+  shareUrl: string | null
 }
 
 const folders = ref<Folder[]>([])
@@ -352,6 +383,23 @@ const visibilityOptions = [
   { label: 'Public', value: 'public' },
 ]
 
+const artifactTypeMeta: Record<string, { icon: string; label: string }> = {
+  markdown: { icon: 'lucide:file-text', label: 'Markdown' },
+  html: { icon: 'lucide:code-xml', label: 'HTML' },
+  json: { icon: 'lucide:braces', label: 'JSON' },
+  javascript: { icon: 'lucide:file-code-2', label: 'JavaScript' },
+  image: { icon: 'lucide:image', label: 'Image' },
+  pdf: { icon: 'lucide:file-type-2', label: 'PDF' },
+  bundle: { icon: 'lucide:package', label: 'Bundle' },
+}
+
+const artifactIcon = (type: string) => artifactTypeMeta[type]?.icon || 'lucide:file'
+const artifactTypeLabel = (type: string) => artifactTypeMeta[type]?.label || type
+const visibilityLabel = (visibility: string) => visibility.charAt(0).toUpperCase() + visibility.slice(1)
+const visibilityColor = (visibility: string) => (
+  visibility === 'private' ? 'neutral' : visibility === 'public' ? 'success' : 'accent'
+)
+
 const folderOption = (row: Folder & { depth: number }) => ({ label: `${'— '.repeat(row.depth)}${row.name}`, value: row.id })
 
 const moveTargets = computed(() => {
@@ -384,10 +432,12 @@ const descendantIds = (folderId: string) => {
 
 
 const visibleArtifacts = computed(() => {
-  if (searchQuery.value.trim()) return artifacts.value
-  if (!selectedFolderId.value) return artifacts.value
-  const ids = descendantIds(selectedFolderId.value)
-  return artifacts.value.filter(artifact => artifact.folderId && ids.has(artifact.folderId))
+  let list = artifacts.value
+  if (!searchQuery.value.trim() && selectedFolderId.value) {
+    const ids = descendantIds(selectedFolderId.value)
+    list = list.filter(artifact => artifact.folderId && ids.has(artifact.folderId))
+  }
+  return [...list].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
 })
 
 const folderArtifactCount = (folderId: string) => {
@@ -395,8 +445,10 @@ const folderArtifactCount = (folderId: string) => {
   return artifacts.value.filter(artifact => artifact.folderId && ids.has(artifact.folderId)).length
 }
 
-const folderLabel = (folderId: string) => folderMap.value.get(folderId)?.name || ''
-const folderIndent = (depth: number) => '— '.repeat(depth)
+const folderPathLabel = (folderId: string) => {
+  const path = folderMap.value.get(folderId)?.path || ''
+  return path.replace(/^\//, '').replaceAll('/', ' / ')
+}
 
 const formatDate = (value: string) => {
   const date = new Date(value)
@@ -405,6 +457,8 @@ const formatDate = (value: string) => {
   if (diff < 86_400_000) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
+
+const fullDate = (value: string) => new Date(value).toLocaleString()
 
 const formatBytes = (bytes: number) => {
   if (!bytes) return '0 B'

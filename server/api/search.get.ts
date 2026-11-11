@@ -1,6 +1,7 @@
 import { artifacts, folders } from '../db/schema'
 import { getRequestDatabase } from '../db/adapter'
 import { requireUser } from '../utils/require-auth'
+import { artifactShareUrl } from '../utils/share'
 import { and, eq, inArray, like, or } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -45,5 +46,11 @@ export default defineEventHandler(async (event) => {
       ? Promise.resolve(scopedFolders)
       : db.select().from(folders).where(and(eq(folders.userId, user.id), like(folders.name, pattern))),
   ])
-  return { artifacts: foundArtifacts, folders: foundFolders }
+  return {
+    artifacts: foundArtifacts.map(artifact => ({
+      ...artifact,
+      shareUrl: artifactShareUrl(event, artifact),
+    })),
+    folders: foundFolders,
+  }
 })

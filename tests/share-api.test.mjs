@@ -95,3 +95,32 @@ test('HTML shares get the opt-in chart runtime without widening the CSP', async 
   assert.doesNotMatch(plainHtml, /data-serangkai-runtime/)
 })
 
+test('the workspace list exposes preview URLs only for shared artifacts', async () => {
+  const create = async (title, visibility) => {
+    const response = await fetch(`${base}/api/artifacts`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ title, type: 'markdown', content: `# ${title}`, visibility }),
+    })
+    return (await response.json()).artifact
+  }
+
+  const privateArtifact = await create('Private preview', 'private')
+  const publicArtifact = await create('Public preview', 'public')
+
+  const list = await (await fetch(`${base}/api/artifacts`, { headers: { cookie } })).json()
+  const unlistedRow = list.artifacts.find(item => item.id === artifact.id)
+  const privateRow = list.artifacts.find(item => item.id === privateArtifact.id)
+  const publicRow = list.artifacts.find(item => item.id === publicArtifact.id)
+
+  assert.match(unlistedRow.shareUrl, /\/share\/[^?]+\?k=[a-f0-9]{64}$/)
+  assert.equal(privateRow.shareUrl, null)
+  assert.match(publicRow.shareUrl, /\/share\/[^?]+$/)
+  assert.doesNotMatch(publicRow.shareUrl, /\?k=/)
+
+  const privateShare = await fetch(`${base}/api/artifacts/${privateArtifact.id}/share`, {
+    method: 'POST',
+    headers: { cookie },
+  })
+  assert.equal(privateShare.status, 400)
+})
