@@ -129,6 +129,12 @@ On Cloudflare, a missing R2 binding fails startup rather than mounting an
 in-memory driver; `SERANGKAI_ALLOW_EPHEMERAL_STORAGE=true` (non-production only)
 exists solely for tests and local previews, and S3 has no memory fallback at all.
 
+B2 buckets retain replaced and deleted object versions by default, and hidden
+versions count toward storage. Deployments using B2 should add a bucket
+lifecycle rule that keeps only the last version of each file (or deletes hidden
+versions after one day) so that storage growth stays bounded; the rule runs once
+per day and does not remove the current version.
+
 ### API Routes (Nitro)
 - `POST /api/auth/login` - Owner login (username + password)
 - `POST /api/auth/logout` - Logout

@@ -91,21 +91,32 @@ build itself. Manual deployments can add the D1 `database_id` and R2
 
 Backblaze B2 provides an S3-compatible API, so it can replace R2 while D1 keeps
 every database row. This path needs no R2 bucket — and therefore no R2
-activation or billing card. The free B2 tier is limited (currently 10 GB of
-storage with a daily download/transaction allowance); beyond that, Backblaze
-bills storage, egress, and API calls, so this is not a permanently free setup.
+activation or billing card. The free B2 tier includes 10 GB of storage, free
+egress up to 3× your average monthly stored data, and the first 2,500 Class D
+downloads per day; beyond those limits Backblaze bills storage, egress, and API
+calls, so this is not a permanently free setup.
 
 Before deploying, create **a private bucket** and **a bucket-scoped application
 key** in Backblaze, then note the endpoint (`https://s3.<region>.backblazeb2.com`),
 region, bucket name, key ID, and application key.
 
+B2 keeps old object versions by default, and hidden versions still count toward
+storage. Add a lifecycle rule with an empty file prefix that keeps only the last
+version of each file — in the console, **Keep only the last version of the
+file**, or set **Days from hiding to deleting** to `1` and leave **Days from
+uploading to hiding** empty. Do not set the upload-to-hiding value: it hides the
+current version too. Lifecycle rules run once per day, so recently replaced
+versions can still appear in usage until the next run.
+
 The second button deploys from the thin template in
 [`deploy/cloudflare-b2/`](deploy/cloudflare-b2/README.md): it provisions D1,
 prompts for the same owner and session secrets plus the five `S3_*` values, and
 builds the application source at deploy time. Two buttons exist because the
-Deploy to Cloudflare platform reads one Wrangler configuration per repository;
-the template is self-contained, so the application code is still maintained
-here only.
+Deploy to Cloudflare platform reads one Wrangler configuration per repository.
+The template is a launcher, not a copy of the app: `build.mjs` downloads
+`sewadahapp/serangkai` at `master` unless you set `SERANGKAI_REF` to a tag or
+commit (and `SERANGKAI_REPO` for a fork). Editing the cloned template does not
+change the deployed application.
 
 Manual deployment works from the repository root:
 

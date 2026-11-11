@@ -5,7 +5,9 @@
 This directory is a thin deployment template: Serangkai on Cloudflare Workers
 with **D1** for data and **Backblaze B2** for object storage. It provisions no
 R2 bucket and needs no R2 activation or billing card — D1 and the free B2 tier
-are enough for a personal instance.
+are enough for a personal instance. The free tier includes 10 GB of storage,
+free egress up to 3× average monthly stored data, and the first 2,500 Class D
+downloads per day; heavier use is billed.
 
 ## Why this template exists
 
@@ -14,6 +16,12 @@ and a subdirectory URL is treated as a standalone repository root with all of
 its dependencies inside it. The application source is therefore fetched at
 build time by `build.mjs` (default branch, or pin `SERANGKAI_REF`) instead of
 being copied here, so there is still exactly one copy of the code.
+
+`build.mjs` downloads `sewadahapp/serangkai@master` by default. Set
+`SERANGKAI_REF` to a tag or commit for a reproducible deploy, and
+`SERANGKAI_REPO` to build a fork. Editing the cloned template changes only the
+launcher (Wrangler config and build script), not the application; make
+application changes upstream and redeploy.
 
 The R2 one-click flow lives at the repository root and is unchanged.
 
@@ -24,6 +32,12 @@ Create, in Backblaze:
 1. A **private** bucket (any region).
 2. A **bucket-scoped application key** with read, write, delete, and list
    permissions for that bucket. Do not use the account master key.
+3. A **lifecycle rule** with an empty file prefix that keeps only the last
+   version of each file. B2 keeps replaced versions by default, and hidden
+   versions count toward storage. In the console choose **Keep only the last
+   version of the file**, or set **Days from hiding to deleting** to `1` and
+   leave **Days from uploading to hiding** empty — the upload-to-hiding value
+   would hide the current version too. Rules run once per day.
 
 From the bucket's details note the S3 endpoint (`https://s3.<region>.backblazeb2.com`)
 and the region (`<region>`, for example `us-west-004`).
