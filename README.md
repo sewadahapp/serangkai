@@ -6,6 +6,7 @@ A production-minded, open-source, self-hosted artifact and knowledge workspace f
 
 - 🗂️ **Organized Workspace** - Nested folders, pages, and artifacts like Notion
 - ✨ **Beautiful by Default** - Markdown renders with polished Selaras styling
+- 🖌️ **Themeable UI** - Switch between the Serangkai and Rosé Pine palettes in Settings; light and dark modes stay independent
 - 🎨 **Interactive Artifacts** - HTML, JavaScript, Mermaid diagrams, TanStack charts, and static web apps
 - 🤖 **Agent-Ready** - MCP and REST APIs for AI agents to create and update artifacts
 - 🔒 **Private by Default** - Artifacts are private to the workspace owner with explicit public sharing

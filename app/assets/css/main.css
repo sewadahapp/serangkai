@@ -96,6 +96,310 @@ input[type='search']::-webkit-search-decoration {
   display: none;
 }
 
+/* ---------------------------------------------------------------------------
+   Color themes
+
+   `serangkai` is the default compiled into the Selaras config. Additional
+   themes are CSS-only: they override the public `--selaras-*` inputs for the
+   matching `data-serangkai-theme` attribute on <html>, while Selaras keeps
+   resolving component styles from the same recipes. This mirrors the
+   documentation showcase presets (Selaras by Sewadah,
+   https://selarasui.my.id/overview/theming/css-tokens) without duplicating a
+   full component theme.
+
+   Rosé Pine palette: https://rosepinetheme.com (MIT).
+--------------------------------------------------------------------------- */
+
+:root[data-serangkai-theme='rose-pine'] {
+  --selaras-surface-canvas: #faf4ed;
+  --selaras-surface-default: #fffaf3;
+  --selaras-surface-elevated: #f2e9e1;
+  --selaras-surface-inverted: #575279;
+
+  --selaras-text-default: #575279;
+  --selaras-text-muted: #675f7b;
+  --selaras-text-inverted: #fffaf3;
+
+  --selaras-border-default: #dfdad9;
+  --selaras-border-muted: #eaddda;
+  --selaras-border-hover: #cecacd;
+
+  --selaras-scrim: rgb(87 82 121 / 0.35);
+
+  /* Primary: iris */
+  --selaras-color-primary-fill: #907aa9;
+  --selaras-color-primary-fill-hover: #84709c;
+  --selaras-color-primary-fill-pressed: #78668e;
+  --selaras-color-primary-on-fill: #191724;
+  --selaras-color-primary-indicator: #907aa9;
+  --selaras-color-primary-subtle: #f4edec;
+  --selaras-color-primary-subtle-hover: #efe8e9;
+  --selaras-color-primary-subtle-pressed: #ebe3e6;
+  --selaras-color-primary-on-subtle: #5b4d6d;
+  --selaras-color-primary-text: #5b4d6d;
+  --selaras-color-primary-text-hover: #4f4260;
+  --selaras-color-primary-text-pressed: #443853;
+  --selaras-color-primary-border: #907aa9;
+  --selaras-color-primary-focus: #5b4d6d;
+
+  /* Accent: gold */
+  --selaras-color-accent-fill: #ea9d34;
+  --selaras-color-accent-fill-hover: #d59032;
+  --selaras-color-accent-fill-pressed: #c08231;
+  --selaras-color-accent-on-fill: #191724;
+  --selaras-color-accent-indicator: #ea9d34;
+  --selaras-color-accent-subtle: #fdf1e0;
+  --selaras-color-accent-subtle-hover: #fcedd8;
+  --selaras-color-accent-subtle-pressed: #fbe9d1;
+  --selaras-color-accent-on-subtle: #7a4f12;
+  --selaras-color-accent-text: #7a4f12;
+  --selaras-color-accent-text-hover: #6b4510;
+  --selaras-color-accent-text-pressed: #5c3b0e;
+  --selaras-color-accent-border: #ea9d34;
+  --selaras-color-accent-focus: #7a4f12;
+
+  /* Secondary: rose */
+  --selaras-color-secondary-fill: #d7827e;
+  --selaras-color-secondary-fill-hover: #c47775;
+  --selaras-color-secondary-fill-pressed: #b16d6c;
+  --selaras-color-secondary-on-fill: #191724;
+  --selaras-color-secondary-indicator: #d7827e;
+  --selaras-color-secondary-subtle: #fbeee7;
+  --selaras-color-secondary-subtle-hover: #f9e9e3;
+  --selaras-color-secondary-subtle-pressed: #f8e4de;
+  --selaras-color-secondary-on-subtle: #8f4c49;
+  --selaras-color-secondary-text: #8f4c49;
+  --selaras-color-secondary-text-hover: #7d423f;
+  --selaras-color-secondary-text-pressed: #6b3835;
+  --selaras-color-secondary-border: #d7827e;
+  --selaras-color-secondary-focus: #8f4c49;
+
+  /* Success: pine */
+  --selaras-color-success-fill: #286983;
+  --selaras-color-success-fill-hover: #2f7a97;
+  --selaras-color-success-fill-pressed: #255f75;
+  --selaras-color-success-on-fill: #fffaf3;
+  --selaras-color-success-indicator: #286983;
+  --selaras-color-success-subtle: #eaece8;
+  --selaras-color-success-subtle-hover: #e1e6e3;
+  --selaras-color-success-subtle-pressed: #d8e0df;
+  --selaras-color-success-on-subtle: #1d4e60;
+  --selaras-color-success-text: #1d4e60;
+  --selaras-color-success-text-hover: #17404f;
+  --selaras-color-success-text-pressed: #12333e;
+  --selaras-color-success-border: #286983;
+  --selaras-color-success-focus: #1d4e60;
+
+  /* Info: foam */
+  --selaras-color-info-fill: #56949f;
+  --selaras-color-info-fill-hover: #4c8590;
+  --selaras-color-info-fill-pressed: #447781;
+  --selaras-color-info-on-fill: #191724;
+  --selaras-color-info-indicator: #56949f;
+  --selaras-color-info-subtle: #eef0eb;
+  --selaras-color-info-subtle-hover: #e7ece7;
+  --selaras-color-info-subtle-pressed: #e1e8e4;
+  --selaras-color-info-on-subtle: #2f5b62;
+  --selaras-color-info-text: #2f5b62;
+  --selaras-color-info-text-hover: #274b51;
+  --selaras-color-info-text-pressed: #1f3c41;
+  --selaras-color-info-border: #56949f;
+  --selaras-color-info-focus: #2f5b62;
+
+  /* Warning: gold, kept distinct through its darker text */
+  --selaras-color-warning-fill: #ea9d34;
+  --selaras-color-warning-fill-hover: #d59032;
+  --selaras-color-warning-fill-pressed: #c08231;
+  --selaras-color-warning-on-fill: #191724;
+  --selaras-color-warning-indicator: #ea9d34;
+  --selaras-color-warning-subtle: #fdf1e0;
+  --selaras-color-warning-subtle-hover: #fcedd8;
+  --selaras-color-warning-subtle-pressed: #fbe9d1;
+  --selaras-color-warning-on-subtle: #7a4f12;
+  --selaras-color-warning-text: #7a4f12;
+  --selaras-color-warning-text-hover: #6b4510;
+  --selaras-color-warning-text-pressed: #5c3b0e;
+  --selaras-color-warning-border: #ea9d34;
+  --selaras-color-warning-focus: #7a4f12;
+
+  /* Danger: love */
+  --selaras-color-danger-fill: #a04a61;
+  --selaras-color-danger-fill-hover: #94445a;
+  --selaras-color-danger-fill-pressed: #883d52;
+  --selaras-color-danger-on-fill: #fffaf3;
+  --selaras-color-danger-indicator: #b4637a;
+  --selaras-color-danger-subtle: #f8ebe7;
+  --selaras-color-danger-subtle-hover: #f5e5e2;
+  --selaras-color-danger-subtle-pressed: #f2dfdd;
+  --selaras-color-danger-on-subtle: #8a3d52;
+  --selaras-color-danger-text: #8a3d52;
+  --selaras-color-danger-text-hover: #773548;
+  --selaras-color-danger-text-pressed: #652d3d;
+  --selaras-color-danger-border: #b4637a;
+  --selaras-color-danger-focus: #8a3d52;
+
+  /* Neutral: text color, so pills and outlines read on Rosé Pine surfaces */
+  --selaras-color-neutral-fill: #575279;
+  --selaras-color-neutral-fill-hover: #4a4568;
+  --selaras-color-neutral-fill-pressed: #3d3957;
+  --selaras-color-neutral-on-fill: #fffaf3;
+  --selaras-color-neutral-indicator: #907aa9;
+  --selaras-color-neutral-subtle: #eee9e7;
+  --selaras-color-neutral-subtle-hover: #e7e2e2;
+  --selaras-color-neutral-subtle-pressed: #e1dcdd;
+  --selaras-color-neutral-on-subtle: #575279;
+  --selaras-color-neutral-text: #575279;
+  --selaras-color-neutral-text-hover: #4a4568;
+  --selaras-color-neutral-text-pressed: #3d3957;
+  --selaras-color-neutral-border: #9893a5;
+  --selaras-color-neutral-focus: #575279;
+}
+
+:root.dark[data-serangkai-theme='rose-pine'] {
+  --selaras-surface-canvas: #191724;
+  --selaras-surface-default: #1f1d2e;
+  --selaras-surface-elevated: #26233a;
+  --selaras-surface-inverted: #e0def4;
+
+  --selaras-text-default: #e0def4;
+  --selaras-text-muted: #a6a2c0;
+  --selaras-text-inverted: #191724;
+
+  --selaras-border-default: #403d52;
+  --selaras-border-muted: #2e2b41;
+  --selaras-border-hover: #524f67;
+
+  --selaras-scrim: rgb(10 9 15 / 0.72);
+
+  /* Primary: iris */
+  --selaras-color-primary-fill: #c4a7e7;
+  --selaras-color-primary-fill-hover: #cfb6ed;
+  --selaras-color-primary-fill-pressed: #d9c4f0;
+  --selaras-color-primary-on-fill: #191724;
+  --selaras-color-primary-indicator: #c4a7e7;
+  --selaras-color-primary-subtle: #363048;
+  --selaras-color-primary-subtle-hover: #3d364f;
+  --selaras-color-primary-subtle-pressed: #433b57;
+  --selaras-color-primary-on-subtle: #d9c4f0;
+  --selaras-color-primary-text: #c4a7e7;
+  --selaras-color-primary-text-hover: #d9c4f0;
+  --selaras-color-primary-text-pressed: #e8dbf7;
+  --selaras-color-primary-border: #c4a7e7;
+  --selaras-color-primary-focus: #c4a7e7;
+
+  /* Accent: gold */
+  --selaras-color-accent-fill: #f6c177;
+  --selaras-color-accent-fill-hover: #f8cd8f;
+  --selaras-color-accent-fill-pressed: #fad9a8;
+  --selaras-color-accent-on-fill: #191724;
+  --selaras-color-accent-indicator: #f6c177;
+  --selaras-color-accent-subtle: #3d3438;
+  --selaras-color-accent-subtle-hover: #463b3b;
+  --selaras-color-accent-subtle-pressed: #4e413e;
+  --selaras-color-accent-on-subtle: #f8d199;
+  --selaras-color-accent-text: #f6c177;
+  --selaras-color-accent-text-hover: #f8cd8f;
+  --selaras-color-accent-text-pressed: #fad9a8;
+  --selaras-color-accent-border: #f6c177;
+  --selaras-color-accent-focus: #f6c177;
+
+  /* Secondary: rose */
+  --selaras-color-secondary-fill: #ebbcba;
+  --selaras-color-secondary-fill-hover: #f0c8c6;
+  --selaras-color-secondary-fill-pressed: #f4d3d1;
+  --selaras-color-secondary-on-fill: #191724;
+  --selaras-color-secondary-indicator: #ebbcba;
+  --selaras-color-secondary-subtle: #3c3342;
+  --selaras-color-secondary-subtle-hover: #443a47;
+  --selaras-color-secondary-subtle-pressed: #4c404d;
+  --selaras-color-secondary-on-subtle: #f0cecc;
+  --selaras-color-secondary-text: #ebbcba;
+  --selaras-color-secondary-text-hover: #f0c8c6;
+  --selaras-color-secondary-text-pressed: #f4d3d1;
+  --selaras-color-secondary-border: #ebbcba;
+  --selaras-color-secondary-focus: #ebbcba;
+
+  /* Success: pine, lightened so it clears the dark surface as text */
+  --selaras-color-success-fill: #5fa8c2;
+  --selaras-color-success-fill-hover: #6fb0c8;
+  --selaras-color-success-fill-pressed: #7fb8ce;
+  --selaras-color-success-on-fill: #191724;
+  --selaras-color-success-indicator: #5fa8c2;
+  --selaras-color-success-subtle: #283043;
+  --selaras-color-success-subtle-hover: #2b3649;
+  --selaras-color-success-subtle-pressed: #2d3c4f;
+  --selaras-color-success-on-subtle: #8dc7d9;
+  --selaras-color-success-text: #8dc7d9;
+  --selaras-color-success-text-hover: #a2d3e1;
+  --selaras-color-success-text-pressed: #b8dfe6;
+  --selaras-color-success-border: #5fa8c2;
+  --selaras-color-success-focus: #5fa8c2;
+
+  /* Info: foam */
+  --selaras-color-info-fill: #9ccfd8;
+  --selaras-color-info-fill-hover: #abd7df;
+  --selaras-color-info-fill-pressed: #b8dfe6;
+  --selaras-color-info-on-fill: #191724;
+  --selaras-color-info-indicator: #9ccfd8;
+  --selaras-color-info-subtle: #313646;
+  --selaras-color-info-subtle-hover: #363d4d;
+  --selaras-color-info-subtle-pressed: #3b4453;
+  --selaras-color-info-on-subtle: #b8dfe6;
+  --selaras-color-info-text: #9ccfd8;
+  --selaras-color-info-text-hover: #abd7df;
+  --selaras-color-info-text-pressed: #b8dfe6;
+  --selaras-color-info-border: #9ccfd8;
+  --selaras-color-info-focus: #9ccfd8;
+
+  /* Warning: gold */
+  --selaras-color-warning-fill: #f6c177;
+  --selaras-color-warning-fill-hover: #f8cd8f;
+  --selaras-color-warning-fill-pressed: #fad9a8;
+  --selaras-color-warning-on-fill: #191724;
+  --selaras-color-warning-indicator: #f6c177;
+  --selaras-color-warning-subtle: #3d3438;
+  --selaras-color-warning-subtle-hover: #463b3b;
+  --selaras-color-warning-subtle-pressed: #4e413e;
+  --selaras-color-warning-on-subtle: #f8d199;
+  --selaras-color-warning-text: #f6c177;
+  --selaras-color-warning-text-hover: #f8cd8f;
+  --selaras-color-warning-text-pressed: #fad9a8;
+  --selaras-color-warning-border: #f6c177;
+  --selaras-color-warning-focus: #f6c177;
+
+  /* Danger: love */
+  --selaras-color-danger-fill: #eb6f92;
+  --selaras-color-danger-fill-hover: #ee87a2;
+  --selaras-color-danger-fill-pressed: #f19fb5;
+  --selaras-color-danger-on-fill: #191724;
+  --selaras-color-danger-indicator: #eb6f92;
+  --selaras-color-danger-subtle: #3c283c;
+  --selaras-color-danger-subtle-hover: #442c40;
+  --selaras-color-danger-subtle-pressed: #4c2f44;
+  --selaras-color-danger-on-subtle: #f4a3b7;
+  --selaras-color-danger-text: #eb6f92;
+  --selaras-color-danger-text-hover: #f19fb5;
+  --selaras-color-danger-text-pressed: #f4b3c4;
+  --selaras-color-danger-border: #eb6f92;
+  --selaras-color-danger-focus: #eb6f92;
+
+  /* Neutral: text color */
+  --selaras-color-neutral-fill: #e0def4;
+  --selaras-color-neutral-fill-hover: #e6e4f7;
+  --selaras-color-neutral-fill-pressed: #eeecfb;
+  --selaras-color-neutral-on-fill: #191724;
+  --selaras-color-neutral-indicator: #c4a7e7;
+  --selaras-color-neutral-subtle: #3a384a;
+  --selaras-color-neutral-subtle-hover: #424052;
+  --selaras-color-neutral-subtle-pressed: #49475a;
+  --selaras-color-neutral-on-subtle: #e0def4;
+  --selaras-color-neutral-text: #e0def4;
+  --selaras-color-neutral-text-hover: #eeecfb;
+  --selaras-color-neutral-text-pressed: #f4f2fd;
+  --selaras-color-neutral-border: #6e6a86;
+  --selaras-color-neutral-focus: #e0def4;
+}
+
 /* Respect the OS motion preference for every transition and animation. */
 @media (prefers-reduced-motion: reduce) {
   *,

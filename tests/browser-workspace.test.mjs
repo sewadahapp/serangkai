@@ -879,3 +879,44 @@ test('share errors use the error design and short share pages keep the footer at
   footer = await footerPosition()
   assert.ok(Math.abs(footer.bottom - footer.viewport) <= 2, 'a short share footer must sit at the viewport bottom')
 })
+
+test('the appearance theme applies instantly and persists across reloads', async () => {
+  const themePage = await browser.newPage()
+  try {
+    await themePage.goto(`${base}/settings`, { waitUntil: 'networkidle' })
+    await assert.doesNotReject(() => themePage.getByRole('heading', { name: 'Appearance' }).waitFor())
+    assert.equal(await themePage.locator('html').getAttribute('data-serangkai-theme'), 'serangkai')
+
+    const rosePine = themePage.getByRole('radio', { name: /Rosé Pine/ })
+    await rosePine.click()
+    await themePage.waitForFunction(() => document.documentElement.dataset.serangkaiTheme === 'rose-pine')
+
+    const themed = await themePage.evaluate(() => ({
+      dark: document.documentElement.classList.contains('dark'),
+      background: getComputedStyle(document.body).backgroundColor,
+      canvas: getComputedStyle(document.documentElement).getPropertyValue('--selaras-surface-canvas').trim(),
+    }))
+    assert.equal(themed.canvas, themed.dark ? '#191724' : '#faf4ed')
+    assert.equal(themed.background, themed.dark ? 'rgb(25, 23, 36)' : 'rgb(250, 244, 237)')
+
+    // Both directions must update immediately; a stale cookie would leave one behind.
+    await themePage.getByRole('radio', { name: /^Serangkai/ }).click()
+    await themePage.waitForFunction(() => document.documentElement.dataset.serangkaiTheme === 'serangkai')
+    await rosePine.click()
+    await themePage.waitForFunction(() => document.documentElement.dataset.serangkaiTheme === 'rose-pine')
+
+    // The cookie is read during SSR, so a reload keeps the attribute without a flash.
+    await themePage.reload({ waitUntil: 'networkidle' })
+    assert.equal(await themePage.locator('html').getAttribute('data-serangkai-theme'), 'rose-pine')
+    assert.equal(await rosePine.getAttribute('aria-checked'), 'true')
+    const serverHtml = await (await themePage.request.get(`${base}/settings`)).text()
+    assert.match(serverHtml, /data-serangkai-theme="rose-pine"/)
+
+    // The error page renders outside the normal app tree; the plugin must still
+    // publish the theme there.
+    await themePage.goto(`${base}/definitely-not-a-page`, { waitUntil: 'networkidle' })
+    assert.equal(await themePage.locator('html').getAttribute('data-serangkai-theme'), 'rose-pine')
+  } finally {
+    await themePage.close()
+  }
+})

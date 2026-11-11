@@ -1,6 +1,44 @@
 <template>
   <div class="space-y-6">
-    <SerangkaiPageHeader title="Settings" description="Manage API tokens for agents and scripts." />
+    <SerangkaiPageHeader title="Settings" description="Choose how the workspace looks and manage API tokens for agents and scripts." />
+
+    <section class="serangkai-panel overflow-hidden" aria-labelledby="appearance">
+      <div class="border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
+        <h2 id="appearance" class="text-sm font-semibold">Appearance</h2>
+        <p class="mt-0.5 text-sm text-[var(--selaras-resolved-text-muted)]">
+          Pick a color theme. Light and dark mode stay independent and follow the toggle in the header.
+        </p>
+      </div>
+      <div class="p-5">
+        <SRadioGroup
+          :model-value="theme"
+          variant="card"
+          :items="themeOptions"
+          aria-label="Color theme"
+          @update:model-value="setTheme"
+        >
+          <template #label="{ item }">
+            <span class="flex min-w-0 flex-1 items-center gap-3">
+              <span class="flex shrink-0 items-center gap-1" aria-hidden="true">
+                <span
+                  v-for="mode in ['light', 'dark']"
+                  :key="mode"
+                  class="relative grid size-9 place-items-end overflow-hidden rounded-md border border-[var(--selaras-resolved-border-default)] p-1"
+                  :style="{ backgroundColor: themePreview(item.value, mode).surface }"
+                >
+                  <span class="absolute inset-x-1 top-1 h-1.5 rounded-full" :style="{ backgroundColor: themePreview(item.value, mode).primary }" />
+                  <span class="size-2 rounded-full" :style="{ backgroundColor: themePreview(item.value, mode).accent }" />
+                </span>
+              </span>
+              <span class="min-w-0">
+                <span class="block text-sm font-medium">{{ item.label }}</span>
+                <span class="mt-0.5 block text-xs text-[var(--selaras-resolved-text-muted)]">{{ item.description }}</span>
+              </span>
+            </span>
+          </template>
+        </SRadioGroup>
+      </div>
+    </section>
 
     <SAlert v-if="!loggedIn" color="info" variant="subtle" title="Sign in required" description="Sign in to manage API tokens." />
 
@@ -167,8 +205,20 @@
 <script setup lang="ts">
 import type { DateValue } from '@internationalized/date'
 import { getLocalTimeZone } from '@internationalized/date'
+import { isThemeId, themes } from '#shared/themes'
 
 useHead({ title: 'Settings' })
+
+const theme = useAppTheme()
+const themeOptions = themes.map(({ id, label, description }) => ({ value: id, label, description }))
+
+const themePreview = (id: string, mode: 'light' | 'dark') => (
+  (themes.find(entry => entry.id === id) || themes[0]).preview[mode]
+)
+
+const setTheme = (value: string) => {
+  if (isThemeId(value)) theme.value = value
+}
 
 const { loggedIn } = useUserSession()
 const tokens = ref<any[]>([])

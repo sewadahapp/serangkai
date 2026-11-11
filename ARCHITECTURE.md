@@ -233,6 +233,17 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 ### Design system notes
 - Semantic roles (`primary`, `accent`, plus Selaras builtins) are compiled at build
   time; components reference `var(--selaras-resolved-*)` tokens rather than raw hex.
+- Appearance themes are a browser preference stored in the `serangkai-theme`
+  cookie, not account data, so the share reader and signed-out pages can honor
+  the same choice. `app/plugins/app-theme.ts` mirrors the value onto
+  `<html data-serangkai-theme>` during SSR, which avoids a theme flash.
+  `shared/themes.ts` is the shared registry for the settings picker and tests.
+  The default `serangkai` theme stays compiled in `nuxt.config.ts`; additional
+  themes override the public `--selaras-*` inputs in
+  `app/assets/css/main.css` without duplicating component recipes. This follows
+  the Selaras CSS-token guidance (https://selarasui.my.id/overview/theming/css-tokens).
+  Rosé Pine uses the Dawn palette in light mode and the original palette in dark
+  mode (https://rosepinetheme.com, MIT).
 - Site identity lives in `shared/site.ts` and ships from `nuxt.config.ts`'s
   `app.head`: `titleTemplate: '%s · Serangkai'` (a string, because Nuxt
   serializes `app.head` with `JSON.stringify`, which drops functions), the
