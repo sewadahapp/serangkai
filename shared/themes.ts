@@ -6,7 +6,7 @@
  * `app/assets/css/main.css`). Keep this module free of Vue and CSS imports so
  * tests and the settings UI can share the same list.
  */
-export type ThemeId = 'serangkai' | 'rose-pine'
+export type ThemeId = 'serangkai' | 'rose-pine' | 'flexoki'
 
 export interface ThemePreview {
   surface: string
@@ -43,6 +43,15 @@ export const themes: ThemeDefinition[] = [
     preview: {
       light: { surface: '#fffaf3', primary: '#907aa9', accent: '#ea9d34' },
       dark: { surface: '#1f1d2e', primary: '#c4a7e7', accent: '#f6c177' },
+    },
+  },
+  {
+    id: 'flexoki',
+    label: 'Flexoki',
+    description: 'Ink on paper. Steph Ango’s reading-first palette with warm neutrals.',
+    preview: {
+      light: { surface: '#fffcf0', primary: '#205ea6', accent: '#bc5215' },
+      dark: { surface: '#1c1b1a', primary: '#4385be', accent: '#da702c' },
     },
   },
 ]

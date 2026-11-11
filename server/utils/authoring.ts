@@ -1,5 +1,6 @@
 import { artifactComponents, applicationOnlyComponents, componentCatalogMarkdown } from '../../shared/artifact-components'
 import { ALL_SELARAS_TOKENS } from '../../shared/selaras-tokens'
+import { themes } from '../../shared/themes'
 
 /**
  * Authoring guidance exposed to MCP clients.
@@ -49,7 +50,7 @@ export const capabilities = {
     documentTheme: 'opt in with <meta name="serangkai-theme" content="selaras-document">',
     designTokens: {
       contract: 'var(--selaras-resolved-<token>)',
-      follows: 'the viewer\'s active theme (serangkai | rose-pine) and light/dark mode',
+      follows: `the viewer's active theme (${themes.map(theme => theme.id).join(' | ')}) and light/dark mode`,
       reference: 'serangkai://tokens/selaras',
       tokens: ALL_SELARAS_TOKENS.map(token => token.name),
     },
@@ -177,8 +178,8 @@ actual Selaras components, build a Vue application and upload it as a bundle.
 ## Design tokens (match the active theme)
 
 With the document theme opted in, style with the resolved Selaras tokens instead
-of hard-coded colors. They resolve against the viewer's active theme (Serangkai
-or Rosé Pine) and light/dark mode, so the same HTML looks native everywhere:
+of hard-coded colors. They resolve against the viewer's active theme and
+light/dark mode, so the same HTML looks native everywhere:
 
 \`\`\`html
 <style>

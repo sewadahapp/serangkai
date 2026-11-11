@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   ALL_SELARAS_TOKENS,
+  ARTIFACT_THEME_VALUES,
   RESOLVED_TOKEN_NAMES,
   buildArtifactTokenCss,
   selarasTokensGuide,
@@ -31,9 +32,12 @@ test('generated CSS declares a resolved wrapper for every token', () => {
     assert.match(css, new RegExp(`--selaras-resolved-${name}: var\\(--selaras-${name}\\)`), `missing resolved ${name}`)
     assert.match(css, new RegExp(`--selaras-${name}:`), `missing semantic ${name}`)
   }
-  // light/dark follows the viewer; the alternate theme is scoped by attribute.
+  // light/dark follows the viewer; every non-default theme is scoped by attribute.
   assert.match(css, /light-dark\(/)
-  assert.match(css, /:root\[data-serangkai-theme='rose-pine'\]/)
+  for (const id of Object.keys(ARTIFACT_THEME_VALUES)) {
+    if (id === 'serangkai') continue
+    assert.match(css, new RegExp(`:root\\[data-serangkai-theme='${id}'\\]`), `missing override for ${id}`)
+  }
 })
 
 test('generated CSS satisfies every token the Selaras prose stylesheet reads', async () => {

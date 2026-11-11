@@ -426,6 +426,314 @@ input[type='search']::-webkit-search-decoration {
   --selaras-color-neutral-focus: #e0def4;
 }
 
+/* Flexoki palette: https://stephango.com/flexoki (MIT). Ink-on-paper neutrals
+   with saturated, print-inspired accents. */
+:root[data-serangkai-theme='flexoki'] {
+  --selaras-surface-canvas: #fffcf0;
+  --selaras-surface-default: #fffcf0;
+  --selaras-surface-elevated: #f2f0e5;
+  --selaras-surface-inverted: #100f0f;
+
+  --selaras-text-default: #100f0f;
+  --selaras-text-muted: #575653;
+  --selaras-text-inverted: #fffcf0;
+
+  --selaras-border-default: #cecdc3;
+  --selaras-border-muted: #e6e4d9;
+  --selaras-border-hover: #b7b5ac;
+
+  --selaras-scrim: rgb(16 15 15 / 0.4);
+
+  /* TanStack Charts categorical palette: blue, orange, green, cyan, purple, magenta */
+  --ts-chart-1: #205ea6;
+  --ts-chart-2: #bc5215;
+  --ts-chart-3: #66800b;
+  --ts-chart-4: #24837b;
+  --ts-chart-5: #5e409d;
+  --ts-chart-6: #a02f6f;
+
+  /* Primary: blue */
+  --selaras-color-primary-fill: #205ea6;
+  --selaras-color-primary-fill-hover: #1a4f8c;
+  --selaras-color-primary-fill-pressed: #164372;
+  --selaras-color-primary-on-fill: #fffcf0;
+  --selaras-color-primary-indicator: #205ea6;
+  --selaras-color-primary-subtle: #e7edf5;
+  --selaras-color-primary-subtle-hover: #dce6f1;
+  --selaras-color-primary-subtle-pressed: #d1deec;
+  --selaras-color-primary-on-subtle: #1a4f8c;
+  --selaras-color-primary-text: #205ea6;
+  --selaras-color-primary-text-hover: #1a4f8c;
+  --selaras-color-primary-text-pressed: #164372;
+  --selaras-color-primary-border: #205ea6;
+  --selaras-color-primary-focus: #205ea6;
+
+  /* Accent: orange */
+  --selaras-color-accent-fill: #bc5215;
+  --selaras-color-accent-fill-hover: #a84912;
+  --selaras-color-accent-fill-pressed: #93400f;
+  --selaras-color-accent-on-fill: #fffcf0;
+  --selaras-color-accent-indicator: #bc5215;
+  --selaras-color-accent-subtle: #f7e9df;
+  --selaras-color-accent-subtle-hover: #f4e1d4;
+  --selaras-color-accent-subtle-pressed: #f1d9c9;
+  --selaras-color-accent-on-subtle: #93400f;
+  --selaras-color-accent-text: #bc5215;
+  --selaras-color-accent-text-hover: #a84912;
+  --selaras-color-accent-text-pressed: #93400f;
+  --selaras-color-accent-border: #bc5215;
+  --selaras-color-accent-focus: #bc5215;
+
+  /* Secondary: purple */
+  --selaras-color-secondary-fill: #5e409d;
+  --selaras-color-secondary-fill-hover: #523889;
+  --selaras-color-secondary-fill-pressed: #473075;
+  --selaras-color-secondary-on-fill: #fffcf0;
+  --selaras-color-secondary-indicator: #5e409d;
+  --selaras-color-secondary-subtle: #ebe7f4;
+  --selaras-color-secondary-subtle-hover: #e3ddee;
+  --selaras-color-secondary-subtle-pressed: #dbd3e8;
+  --selaras-color-secondary-on-subtle: #473075;
+  --selaras-color-secondary-text: #5e409d;
+  --selaras-color-secondary-text-hover: #523889;
+  --selaras-color-secondary-text-pressed: #473075;
+  --selaras-color-secondary-border: #5e409d;
+  --selaras-color-secondary-focus: #5e409d;
+
+  /* Success: green */
+  --selaras-color-success-fill: #5f760b;
+  --selaras-color-success-fill-hover: #526709;
+  --selaras-color-success-fill-pressed: #465808;
+  --selaras-color-success-on-fill: #fffcf0;
+  --selaras-color-success-indicator: #66800b;
+  --selaras-color-success-subtle: #ecf0dd;
+  --selaras-color-success-subtle-hover: #e5ebd2;
+  --selaras-color-success-subtle-pressed: #dee6c7;
+  --selaras-color-success-on-subtle: #465808;
+  --selaras-color-success-text: #5f760b;
+  --selaras-color-success-text-hover: #526709;
+  --selaras-color-success-text-pressed: #465808;
+  --selaras-color-success-border: #66800b;
+  --selaras-color-success-focus: #5f760b;
+
+  /* Info: cyan */
+  --selaras-color-info-fill: #1f726b;
+  --selaras-color-info-fill-hover: #1a615b;
+  --selaras-color-info-fill-pressed: #16544e;
+  --selaras-color-info-on-fill: #fffcf0;
+  --selaras-color-info-indicator: #24837b;
+  --selaras-color-info-subtle: #e2f0ee;
+  --selaras-color-info-subtle-hover: #d8ebe8;
+  --selaras-color-info-subtle-pressed: #cee6e2;
+  --selaras-color-info-on-subtle: #16544e;
+  --selaras-color-info-text: #1f726b;
+  --selaras-color-info-text-hover: #1a615b;
+  --selaras-color-info-text-pressed: #16544e;
+  --selaras-color-info-border: #24837b;
+  --selaras-color-info-focus: #1f726b;
+
+  /* Warning: yellow, dark ink on the fill and darker text on paper */
+  --selaras-color-warning-fill: #ad8301;
+  --selaras-color-warning-fill-hover: #977201;
+  --selaras-color-warning-fill-pressed: #816201;
+  --selaras-color-warning-on-fill: #100f0f;
+  --selaras-color-warning-indicator: #ad8301;
+  --selaras-color-warning-subtle: #f6eed8;
+  --selaras-color-warning-subtle-hover: #f3e8cc;
+  --selaras-color-warning-subtle-pressed: #f0e2c0;
+  --selaras-color-warning-on-subtle: #816201;
+  --selaras-color-warning-text: #816201;
+  --selaras-color-warning-text-hover: #755a01;
+  --selaras-color-warning-text-pressed: #695001;
+  --selaras-color-warning-border: #ad8301;
+  --selaras-color-warning-focus: #816201;
+
+  /* Danger: red */
+  --selaras-color-danger-fill: #af3029;
+  --selaras-color-danger-fill-hover: #9c2a24;
+  --selaras-color-danger-fill-pressed: #89241f;
+  --selaras-color-danger-on-fill: #fffcf0;
+  --selaras-color-danger-indicator: #af3029;
+  --selaras-color-danger-subtle: #f6e3e1;
+  --selaras-color-danger-subtle-hover: #f3dad7;
+  --selaras-color-danger-subtle-pressed: #f0d1cd;
+  --selaras-color-danger-on-subtle: #89241f;
+  --selaras-color-danger-text: #af3029;
+  --selaras-color-danger-text-hover: #9c2a24;
+  --selaras-color-danger-text-pressed: #89241f;
+  --selaras-color-danger-border: #af3029;
+  --selaras-color-danger-focus: #af3029;
+
+  /* Neutral: warm ink */
+  --selaras-color-neutral-fill: #403e3c;
+  --selaras-color-neutral-fill-hover: #343331;
+  --selaras-color-neutral-fill-pressed: #282726;
+  --selaras-color-neutral-on-fill: #fffcf0;
+  --selaras-color-neutral-indicator: #6f6e69;
+  --selaras-color-neutral-subtle: #f2f0e5;
+  --selaras-color-neutral-subtle-hover: #e6e4d9;
+  --selaras-color-neutral-subtle-pressed: #dad8ce;
+  --selaras-color-neutral-on-subtle: #403e3c;
+  --selaras-color-neutral-text: #403e3c;
+  --selaras-color-neutral-text-hover: #343331;
+  --selaras-color-neutral-text-pressed: #282726;
+  --selaras-color-neutral-border: #b7b5ac;
+  --selaras-color-neutral-focus: #403e3c;
+}
+
+:root.dark[data-serangkai-theme='flexoki'] {
+  --selaras-surface-canvas: #100f0f;
+  --selaras-surface-default: #1c1b1a;
+  --selaras-surface-elevated: #282726;
+  --selaras-surface-inverted: #fffcf0;
+
+  --selaras-text-default: #e6e4d9;
+  --selaras-text-muted: #9f9d96;
+  --selaras-text-inverted: #100f0f;
+
+  --selaras-border-default: #403e3c;
+  --selaras-border-muted: #282726;
+  --selaras-border-hover: #575653;
+
+  --selaras-scrim: rgb(0 0 0 / 0.7);
+
+  /* TanStack Charts categorical palette (dark) */
+  --ts-chart-1: #4385be;
+  --ts-chart-2: #da702c;
+  --ts-chart-3: #879a39;
+  --ts-chart-4: #3aa99f;
+  --ts-chart-5: #8b7ec8;
+  --ts-chart-6: #ce5d97;
+
+  /* Primary: blue */
+  --selaras-color-primary-fill: #4385be;
+  --selaras-color-primary-fill-hover: #5593c6;
+  --selaras-color-primary-fill-pressed: #67a1ce;
+  --selaras-color-primary-on-fill: #100f0f;
+  --selaras-color-primary-indicator: #4385be;
+  --selaras-color-primary-subtle: #232b36;
+  --selaras-color-primary-subtle-hover: #27313e;
+  --selaras-color-primary-subtle-pressed: #2b3746;
+  --selaras-color-primary-on-subtle: #8fbbdd;
+  --selaras-color-primary-text: #5593c6;
+  --selaras-color-primary-text-hover: #67a1ce;
+  --selaras-color-primary-text-pressed: #79afd6;
+  --selaras-color-primary-border: #4385be;
+  --selaras-color-primary-focus: #4385be;
+
+  /* Accent: orange */
+  --selaras-color-accent-fill: #da702c;
+  --selaras-color-accent-fill-hover: #de8040;
+  --selaras-color-accent-fill-pressed: #e29054;
+  --selaras-color-accent-on-fill: #100f0f;
+  --selaras-color-accent-indicator: #da702c;
+  --selaras-color-accent-subtle: #362a22;
+  --selaras-color-accent-subtle-hover: #3e3026;
+  --selaras-color-accent-subtle-pressed: #46362a;
+  --selaras-color-accent-on-subtle: #e8a876;
+  --selaras-color-accent-text: #da702c;
+  --selaras-color-accent-text-hover: #de8040;
+  --selaras-color-accent-text-pressed: #e29054;
+  --selaras-color-accent-border: #da702c;
+  --selaras-color-accent-focus: #da702c;
+
+  /* Secondary: purple */
+  --selaras-color-secondary-fill: #8b7ec8;
+  --selaras-color-secondary-fill-hover: #998dd0;
+  --selaras-color-secondary-fill-pressed: #a79cd8;
+  --selaras-color-secondary-on-fill: #100f0f;
+  --selaras-color-secondary-indicator: #8b7ec8;
+  --selaras-color-secondary-subtle: #2b2836;
+  --selaras-color-secondary-subtle-hover: #312e3e;
+  --selaras-color-secondary-subtle-pressed: #373446;
+  --selaras-color-secondary-on-subtle: #b7ade0;
+  --selaras-color-secondary-text: #8b7ec8;
+  --selaras-color-secondary-text-hover: #998dd0;
+  --selaras-color-secondary-text-pressed: #a79cd8;
+  --selaras-color-secondary-border: #8b7ec8;
+  --selaras-color-secondary-focus: #8b7ec8;
+
+  /* Success: green */
+  --selaras-color-success-fill: #879a39;
+  --selaras-color-success-fill-hover: #95a84b;
+  --selaras-color-success-fill-pressed: #a3b65d;
+  --selaras-color-success-on-fill: #100f0f;
+  --selaras-color-success-indicator: #879a39;
+  --selaras-color-success-subtle: #2b2e20;
+  --selaras-color-success-subtle-hover: #313524;
+  --selaras-color-success-subtle-pressed: #373c28;
+  --selaras-color-success-on-subtle: #b0c070;
+  --selaras-color-success-text: #879a39;
+  --selaras-color-success-text-hover: #95a84b;
+  --selaras-color-success-text-pressed: #a3b65d;
+  --selaras-color-success-border: #879a39;
+  --selaras-color-success-focus: #879a39;
+
+  /* Info: cyan */
+  --selaras-color-info-fill: #3aa99f;
+  --selaras-color-info-fill-hover: #4cb5ab;
+  --selaras-color-info-fill-pressed: #5ec1b7;
+  --selaras-color-info-on-fill: #100f0f;
+  --selaras-color-info-indicator: #3aa99f;
+  --selaras-color-info-subtle: #20302e;
+  --selaras-color-info-subtle-hover: #243835;
+  --selaras-color-info-subtle-pressed: #28403c;
+  --selaras-color-info-on-subtle: #7ccdc5;
+  --selaras-color-info-text: #3aa99f;
+  --selaras-color-info-text-hover: #4cb5ab;
+  --selaras-color-info-text-pressed: #5ec1b7;
+  --selaras-color-info-border: #3aa99f;
+  --selaras-color-info-focus: #3aa99f;
+
+  /* Warning: yellow */
+  --selaras-color-warning-fill: #d0a215;
+  --selaras-color-warning-fill-hover: #d6ae2c;
+  --selaras-color-warning-fill-pressed: #dcba43;
+  --selaras-color-warning-on-fill: #100f0f;
+  --selaras-color-warning-indicator: #d0a215;
+  --selaras-color-warning-subtle: #34301f;
+  --selaras-color-warning-subtle-hover: #3c3723;
+  --selaras-color-warning-subtle-pressed: #443e27;
+  --selaras-color-warning-on-subtle: #e2c25b;
+  --selaras-color-warning-text: #d0a215;
+  --selaras-color-warning-text-hover: #d6ae2c;
+  --selaras-color-warning-text-pressed: #dcba43;
+  --selaras-color-warning-border: #d0a215;
+  --selaras-color-warning-focus: #d0a215;
+
+  /* Danger: red */
+  --selaras-color-danger-fill: #d76156;
+  --selaras-color-danger-fill-hover: #dd756b;
+  --selaras-color-danger-fill-pressed: #e3897f;
+  --selaras-color-danger-on-fill: #100f0f;
+  --selaras-color-danger-indicator: #d14d41;
+  --selaras-color-danger-subtle: #362422;
+  --selaras-color-danger-subtle-hover: #3e2826;
+  --selaras-color-danger-subtle-pressed: #462c2a;
+  --selaras-color-danger-on-subtle: #e58b82;
+  --selaras-color-danger-text: #dd756b;
+  --selaras-color-danger-text-hover: #e3897f;
+  --selaras-color-danger-text-pressed: #e99d94;
+  --selaras-color-danger-border: #d14d41;
+  --selaras-color-danger-focus: #d76156;
+
+  /* Neutral: warm paper */
+  --selaras-color-neutral-fill: #e6e4d9;
+  --selaras-color-neutral-fill-hover: #eeece3;
+  --selaras-color-neutral-fill-pressed: #f6f4eb;
+  --selaras-color-neutral-on-fill: #100f0f;
+  --selaras-color-neutral-indicator: #9f9d96;
+  --selaras-color-neutral-subtle: #343331;
+  --selaras-color-neutral-subtle-hover: #3c3b39;
+  --selaras-color-neutral-subtle-pressed: #444341;
+  --selaras-color-neutral-on-subtle: #e6e4d9;
+  --selaras-color-neutral-text: #e6e4d9;
+  --selaras-color-neutral-text-hover: #eeece3;
+  --selaras-color-neutral-text-pressed: #f6f4eb;
+  --selaras-color-neutral-border: #6f6e69;
+  --selaras-color-neutral-focus: #e6e4d9;
+}
+
 /* Respect the OS motion preference for every transition and animation. */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -14,8 +14,9 @@
  * `--selaras-resolved-<token>` wrapper, mirroring Selaras' own architecture.
  * Keep this module free of Vue/CSS imports so tests and the server share it.
  */
+import { themes } from './themes'
 
-export type ArtifactThemeId = 'serangkai' | 'rose-pine'
+export type ArtifactThemeId = 'serangkai' | 'rose-pine' | 'flexoki'
 
 export interface SelarasToken {
   /** Semantic token name, e.g. `surface-elevated`. */
@@ -182,6 +183,24 @@ export const ARTIFACT_THEME_VALUES: Record<ArtifactThemeId, ThemeValues> = {
       secondary: family({ fill: '#ebbcba', onFill: '#191724', text: '#ebbcba', subtle: '#2a273f', onSubtle: '#ebbcba', border: '#ebbcba' }, { fill: '#f0cccb', text: '#f0cccb' }),
     },
   ),
+  flexoki: theme(
+    {
+      surface: ['#fffcf0', '#fffcf0', '#f2f0e5', '#100f0f'],
+      text: ['#100f0f', '#575653', '#fffcf0'],
+      border: ['#cecdc3', '#e6e4d9', '#b7b5ac'],
+      primary: family({ fill: '#205ea6', onFill: '#fffcf0', text: '#205ea6', subtle: '#e7edf5', onSubtle: '#1a4f8c', border: '#205ea6' }, { fill: '#1a4f8c', text: '#1a4f8c' }),
+      accent: family({ fill: '#bc5215', onFill: '#fffcf0', text: '#bc5215', subtle: '#f7e9df', onSubtle: '#93400f', border: '#bc5215' }, { fill: '#a84912', text: '#a84912' }),
+      secondary: family({ fill: '#5e409d', onFill: '#fffcf0', text: '#5e409d', subtle: '#ebe7f4', onSubtle: '#473075', border: '#5e409d' }, { fill: '#523889', text: '#523889' }),
+    },
+    {
+      surface: ['#100f0f', '#1c1b1a', '#282726', '#fffcf0'],
+      text: ['#e6e4d9', '#9f9d96', '#100f0f'],
+      border: ['#403e3c', '#282726', '#575653'],
+      primary: family({ fill: '#4385be', onFill: '#100f0f', text: '#4385be', subtle: '#232b36', onSubtle: '#8fbbdd', border: '#4385be' }, { fill: '#5593c6', text: '#5593c6' }),
+      accent: family({ fill: '#da702c', onFill: '#100f0f', text: '#da702c', subtle: '#362a22', onSubtle: '#e8a876', border: '#da702c' }, { fill: '#de8040', text: '#de8040' }),
+      secondary: family({ fill: '#8b7ec8', onFill: '#100f0f', text: '#8b7ec8', subtle: '#2b2836', onSubtle: '#b7ade0', border: '#8b7ec8' }, { fill: '#998dd0', text: '#998dd0' }),
+    },
+  ),
 }
 
 const SHAPE_VALUES: ModeValues = {
@@ -221,12 +240,16 @@ export function buildArtifactTokenCss(): string {
   }
   lines.push('}')
 
-  const alt = ARTIFACT_THEME_VALUES['rose-pine']
-  lines.push(`:root[data-serangkai-theme='rose-pine'] {`)
-  for (const [name, light] of Object.entries(alt.light)) {
-    lines.push(`  --selaras-${name}: light-dark(${light}, ${alt.dark[name]});`)
+  // One override block per non-default theme, so adding a theme to
+  // ARTIFACT_THEME_VALUES automatically themes HTML artifacts too.
+  for (const [id, values] of Object.entries(ARTIFACT_THEME_VALUES)) {
+    if (id === 'serangkai') continue
+    lines.push(`:root[data-serangkai-theme='${id}'] {`)
+    for (const [name, light] of Object.entries(values.light)) {
+      lines.push(`  --selaras-${name}: light-dark(${light}, ${values.dark[name]});`)
+    }
+    lines.push('}')
   }
-  lines.push('}')
   return lines.join('\n')
 }
 
@@ -240,7 +263,7 @@ export function selarasTokensGuide(): string {
   return `# Selaras design tokens for HTML artifacts
 
 Opt in to the document theme, then style with the resolved tokens below. They
-resolve against the viewer's active theme (Serangkai or Rosé Pine) and light/dark
+resolve against the viewer's active theme (${themes.map(theme => theme.label).join(', ')}) and light/dark
 mode, so you never hard-code a palette or need to know which theme is active.
 
 \`\`\`html
