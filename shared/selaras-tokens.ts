@@ -16,7 +16,7 @@
  */
 import { themes } from './themes'
 
-export type ArtifactThemeId = 'serangkai' | 'rose-pine' | 'flexoki'
+export type ArtifactThemeId = 'serangkai' | 'rose-pine' | 'flexoki' | 'catppuccin'
 
 export interface SelarasToken {
   /** Semantic token name, e.g. `surface-elevated`. */
@@ -199,6 +199,24 @@ export const ARTIFACT_THEME_VALUES: Record<ArtifactThemeId, ThemeValues> = {
       primary: family({ fill: '#4385be', onFill: '#100f0f', text: '#4385be', subtle: '#232b36', onSubtle: '#8fbbdd', border: '#4385be' }, { fill: '#5593c6', text: '#5593c6' }),
       accent: family({ fill: '#da702c', onFill: '#100f0f', text: '#da702c', subtle: '#362a22', onSubtle: '#e8a876', border: '#da702c' }, { fill: '#de8040', text: '#de8040' }),
       secondary: family({ fill: '#8b7ec8', onFill: '#100f0f', text: '#8b7ec8', subtle: '#2b2836', onSubtle: '#b7ade0', border: '#8b7ec8' }, { fill: '#998dd0', text: '#998dd0' }),
+    },
+  ),
+  catppuccin: theme(
+    {
+      surface: ['#eff1f5', '#eff1f5', '#e6e9ef', '#4c4f69'],
+      text: ['#4c4f69', '#5c5f77', '#eff1f5'],
+      border: ['#bcc0cc', '#ccd0da', '#acb0be'],
+      primary: family({ fill: '#8839ef', onFill: '#eff1f5', text: '#8839ef', subtle: '#e6dbfa', onSubtle: '#6a1fd0', border: '#8839ef' }, { fill: '#7627e0', text: '#7627e0' }),
+      accent: family({ fill: '#fe640b', onFill: '#11111b', text: '#a84806', subtle: '#fde3d3', onSubtle: '#a04303', border: '#fe640b' }, { fill: '#e85d04', text: '#934005' }),
+      secondary: family({ fill: '#179299', onFill: '#11111b', text: '#116b70', subtle: '#d9edee', onSubtle: '#0f5f63', border: '#179299' }, { fill: '#148086', text: '#0f5f63' }),
+    },
+    {
+      surface: ['#1e1e2e', '#1e1e2e', '#313244', '#cdd6f4'],
+      text: ['#cdd6f4', '#a6adc8', '#1e1e2e'],
+      border: ['#45475a', '#313244', '#585b70'],
+      primary: family({ fill: '#cba6f7', onFill: '#11111b', text: '#cba6f7', subtle: '#3a3153', onSubtle: '#dfcafb', border: '#cba6f7' }, { fill: '#d5b8f9', text: '#d5b8f9' }),
+      accent: family({ fill: '#fab387', onFill: '#11111b', text: '#fab387', subtle: '#46352c', onSubtle: '#fccdad', border: '#fab387' }, { fill: '#fbc09a', text: '#fbc09a' }),
+      secondary: family({ fill: '#94e2d5', onFill: '#11111b', text: '#94e2d5', subtle: '#2b3d3c', onSubtle: '#b6ece3', border: '#94e2d5' }, { fill: '#a5e7dc', text: '#a5e7dc' }),
     },
   ),
 }

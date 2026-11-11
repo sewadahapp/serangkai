@@ -6,7 +6,7 @@
  * `app/assets/css/main.css`). Keep this module free of Vue and CSS imports so
  * tests and the settings UI can share the same list.
  */
-export type ThemeId = 'serangkai' | 'rose-pine' | 'flexoki'
+export type ThemeId = 'serangkai' | 'rose-pine' | 'flexoki' | 'catppuccin'
 
 export interface ThemePreview {
   surface: string
@@ -52,6 +52,15 @@ export const themes: ThemeDefinition[] = [
     preview: {
       light: { surface: '#fffcf0', primary: '#205ea6', accent: '#bc5215' },
       dark: { surface: '#1c1b1a', primary: '#4385be', accent: '#da702c' },
+    },
+  },
+  {
+    id: 'catppuccin',
+    label: 'Catppuccin',
+    description: 'Soothing pastels. Latte by day, Mocha by night.',
+    preview: {
+      light: { surface: '#eff1f5', primary: '#8839ef', accent: '#fe640b' },
+      dark: { surface: '#1e1e2e', primary: '#cba6f7', accent: '#fab387' },
     },
   },
 ]
