@@ -73,9 +73,25 @@
       <section class="serangkai-panel overflow-hidden" aria-labelledby="connected-clients">
         <div class="flex items-center justify-between gap-3 border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
           <h2 id="connected-clients" class="text-sm font-semibold">Connected agents</h2>
-          <span class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ oauthClients.length }} connected</span>
+          <SSkeleton v-if="loadingClients" animation="shimmer" class="h-3 w-16" />
+          <span v-else class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ oauthClients.length }} connected</span>
         </div>
-        <ul v-if="oauthClients.length" class="divide-y divide-[var(--selaras-resolved-border-muted)]">
+        <div v-if="loadingClients" class="divide-y divide-[var(--selaras-resolved-border-muted)]" role="status" aria-live="polite" aria-busy="true">
+          <span class="sr-only">Loading connected agents…</span>
+          <div
+            v-for="index in 2"
+            :key="index"
+            class="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
+            aria-hidden="true"
+          >
+            <div class="min-w-0 flex-1">
+              <SSkeleton animation="shimmer" class="h-4 w-32" />
+              <SSkeleton animation="shimmer" class="mt-2 h-3 w-64 max-w-full" />
+            </div>
+            <SSkeleton animation="shimmer" class="h-8 w-24 rounded-md" />
+          </div>
+        </div>
+        <ul v-else-if="oauthClients.length" class="divide-y divide-[var(--selaras-resolved-border-muted)]">
           <li v-for="client in oauthClients" :key="client.id" class="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
             <div class="min-w-0">
               <p class="font-medium">{{ client.name }}</p>
@@ -103,7 +119,22 @@
         <div class="border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
           <h2 id="existing-tokens" class="text-sm font-semibold">Existing tokens</h2>
         </div>
-        <ul v-if="tokens.length" class="divide-y divide-[var(--selaras-resolved-border-muted)]">
+        <div v-if="loadingTokens" class="divide-y divide-[var(--selaras-resolved-border-muted)]" role="status" aria-live="polite" aria-busy="true">
+          <span class="sr-only">Loading API tokens…</span>
+          <div
+            v-for="index in 3"
+            :key="index"
+            class="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
+            aria-hidden="true"
+          >
+            <div class="min-w-0 flex-1">
+              <SSkeleton animation="shimmer" class="h-4 w-28" />
+              <SSkeleton animation="shimmer" class="mt-2 h-3 w-56 max-w-full" />
+            </div>
+            <SSkeleton animation="shimmer" class="h-8 w-20 rounded-md" />
+          </div>
+        </div>
+        <ul v-else-if="tokens.length" class="divide-y divide-[var(--selaras-resolved-border-muted)]">
           <li v-for="token in tokens" :key="token.id" class="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
             <div class="min-w-0">
               <p class="font-medium">{{ token.name }}</p>
@@ -150,6 +181,8 @@ const tokensError = ref('')
 const newToken = ref('')
 const oauthClients = ref<any[]>([])
 const clientMessage = ref('')
+const loadingTokens = ref(true)
+const loadingClients = ref(true)
 
 const scopeOptions = [
   { value: 'read', label: 'Read', hint: 'List and read artifacts, folders, and versions. Read-only.' },
@@ -205,15 +238,19 @@ const toggleScope = (value: string, checked: boolean | 'indeterminate') => {
 
 const loadTokens = async () => {
   tokensError.value = ''
+  loadingTokens.value = true
   try {
     const res = await $fetch<any>('/api/tokens')
     tokens.value = res.tokens || []
   } catch (e: any) {
     tokensError.value = e.data?.message || 'Could not load API tokens. Check the server and try again.'
+  } finally {
+    loadingTokens.value = false
   }
 }
 
 const loadClients = async () => {
+  loadingClients.value = true
   try {
     const res = await $fetch<any>('/api/oauth/clients')
     oauthClients.value = res.clients || []
@@ -221,6 +258,8 @@ const loadClients = async () => {
     // Connected agents are additive: failing to list them must not hide the
     // token section the owner actually came here for.
     oauthClients.value = []
+  } finally {
+    loadingClients.value = false
   }
 }
 

@@ -162,6 +162,29 @@ html.dark * {
   font-variant-numeric: tabular-nums;
 }
 
+/* Thin navigation progress bar. Nuxt's loading indicator throttles itself, so
+   quick client-side transitions do not flash a bar. */
+.serangkai-route-progress {
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
+  z-index: var(--selaras-resolved-z-dropdown);
+  height: 2px;
+  pointer-events: none;
+}
+
+.serangkai-route-progress span {
+  display: block;
+  height: 100%;
+  background-image: linear-gradient(
+    90deg,
+    var(--selaras-resolved-color-primary-fill),
+    var(--selaras-resolved-color-accent-fill)
+  );
+  box-shadow: 0 0 8px var(--selaras-resolved-color-primary-fill);
+  transition: width 120ms linear;
+}
+
 /* ---------------------------------------------------------------------------
    Markdown code blocks.
 

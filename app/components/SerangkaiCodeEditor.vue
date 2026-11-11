@@ -32,18 +32,33 @@
 
     <div class="serangkai-editor-body">
       <ClientOnly>
-        <LazySerangkaiEditor
-          v-model="model"
-          :id="id"
-          :language="language"
-          :aria-label="ariaLabel"
-          :autofocus="autofocus"
-          @save="emit('save')"
-          @status="status = $event"
-        />
-        <template #fallback>
-          <div class="serangkai-editor-loading" role="status">Loading editor…</div>
-        </template>
+        <!-- ClientOnly's fallback only covers hydration; Suspense keeps the
+             skeleton visible while the lazy CodeMirror chunk is still loading. -->
+        <Suspense>
+          <LazySerangkaiEditor
+            v-model="model"
+            :id="id"
+            :language="language"
+            :aria-label="ariaLabel"
+            :autofocus="autofocus"
+            @save="emit('save')"
+            @status="status = $event"
+          />
+          <template #fallback>
+            <div class="serangkai-editor-loading" role="status" aria-live="polite" aria-busy="true">
+              <span class="sr-only">Loading editor…</span>
+              <div class="w-full max-w-md" aria-hidden="true">
+                <div class="space-y-2.5">
+                  <div v-for="(width, index) in loadingLines" :key="index" class="flex items-center gap-3">
+                    <SSkeleton animation="shimmer" class="h-3 w-4 shrink-0" />
+                    <SSkeleton animation="shimmer" class="h-3" :style="{ width }" />
+                  </div>
+                </div>
+                <p class="mt-4 text-center text-xs text-[var(--selaras-resolved-text-muted)]">Loading editor…</p>
+              </div>
+            </div>
+          </template>
+        </Suspense>
       </ClientOnly>
     </div>
 
@@ -109,6 +124,7 @@ const status = ref<EditorStatus>({
 })
 
 const fullscreen = ref(false)
+const loadingLines = ['62%', '84%', '48%', '72%', '56%', '78%', '44%', '66%']
 const fileMeta = computed(() => editorLanguageMeta[props.language])
 const fileName = computed(() => props.filename || fileMeta.value.name)
 

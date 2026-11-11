@@ -102,10 +102,7 @@
       @retry="retryWorkspace"
     />
 
-    <div v-else-if="loadingWorkspace" class="serangkai-panel p-8 text-center" role="status">
-      <SSkeleton class="mx-auto h-5 w-48" />
-      <p class="mt-3 text-sm text-[var(--selaras-resolved-text-muted)]">Loading workspace…</p>
-    </div>
+    <SerangkaiWorkspaceSkeleton v-else-if="loadingWorkspace" />
 
     <div v-else class="grid gap-6 lg:grid-cols-[17rem_1fr]">
       <aside class="space-y-4">

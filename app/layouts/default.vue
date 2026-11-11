@@ -19,7 +19,7 @@
           <SColorModeToggle />
 
           <template v-if="!ready">
-            <span class="h-8 w-24 animate-pulse rounded-md bg-[var(--selaras-resolved-surface-elevated)]" aria-hidden="true" />
+            <SSkeleton animation="shimmer" class="h-8 w-24" />
           </template>
 
           <template v-else-if="!loggedIn">

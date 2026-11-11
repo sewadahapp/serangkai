@@ -198,12 +198,11 @@
     @retry="loadArtifact"
   />
 
-  <div v-else class="serangkai-panel p-12 text-center" role="status">
-    <SSkeleton v-if="loadingArtifact" class="mx-auto h-6 w-56" />
-    <p class="mt-3 text-sm text-[var(--selaras-resolved-text-muted)]">
-      {{ loadingArtifact ? 'Loading artifact…' : 'Artifact unavailable.' }}
-    </p>
-    <SButton v-if="!loadingArtifact" class="mt-4" variant="outline" icon="lucide:refresh-cw" @click="loadArtifact">
+  <SerangkaiArtifactSkeleton v-else-if="loadingArtifact" />
+
+  <div v-else class="serangkai-panel p-12 text-center">
+    <p class="text-sm text-[var(--selaras-resolved-text-muted)]">Artifact unavailable.</p>
+    <SButton class="mt-4" variant="outline" icon="lucide:refresh-cw" @click="loadArtifact">
       Try again
     </SButton>
   </div>

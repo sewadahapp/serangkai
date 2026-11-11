@@ -14,7 +14,9 @@
       @retry="loadOverview"
     />
 
-    <template v-if="!error">
+    <SerangkaiOverviewSkeleton v-else-if="loadingOverview" />
+
+    <template v-else>
       <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <div v-for="card in cards" :key="card.label" class="serangkai-panel p-4">
         <p class="text-xs font-medium uppercase tracking-wider text-[var(--selaras-resolved-text-muted)]">{{ card.label }}</p>
@@ -81,6 +83,7 @@ const { loggedIn } = useUserSession()
 const summary = ref<any>(null)
 const recent = ref<any[]>([])
 const error = ref('')
+const loadingOverview = ref(true)
 
 const formatDate = (value: string) => new Date(value).toLocaleDateString([], { month: 'short', day: 'numeric' })
 
@@ -114,14 +117,20 @@ const visibilityRows = computed(() => [
 
 const loadOverview = async () => {
   error.value = ''
+  loadingOverview.value = true
   try {
     const res = await $fetch<any>('/api/overview')
     summary.value = res.summary
     recent.value = res.recent || []
   } catch (e: any) {
     error.value = e.data?.message || 'Could not load the workspace overview'
+  } finally {
+    loadingOverview.value = false
   }
 }
 
-onMounted(() => { if (loggedIn.value) loadOverview() })
+onMounted(() => {
+  if (loggedIn.value) loadOverview()
+  else loadingOverview.value = false
+})
 </script>

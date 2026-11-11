@@ -65,7 +65,19 @@
         </div>
       </template>
 
-      <p v-else class="serangkai-shell p-6 text-sm text-[var(--selaras-resolved-text-muted)]">Loading shared artifact…</p>
+      <div
+        v-else
+        class="flex h-[calc(100dvh-4rem)] flex-col gap-4 p-4 sm:p-6"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <span class="sr-only">Loading shared artifact…</span>
+        <div aria-hidden="true" class="flex h-full flex-col gap-4">
+          <SSkeleton animation="shimmer" class="h-4 w-40" />
+          <SSkeleton animation="shimmer" class="flex-1 rounded-lg" />
+        </div>
+      </div>
     </main>
 
     <!-- Markdown and images scroll like a document. -->
@@ -99,7 +111,22 @@
         </div>
       </template>
 
-      <p v-else class="text-sm text-[var(--selaras-resolved-text-muted)]">Loading shared artifact…</p>
+      <div v-else class="mx-auto max-w-5xl" role="status" aria-live="polite" aria-busy="true">
+        <span class="sr-only">Loading shared artifact…</span>
+        <div aria-hidden="true">
+          <SSkeleton animation="shimmer" class="h-3 w-24" />
+          <SSkeleton animation="shimmer" class="mt-3 h-9 w-3/4" />
+          <div class="mt-8 space-y-3">
+            <SSkeleton
+              v-for="(width, index) in loadingLines"
+              :key="index"
+              animation="shimmer"
+              class="h-4"
+              :style="{ width }"
+            />
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- Every shared type carries the same chrome, so a link always ends the
@@ -149,6 +176,7 @@ interface SharedArtifact {
 const slug = String(route.params.slug)
 const key = typeof route.query.k === 'string' ? route.query.k : ''
 const requestFetch = useRequestFetch()
+const loadingLines = ['100%', '92%', '96%', '78%', '100%', '88%', '64%']
 
 const { data: artifact, error: fetchError, refresh } = await useAsyncData(
   `shared-artifact:${slug}`,

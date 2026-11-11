@@ -1,5 +1,6 @@
 <template>
   <SApp>
+    <SerangkaiRouteProgress />
     <NuxtLayout>
       <NuxtErrorBoundary ref="errorBoundary" @error="onPageError">
         <NuxtPage />
