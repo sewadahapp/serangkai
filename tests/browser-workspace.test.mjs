@@ -18,7 +18,7 @@ before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-browser-test-'))
   child = spawn(serverRuntime, ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, ...adminEnv(), PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
   for (let i = 0; i < 60; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break } catch {} await new Promise(resolve => setTimeout(resolve, 100)) }
-  browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] })
+  browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] })
   page = await browser.newPage()
 })
 
@@ -352,7 +352,8 @@ test('source artifacts open in a full editor with syntax highlighting', async ()
   assert.ok(colors.length > 1, `expected highlighted colours, got ${colors.join(', ')}`)
 
   await editor.fill('<h1>Edited from the editor</h1>')
-  await page.keyboard.press('Control+s')
+  // CodeMirror's Mod-s is Ctrl on Linux/Windows but Cmd on macOS.
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+s' : 'Control+s')
   await assert.doesNotReject(() => page.getByText('Saved version 2').waitFor())
   await assert.doesNotReject(() => page.frameLocator('iframe').getByText('Edited from the editor').waitFor())
 })

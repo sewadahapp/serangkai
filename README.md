@@ -255,16 +255,55 @@ MCP clients can discover everything through `get_artifact_capabilities` and the
 
 ## Connect an AI agent
 
-Create a scoped token from the workspace API, then configure an MCP client with the
-Streamable HTTP endpoint:
+Serangkai is its own OAuth 2.1 authorization server, so MCP clients can connect
+three ways. All of them end at the same Streamable HTTP endpoint,
+`https://<your-host>/api/mcp`.
+
+**Browser OAuth (recommended for interactive clients).** A client that supports
+OAuth discovers the authorization server from the endpoint's `401` response,
+opens your browser to the consent screen, and you approve the requested scopes.
+No secret is pasted into the client. Authorization codes use PKCE (S256) and
+every grant is bound to the MCP resource.
+
+**Device authorization (headless clients).** For SSH sessions, containers, or
+CI where no browser callback is possible, the client requests a device code and
+prints a short user code. Open `https://<your-host>/oauth/device`, sign in, enter
+the code, and approve. The client polls until the grant is issued.
+
+**Manual API token.** Create a scoped token in *Settings → API tokens* and pass
+it as a bearer header:
 
 ```bash
 claude mcp add --transport http serangkai http://localhost:3000/api/mcp \
   --header "Authorization: Bearer $SERANGKAI_API_TOKEN" --scope user
 ```
 
-Use a token with `read` scope for discovery and reading, or `read,write` for
-creating and updating artifacts. Tokens are hashed at rest and can be revoked.
+Use `read` for discovery/reading and `read,write` for creating/updating.
+OAuth grants are capped at `read`/`write`; only a manually minted `full` token
+can manage other tokens. Tokens are hashed at rest and revocable, and a
+read-only token can never mint share capability links.
+
+## Backup and restore
+
+Back up the database and the object store together, and keep the secrets
+(`JWT_SECRET`, `SHARE_SECRET`, and on Workers `NUXT_APP_SECRET`) stable —
+rotating them invalidates sessions and existing unlisted links.
+
+**Docker / SQLite.** Everything lives under `/data` (`serangkai.db` plus the
+`files/` object store). Stop the container and copy the volume, or take a hot
+SQLite backup with `sqlite3 /data/serangkai.db ".backup '/backup/serangkai.db'"`
+and copy `files/` alongside it. Restore by mounting the same `/data` volume.
+
+**Cloudflare D1.** Export with `wrangler d1 export <database> --output backup.sql`
+(or use D1 Time Travel for point-in-time recovery). Restore into a database with
+`wrangler d1 execute <database> --file backup.sql`.
+
+**Object storage.** R2: sync with `wrangler r2 object` commands or `rclone sync`.
+Backblaze B2: `b2 sync` or `rclone sync` against the S3 endpoint. Keep the bucket
+private; artifact bytes are meaningless without the matching database rows.
+
+A restore is only consistent if the database and object store come from the same
+point in time, and the secrets match the ones in use when the backup was taken.
 
 ## Tech Stack
 
