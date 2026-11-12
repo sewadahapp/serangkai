@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { and, eq, max } from 'drizzle-orm'
 import { readArtifactBytes } from '../../utils/artifact-storage'
 import { appendVersion } from '../../utils/artifact-versions'
+import { checkTextArtifact } from '../../utils/artifacts'
 
 const schema = z.object({
   title: z.string().min(1).optional(),
@@ -52,6 +53,12 @@ export default defineEventHandler(async (event) => {
         message: `Stale write refused: baseVersion ${changes.baseVersion} but the current version is ${currentVersion}. Re-read the artifact, merge your changes, then save again with baseVersion ${currentVersion}.`,
         data: { currentVersion },
       })
+    }
+
+    const checked = checkTextArtifact(artifact.type, changes.content, artifact.slug)
+    if (!checked.ok) throw createError({ statusCode: 400, message: checked.message })
+    if (Object.keys(checked.metadata).length) {
+      changes.metadata = { ...(changes.metadata || artifact.metadata || {}), ...checked.metadata }
     }
 
     // Only record a version when the bytes actually change; a no-op save

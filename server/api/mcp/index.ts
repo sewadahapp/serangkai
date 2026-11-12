@@ -8,7 +8,7 @@ import { artifactVersions, artifacts, folders, oauthTokens } from '../../db/sche
 import { getRequestDatabase } from '../../db/adapter'
 import { requireScope } from '../../utils/require-auth'
 import { readArtifactBytes, writeArtifact } from '../../utils/artifact-storage'
-import { reserveSlug } from '../../utils/artifacts'
+import { checkTextArtifact, reserveSlug } from '../../utils/artifacts'
 import { appendVersion } from '../../utils/artifact-versions'
 import { isSlugConflict } from '../../db/migrations'
 import { findGrantByApiTokenId, resourceMatches } from '../../utils/oauth'
@@ -17,7 +17,9 @@ import { capabilities, capabilitiesText, htmlGuide, markdownGuide, promptMessage
 import { componentCatalogMarkdown } from '../../../shared/artifact-components'
 import { selarasTokensGuide } from '../../../shared/selaras-tokens'
 
-const artifactType = z.enum(['markdown', 'html', 'javascript', 'pdf', 'image', 'json', 'bundle'])
+// Text content only. Bundles and PDFs are binary and go through the multipart
+// upload; `image` is accepted as SVG markup (see `checkTextArtifact`).
+const artifactType = z.enum(['markdown', 'html', 'javascript', 'json', 'image'])
 const guideResources = [
   { name: 'Markdown authoring guide', uri: 'serangkai://guides/markdown', description: 'Comark Markdown, Selaras components, Mermaid, charts, and security limits.', text: markdownGuide },
   { name: 'HTML authoring guide', uri: 'serangkai://guides/html', description: 'Self-styled HTML, the optional Selaras document theme, markers, and sandbox rules.', text: htmlGuide },
@@ -155,15 +157,17 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
     if (folderId && !(await findFolder(folderId))) return { isError: true, content: [{ type: 'text', text: 'Folder not found.' }] }
     const id = nanoid()
     const slug = await reserveSlug(db, title)
+    const checked = checkTextArtifact(type, content, slug)
+    if (!checked.ok) return { isError: true, content: [{ type: 'text', text: checked.message }] }
     const contentPath = `${userId}/${id}/content`
     await writeArtifact(contentPath, content)
     try {
-      await db.insert(artifacts).values({ id, userId, folderId: folderId || null, slug, title, type, visibility: artifactVisibility, contentPath, metadata: {}, createdAt: new Date(), updatedAt: new Date() })
+      await db.insert(artifacts).values({ id, userId, folderId: folderId || null, slug, title, type, visibility: artifactVisibility, contentPath, metadata: checked.metadata, createdAt: new Date(), updatedAt: new Date() })
     } catch (error) {
       if (isSlugConflict(error)) return { isError: true, content: [{ type: 'text', text: 'That share identifier is already in use. Retry with a slightly different title.' }] }
       throw error
     }
-    await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version: 1, contentPath, metadata: {}, createdAt: new Date() })
+    await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version: 1, contentPath, metadata: checked.metadata, createdAt: new Date() })
     return textResult({ id, slug, title, type, visibility: artifactVisibility, folderId: folderId || null })
   })
 
@@ -211,7 +215,11 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
     }
 
     let contentPath = row.contentPath
+    let metadata = row.metadata || {}
     if (content !== undefined) {
+      const checked = checkTextArtifact(row.type, content, row.slug)
+      if (!checked.ok) return { isError: true, content: [{ type: 'text', text: checked.message }] }
+      metadata = { ...metadata, ...checked.metadata }
       // Only record a version when the bytes actually change. Agents commonly
       // re-save unchanged content, and unconditional inserts turned that into
       // duplicate history entries.
@@ -219,7 +227,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
       if (currentContent !== content) {
         const version = currentVersion + 1
         contentPath = `${userId}/${id}/versions/${version}`
-        const claimed = await appendVersion(db, { artifactId: id, version, contentPath, metadata: row.metadata || {}, content })
+        const claimed = await appendVersion(db, { artifactId: id, version, contentPath, metadata, content })
         if (!claimed) {
           return {
             isError: true,
@@ -231,7 +239,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
         }
       }
     }
-    await db.update(artifacts).set({ ...(title === undefined ? {} : { title }), ...(artifactVisibility === undefined ? {} : { visibility: artifactVisibility }), ...(folderId === undefined ? {} : { folderId }), ...(content === undefined ? {} : { contentPath }), updatedAt: new Date() }).where(eq(artifacts.id, id))
+    await db.update(artifacts).set({ ...(title === undefined ? {} : { title }), ...(artifactVisibility === undefined ? {} : { visibility: artifactVisibility }), ...(folderId === undefined ? {} : { folderId }), ...(content === undefined ? {} : { contentPath, metadata }), updatedAt: new Date() }).where(eq(artifacts.id, id))
 
     const versionCreated = contentPath !== row.contentPath
     return textResult({

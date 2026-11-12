@@ -151,7 +151,9 @@ per day and does not remove the current version.
 - `PUT /api/folders/:id` - Rename or move a folder, rejecting cycles and rewriting descendant paths
 - `DELETE /api/folders/:id` - Delete an empty folder
 - `GET /api/artifacts` - List artifacts (with filters)
-- `POST /api/artifacts` - Create artifact
+- `POST /api/artifacts` - Create artifact from text content. `bundle` and `pdf`
+  are refused (use the upload); `image` must be SVG markup and is stored as
+  `image/svg+xml`. MCP `create_artifact` and content updates follow the same rule.
 - `POST /api/artifacts/upload` - Multipart upload (Markdown, HTML, JSON, PDF, images, ZIP bundles)
 - `GET /api/artifacts/:id` - Get artifact
 - `PUT /api/artifacts/:id` - Update artifact, including visibility and folder.

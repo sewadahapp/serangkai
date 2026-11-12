@@ -212,3 +212,21 @@ test('rejects write tools for read-only tokens', async () => {
   assert.equal(body.result.isError, true)
   assert.match(body.result.content[0].text, /write scope/)
 })
+
+test('create_artifact only advertises text types and labels SVG images', async () => {
+  const tools = await mcp({ jsonrpc: '2.0', id: 40, method: 'tools/list', params: {} })
+  const create = tools.result.tools.find(tool => tool.name === 'create_artifact')
+  assert.deepEqual([...create.inputSchema.properties.type.enum].sort(), ['html', 'image', 'javascript', 'json', 'markdown'])
+
+  const bundle = await mcp({ jsonrpc: '2.0', id: 41, method: 'tools/call', params: { name: 'create_artifact', arguments: { title: 'Zip', type: 'bundle', content: 'x' } } })
+  assert.ok(bundle.error || bundle.result?.isError, 'bundle text create refused')
+
+  const raster = await mcp({ jsonrpc: '2.0', id: 42, method: 'tools/call', params: { name: 'create_artifact', arguments: { title: 'Png', type: 'image', content: 'iVBORw0KGgo=' } } })
+  assert.equal(raster.result.isError, true)
+  assert.match(raster.result.content[0].text, /SVG/)
+
+  const svg = await mcp({ jsonrpc: '2.0', id: 43, method: 'tools/call', params: { name: 'create_artifact', arguments: { title: 'Dot', type: 'image', content: '<svg xmlns="http://www.w3.org/2000/svg"><circle r="4"/></svg>' } } })
+  const artifact = JSON.parse(svg.result.content[0].text)
+  const preview = await fetch(`${baseUrl}/api/artifacts/${artifact.id}/preview`, { headers: { authorization: `Bearer ${token}` } })
+  assert.equal(preview.headers.get('content-type'), 'image/svg+xml')
+})

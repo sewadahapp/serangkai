@@ -144,12 +144,44 @@ test('image metadata cannot upgrade a non-SVG artifact to an executable type', a
       type: 'image',
       visibility: 'public',
       metadata: { mimeType: 'text/html' },
-      content: '<script>document.title="x"</script>',
+      content: '<svg xmlns="http://www.w3.org/2000/svg"><script>document.title="x"</script></svg>',
     }),
   })
+  assert.equal(created.status, 200)
   const artifact = (await created.json()).artifact
   const response = await fetch(`${base}/api/share/${artifact.slug}`)
   assert.equal(response.status, 200)
-  assert.doesNotMatch(response.headers.get('content-type') || '', /text\/html/)
+  assert.equal(response.headers.get('content-type'), 'image/svg+xml')
   assert.match(response.headers.get('content-security-policy') || '', /sandbox/)
+})
+
+test('binary types are refused as text content, and SVG text is labelled as SVG', async () => {
+  const create = body => fetch(`${base}/api/artifacts`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ visibility: 'public', ...body }),
+  })
+  for (const type of ['bundle', 'pdf']) {
+    const response = await create({ title: `text ${type}`, type, content: 'not binary' })
+    assert.equal(response.status, 400, type)
+    assert.match((await response.json()).message, /artifacts\/upload/)
+  }
+  const raster = await create({ title: 'text png', type: 'image', content: 'iVBORw0KGgo=' })
+  assert.equal(raster.status, 400)
+  assert.match((await raster.json()).message, /SVG/)
+
+  const svg = await create({ title: 'text svg', type: 'image', content: '<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg"><circle r="4"/></svg>' })
+  assert.equal(svg.status, 200)
+  const artifact = (await svg.json()).artifact
+  const served = await fetch(`${base}/api/share/${artifact.slug}`)
+  assert.equal(served.headers.get('content-type'), 'image/svg+xml')
+  assert.match(await served.text(), /<circle/)
+
+  // Content edits follow the same rule as creation.
+  const edit = await fetch(`${base}/api/artifacts/${artifact.id}`, {
+    method: 'PUT',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ baseVersion: 1, content: 'plain text' }),
+  })
+  assert.equal(edit.status, 400)
 })

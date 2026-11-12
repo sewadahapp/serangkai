@@ -15,9 +15,9 @@ export const authoringArtifactTypes = [
   { type: 'html', description: 'Standalone HTML. Self-styled by default; opt into the Selaras document theme with a meta tag.' },
   { type: 'javascript', description: 'Standalone JavaScript source, displayed with syntax highlighting. No server execution.' },
   { type: 'json', description: 'JSON source, displayed with syntax highlighting.' },
-  { type: 'image', description: 'Image upload or SVG.' },
-  { type: 'pdf', description: 'PDF upload, viewed in the browser.' },
-  { type: 'bundle', description: 'Static ZIP web application, served sandboxed with authorization.' },
+  { type: 'image', description: 'SVG markup as text content (create_artifact or POST /api/artifacts). Raster images (PNG, JPEG, WebP, GIF) must be uploaded with POST /api/artifacts/upload.' },
+  { type: 'pdf', description: 'PDF viewed in the browser. Binary: upload with POST /api/artifacts/upload; not accepted as text content.' },
+  { type: 'bundle', description: 'Static ZIP web application, served sandboxed with authorization. Binary: upload the .zip with POST /api/artifacts/upload; not accepted as text content.' },
 ]
 
 export const chartSchema = {

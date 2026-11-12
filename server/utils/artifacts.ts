@@ -18,6 +18,31 @@ export function inferArtifactType(filename: string, mimeType = ''): ArtifactType
   return 'markdown'
 }
 
+/**
+ * Rules for artifacts whose content arrives as a text string (JSON create and
+ * update over REST and MCP). Bundles and PDFs are binary and are only valid
+ * through the multipart upload, which extracts bundles and keeps raw bytes; an
+ * image is accepted as text only when it is SVG markup, and it is then labelled
+ * `image/svg+xml` so it renders. Returns an error message, or the metadata to
+ * store.
+ */
+export function checkTextArtifact(type: string, content: string, slug: string):
+  | { ok: true; metadata: Record<string, any> }
+  | { ok: false; message: string } {
+  if (type === 'bundle' || type === 'pdf') {
+    return { ok: false, message: `${type} artifacts are binary. Upload the file with POST /api/artifacts/upload instead of sending text content.` }
+  }
+  if (type === 'image') {
+    const head = content.trimStart().slice(0, 4096).toLowerCase()
+    const svg = head.startsWith('<svg') || ((head.startsWith('<?xml') || head.startsWith('<!--') || head.startsWith('<!doctype svg')) && head.includes('<svg'))
+    if (!svg) {
+      return { ok: false, message: 'Image artifacts sent as text must be SVG markup. Upload raster images with POST /api/artifacts/upload.' }
+    }
+    return { ok: true, metadata: { mimeType: 'image/svg+xml', filename: `${slug}.svg` } }
+  }
+  return { ok: true, metadata: {} }
+}
+
 export function makeSlug(title: string) {
   return `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || 'artifact'}-${nanoid(6)}`
 }

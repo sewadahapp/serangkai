@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { requireScope } from '../../utils/require-auth'
 import { and, eq } from 'drizzle-orm'
 import { isSlugConflict } from '../../db/migrations'
-import { reserveSlug } from '../../utils/artifacts'
+import { checkTextArtifact, reserveSlug } from '../../utils/artifacts'
 import { writeArtifact } from '../../utils/artifact-storage'
 
 const schema = z.object({
@@ -31,6 +31,11 @@ export default defineEventHandler(async (event) => {
   
   const { title, slug: providedSlug, type, content, folderId, visibility, metadata } = result.data
   const slug = await reserveSlug(db, providedSlug || title)
+  const checked = checkTextArtifact(type, content, slug)
+  if (!checked.ok) throw createError({ statusCode: 400, message: checked.message })
+  // The derived image type wins over author metadata, so a caller cannot
+  // relabel SVG markup as something else.
+  const storedMetadata = { ...(metadata || {}), ...checked.metadata }
 
   if (folderId) {
     const folder = await db.select().from(folders)
@@ -54,7 +59,7 @@ export default defineEventHandler(async (event) => {
       type,
       visibility,
       contentPath: contentKey,
-      metadata: metadata || {},
+      metadata: storedMetadata,
       createdAt: new Date(),
       updatedAt: new Date(),
     })
@@ -70,7 +75,7 @@ export default defineEventHandler(async (event) => {
     artifactId,
     version: 1,
     contentPath: contentKey,
-    metadata: metadata || {},
+    metadata: storedMetadata,
     createdAt: new Date(),
   })
   
