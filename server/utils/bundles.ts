@@ -5,7 +5,9 @@ export const MAX_BUNDLE_FILES = 500
 export const MAX_BUNDLE_UNPACKED_BYTES = 100 * 1024 * 1024
 
 function safeEntryName(name: string) {
-  if (!name || name.includes('\0') || name.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(name)) return false
+  // `:` is a storage key separator (and covers Windows drive letters), so an
+  // entry like `..:..:other` must not reach `writeArtifact`.
+  if (!name || name.includes('\0') || name.includes(':') || name.startsWith('/')) return false
   const clean = name.replaceAll('\\', '/')
   return clean !== '..' && !clean.startsWith('../') && !clean.split('/').includes('..')
 }

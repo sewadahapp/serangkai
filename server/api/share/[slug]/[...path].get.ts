@@ -15,7 +15,9 @@ export default defineEventHandler(async (event) => {
   const key = String(getQuery(event).k || '')
   if (artifact.visibility === 'private') { requireUser(event); if (event.context.user.id !== artifact.userId) throw createError({ statusCode: 403, message: 'Forbidden' }) }
   if (artifact.visibility === 'unlisted' && !isValidShareKey(artifact.id, key)) throw createError({ statusCode: 404, message: 'Bundle not found' })
-  if (path.includes('\0') || path.includes('\\') || path.startsWith('/') || path.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
+  // Storage treats `:` as a separator like `/`, so `..:..:other` would escape
+  // the bundle prefix; a colon is never part of a valid bundle path.
+  if (path.includes('\0') || path.includes('\\') || path.includes(':') || path.startsWith('/') || path.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
     throw createError({ statusCode: 404, message: 'File not found' })
   }
 

@@ -33,6 +33,24 @@ test('uploads and serves a public static bundle safely', async () => {
   assert.equal((await fetch(`${base}/api/share/${body.artifact.slug}/..%2Fcontent`)).status, 404)
 })
 
+test('a colon-separated path cannot escape the bundle', async () => {
+  const secret = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Private note', type: 'markdown', content: 'TOP SECRET' }) })
+  const privateId = (await secret.json()).artifact.id
+  const form = new FormData(); form.append('file', new Blob([await zip([['index.html', '<h1>Bundle</h1>']])], { type: 'application/zip' }), 'site.zip'); form.append('title', 'Escape probe'); form.append('visibility', 'public')
+  const bundle = (await (await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie }, body: form })).json()).artifact
+  // Storage treats `:` like `/`, so this would name <owner>/<privateId>/content.
+  const probe = await fetch(`${base}/api/share/${bundle.slug}/..:..:${privateId}:content`)
+  assert.equal(probe.status, 404)
+  assert.doesNotMatch(await probe.text(), /TOP SECRET/)
+})
+
+test('rejects archive entries whose names contain a storage separator', async () => {
+  const form = new FormData(); form.append('file', new Blob([await zip([['index.html', 'ok'], ['..:..:victim:content', 'overwrite']])], { type: 'application/zip' }), 'evil.zip')
+  const response = await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie }, body: form })
+  assert.equal(response.status, 400)
+  assert.match(await response.text(), /unsafe path/)
+})
+
 test('rejects malformed archives before extraction', async () => {
   const form = new FormData(); form.append('file', new Blob([Buffer.from('not a zip')], { type: 'application/zip' }), 'bad.zip')
   const response = await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie }, body: form }); assert.equal(response.status, 400); assert.match(await response.text(), /zip|central directory/i)

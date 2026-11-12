@@ -60,7 +60,15 @@ export function s3Driver(options: S3DriverOptions) {
   // hierarchy. Encode per segment so spaces and unicode in bundle filenames
   // survive.
   const storageKey = (key: string) => key.replace(/:/g, '/')
-  const objectURL = (key: string) => `${baseURL}/${storageKey(key).split('/').map(encodeURIComponent).join('/')}`
+  // `.`/`..` survive encodeURIComponent and the URL parser resolves them, which
+  // would address another object (or bucket). Refuse them like the fs driver.
+  const objectURL = (key: string) => {
+    const segments = storageKey(key).split('/')
+    if (segments.some(segment => segment === '.' || segment === '..')) {
+      throw new Error(`[s3] Invalid key: ${JSON.stringify(key)}. It should not contain . or .. segments`)
+    }
+    return `${baseURL}/${segments.map(encodeURIComponent).join('/')}`
+  }
 
   // Workers restrict network I/O in global scope, where Nitro initializes
   // plugins, so the bucket is probed once inside the first request instead.

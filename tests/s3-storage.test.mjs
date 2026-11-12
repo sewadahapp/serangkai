@@ -72,6 +72,19 @@ test('text items and keys with spaces, unicode, and nested paths survive', async
   await driver.removeItem(key)
 })
 
+test('dot segments are refused instead of resolving to another object', async () => {
+  const driver = makeDriver()
+  await driver.setItemRaw('owner/private-1/content', Buffer.from('secret'))
+  // unstorage hands drivers colon-separated keys; `..` must never be resolved
+  // by the URL parser into a sibling object.
+  for (const key of ['owner:bundle-1:bundle:..:..:private-1:content', 'owner/bundle-1/bundle/../../private-1/content', 'owner:.:content']) {
+    await assert.rejects(() => driver.getItemRaw(key), /Invalid key/)
+    await assert.rejects(() => driver.setItemRaw(key, Buffer.from('x')), /Invalid key/)
+  }
+  assert.equal(Buffer.from(await driver.getItemRaw('owner/private-1/content')).toString(), 'secret')
+  await driver.removeItem('owner/private-1/content')
+})
+
 test('listing is prefix-scoped and paginated', async () => {
   const driver = makeDriver()
   const keys = ['list/a/one', 'list/a/two', 'list/a/three', 'list/a/four', 'list/b/other']
