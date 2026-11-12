@@ -35,3 +35,31 @@ export function artifactShareUrl(
   const key = artifact.visibility === 'unlisted' ? `?k=${signShareKey(artifact.id)}` : ''
   return `${baseUrl.replace(/\/+$/, '')}/share/${artifact.slug}${key}`
 }
+
+/**
+ * Whether the caller may be handed share capability URLs.
+ *
+ * Minting a public/unlisted entry point is a write operation (see the
+ * `/api/artifacts/:id/share` endpoint). Listing and search must not leak the
+ * signed unlisted key to a read-only agent, which would let it redistribute a
+ * capability it cannot create. Browser sessions and write/full tokens may.
+ */
+export function callerCanManageShares(event: H3Event): boolean {
+  const token = (event.context as any).apiToken
+  return !token || token.scopes.includes('write') || token.scopes.includes('full')
+}
+
+/**
+ * Caller-aware share URL for listing/search previews.
+ *
+ * Public URLs carry no secret, so any authenticated caller may see them.
+ * Unlisted URLs embed the signed capability key and are withheld from callers
+ * without write capability; private artifacts never have a URL.
+ */
+export function artifactShareUrlForCaller(
+  event: H3Event,
+  artifact: { id: string; slug: string; visibility: string },
+): string | null {
+  if (artifact.visibility === 'unlisted' && !callerCanManageShares(event)) return null
+  return artifactShareUrl(event, artifact)
+}

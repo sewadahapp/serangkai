@@ -1,7 +1,7 @@
 import { artifacts, folders } from '../db/schema'
 import { getRequestDatabase } from '../db/adapter'
 import { requireUser } from '../utils/require-auth'
-import { artifactShareUrl } from '../utils/share'
+import { artifactShareUrlForCaller } from '../utils/share'
 import { and, eq, inArray, like, or } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
   return {
     artifacts: foundArtifacts.map(artifact => ({
       ...artifact,
-      shareUrl: artifactShareUrl(event, artifact),
+      shareUrl: artifactShareUrlForCaller(event, artifact),
     })),
     folders: foundFolders,
   }

@@ -1,6 +1,6 @@
 import { artifacts } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
-import { artifactShareUrl } from '../../utils/share'
+import { artifactShareUrlForCaller } from '../../utils/share'
 import { eq } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -13,11 +13,12 @@ export default defineEventHandler(async (event) => {
   const userArtifacts = await db.select().from(artifacts).where(eq(artifacts.userId, user.id))
   // The workspace list shows a preview action for shared artifacts. Build the
   // same reader URL the dedicated share endpoint returns, once per artifact,
-  // instead of making the browser ask for every row.
+  // instead of making the browser ask for every row. Unlisted capability keys
+  // are withheld from read-only callers (see artifactShareUrlForCaller).
   return {
     artifacts: userArtifacts.map(artifact => ({
       ...artifact,
-      shareUrl: artifactShareUrl(event, artifact),
+      shareUrl: artifactShareUrlForCaller(event, artifact),
     })),
   }
 })

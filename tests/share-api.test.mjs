@@ -124,3 +124,60 @@ test('the workspace list exposes preview URLs only for shared artifacts', async 
   })
   assert.equal(privateShare.status, 400)
 })
+
+test('share capability URLs follow one policy across list, search, and caller type', async () => {
+  const create = async (title, visibility) => {
+    const response = await fetch(`${base}/api/artifacts`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ title, type: 'markdown', content: `# ${title}`, visibility }),
+    })
+    return (await response.json()).artifact
+  }
+  const priv = await create('Policy private', 'private')
+  const pub = await create('Policy public', 'public')
+  const unl = await create('Policy unlisted', 'unlisted')
+
+  const mint = async (scopes) => {
+    const response = await fetch(`${base}/api/tokens`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: `policy-${scopes.join('-')}`, scopes }),
+    })
+    return (await response.json()).token
+  }
+  const readToken = await mint(['read'])
+  const writeToken = await mint(['read', 'write'])
+
+  const rowFor = (rows, id) => rows.find(item => item.id === id)
+  const hasKey = url => Boolean(url && /[?]k=[a-f0-9]{64}$/.test(url))
+
+  const listWith = async (headers) => (await (await fetch(`${base}/api/artifacts`, { headers })).json()).artifacts
+  const searchWith = async (headers) => (await (await fetch(`${base}/api/search?q=Policy`, { headers })).json()).artifacts
+
+  // Owner browser session: preview links for public + unlisted, none for private.
+  for (const rows of [await listWith({ cookie }), await searchWith({ cookie })]) {
+    assert.equal(rowFor(rows, priv.id).shareUrl, null)
+    assert.ok(rowFor(rows, pub.id).shareUrl && !hasKey(rowFor(rows, pub.id).shareUrl))
+    assert.ok(hasKey(rowFor(rows, unl.id).shareUrl))
+  }
+
+  // Write token: same as the session (it may mint capabilities).
+  for (const rows of [await listWith({ authorization: `Bearer ${writeToken}` }), await searchWith({ authorization: `Bearer ${writeToken}` })]) {
+    assert.ok(hasKey(rowFor(rows, unl.id).shareUrl))
+    assert.ok(rowFor(rows, pub.id).shareUrl)
+    assert.equal(rowFor(rows, priv.id).shareUrl, null)
+  }
+
+  // Read-only token: public URL is fine (no secret) but the unlisted capability
+  // key must be withheld, matching the write-scope /share restriction.
+  for (const rows of [await listWith({ authorization: `Bearer ${readToken}` }), await searchWith({ authorization: `Bearer ${readToken}` })]) {
+    assert.equal(rowFor(rows, unl.id).shareUrl, null, 'read-only must not receive the unlisted capability key')
+    assert.ok(rowFor(rows, pub.id).shareUrl && !hasKey(rowFor(rows, pub.id).shareUrl))
+    assert.equal(rowFor(rows, priv.id).shareUrl, null)
+  }
+
+  // Unauthorized visitors cannot list or search at all.
+  assert.equal((await fetch(`${base}/api/artifacts`)).status, 401)
+  assert.equal((await fetch(`${base}/api/search?q=Policy`)).status, 401)
+})
