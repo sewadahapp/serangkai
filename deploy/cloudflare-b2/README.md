@@ -14,14 +14,31 @@ downloads per day; heavier use is billed.
 The Deploy to Cloudflare button reads one Wrangler configuration per repository,
 and a subdirectory URL is treated as a standalone repository root with all of
 its dependencies inside it. The application source is therefore fetched at
-build time by `build.mjs` (default branch, or pin `SERANGKAI_REF`) instead of
-being copied here, so there is still exactly one copy of the code.
+build time by `build.mjs` instead of being copied here, so there is still
+exactly one copy of the code.
 
-`build.mjs` downloads `sewadahapp/serangkai@master` by default. Set
-`SERANGKAI_REF` to a tag or commit for a reproducible deploy, and
-`SERANGKAI_REPO` to build a fork. Editing the cloned template changes only the
-launcher (Wrangler config and build script), not the application; make
-application changes upstream and redeploy.
+## Reproducible builds and upgrades
+
+`build.mjs` resolves the application source ref in this order:
+
+1. `SERANGKAI_REF` env — an explicit override. Use a branch for development, or
+   a tag/commit for a deliberate upgrade. It always wins.
+2. The committed `serangkai.ref` pin — an immutable commit SHA (or release tag)
+   shipped with the template, so a default build is reproducible.
+3. The development branch, only if no pin is present.
+
+The resolved ref is recorded in `.output/serangkai-source.json`
+(`repo`, `ref`, `refSource`) so you can audit exactly what a deployment built.
+
+**Upgrading is deliberate.** A deployed instance keeps its own `serangkai.ref`;
+pulling a newer template or a new Serangkai release does not silently change the
+version you run. To upgrade, edit `serangkai.ref` to the new release tag/commit
+(or set `SERANGKAI_REF`) and redeploy. To develop against a branch, set
+`SERANGKAI_REF=<branch>`. Set `SERANGKAI_REPO` to build a fork, and
+`SERANGKAI_LOCAL_SOURCE=/path/to/checkout` to build a local checkout.
+
+Editing the cloned template changes only the launcher (Wrangler config and build
+script), not the application; make application changes upstream and redeploy.
 
 The R2 one-click flow lives at the repository root and is unchanged.
 

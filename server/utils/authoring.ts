@@ -260,21 +260,38 @@ The new onboarding flow removed two steps from activation.
 
 ## Prerequisites
 
-- Bun 1.4+
-- A persistent volume for \`/app/data\`
+- Bun 1.4+ (Docker image ships it) or a Cloudflare account for Workers.
+- Docker: a persistent volume mounted at \`/data\`.
+- Workers: a D1 database plus R2 (default) or a private Backblaze B2 bucket.
 
-## Steps
+## Required configuration
 
-1. Set \`JWT_SECRET\` and \`SHARE_SECRET\`.
-2. Start the container.
-3. Open \`/api/health\`.
+Set \`ADMIN_USERNAME\`, \`ADMIN_PASSWORD\`, \`JWT_SECRET\`, and \`SHARE_SECRET\`.
+There is no sign-up: the single owner comes from the environment. On Workers
+also set \`NUXT_APP_SECRET\` (the session key cannot be derived at the edge).
+
+## Docker
 
 \`\`\`bash
-docker run -d -p 3000:3000 -v serangkai-data:/app/data serangkai
+docker run -d -p 3000:3000 \\
+  -v serangkai-data:/data \\
+  -e ADMIN_USERNAME=admin -e ADMIN_PASSWORD='choose-a-strong-password' \\
+  -e JWT_SECRET="$(openssl rand -base64 32)" -e SHARE_SECRET="$(openssl rand -base64 32)" \\
+  ghcr.io/sewadahapp/serangkai:latest
 \`\`\`
 
+SQLite and uploaded files live under \`/data\`; the volume is the whole
+persistence story.
+
+## Cloudflare Workers
+
+Use the Deploy to Cloudflare button (D1 + R2) or the B2 template (D1 + B2).
+The Worker creates its D1 schema on first request; object storage is R2 or B2,
+not a filesystem volume.
+
 ::s-alert{title="Secrets" color="warning"}
-Use stable random secrets. Rotating them invalidates sessions.
+Use stable random secrets. Rotating \`JWT_SECRET\` signs everyone out; rotating
+\`SHARE_SECRET\` invalidates existing unlisted links.
 ::
 `,
   dashboard: `# Workspace activity
