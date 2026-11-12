@@ -27,8 +27,6 @@ after(async () => { await browser?.close(); child?.kill('SIGTERM'); await rm(dat
 test('human browser workflow logs in and creates an artifact', async () => {
   await page.goto(`${base}/`)
   await assert.doesNotReject(() => page.getByText('Serangkai').first().waitFor())
-  // The landing page's own snippets are highlighted, not only artifact Markdown.
-  await assert.doesNotReject(() => page.locator('.serangkai-shiki span[style*="--shiki-light"]').first().waitFor())
   await page.getByRole('banner').getByRole('link', { name: 'Log in' }).click()
   await page.getByLabel('Username').fill(adminUsername)
   await page.getByLabel('Password').fill(adminPassword)
@@ -43,33 +41,40 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await assert.doesNotReject(() => page.getByRole('option', { name: 'Top level' }).waitFor())
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Create folder' }).click()
-  await assert.doesNotReject(() => page.getByRole('button', { name: /Projects/ }).waitFor())
-  await page.getByRole('button', { name: /Projects/ }).click()
+  await assert.doesNotReject(() => page.getByRole('button', { name: 'Projects', exact: true }).waitFor())
+  await page.getByRole('button', { name: 'Projects', exact: true }).click()
   await page.getByRole('button', { name: 'New artifact' }).first().click()
+  await page.waitForURL('**/workspace/new?*')
   await page.getByLabel('Title').first().fill('Browser-created artifact')
   await page.getByRole('textbox', { name: 'Content' }).fill('# Browser flow')
   await page.getByRole('button', { name: 'Create artifact' }).click()
-  await assert.doesNotReject(() => page.getByText('Browser-created artifact').waitFor())
+  await page.waitForURL('**/artifacts/**')
+  await page.getByRole('link', { name: 'Workspace', exact: true }).first().click()
+  await page.waitForURL('**/workspace')
   await assert.doesNotReject(() => page.getByText(/· Projects/).waitFor())
-  await page.getByLabel('Rename').fill('Programs')
-  await page.getByRole('button', { name: 'Rename' }).click()
-  await assert.doesNotReject(() => page.getByRole('button', { name: /Programs/ }).waitFor())
+  await page.getByRole('button', { name: 'Actions for Projects' }).click()
+  await page.getByRole('menuitem', { name: 'Rename' }).click()
+  await page.getByLabel('Folder name').fill('Programs')
+  await page.getByRole('button', { name: 'Save name' }).click()
+  await assert.doesNotReject(() => page.getByRole('button', { name: 'Programs', exact: true }).waitFor())
   await assert.doesNotReject(() => page.getByText(/· Programs/).waitFor())
   await page.getByRole('button', { name: 'All artifacts' }).click()
   await page.getByRole('button', { name: 'New folder' }).click()
   await page.getByLabel('Folder name').fill('Archive')
   await page.getByRole('button', { name: 'Create folder' }).click()
-  await assert.doesNotReject(() => page.getByRole('button', { name: /Archive/ }).waitFor())
-  await page.getByRole('button', { name: /Programs/ }).click()
+  await assert.doesNotReject(() => page.getByRole('button', { name: 'Archive', exact: true }).waitFor())
+  await page.getByRole('button', { name: 'Programs', exact: true }).click()
+  await page.getByRole('button', { name: 'Actions for Programs' }).click()
+  await page.getByRole('menuitem', { name: 'Move' }).click()
   await page.getByRole('combobox', { name: 'Move under' }).click()
   await page.getByRole('option', { name: 'Archive' }).click()
-  await page.getByRole('button', { name: 'Move' }).click()
-  await assert.doesNotReject(() => page.getByText('Folder moved.').waitFor())
+  await page.getByRole('button', { name: 'Move folder' }).click()
+  await assert.doesNotReject(() => page.getByText('Folder moved').waitFor())
   await assert.doesNotReject(() => page.getByText(/· Archive \/ Programs/).waitFor())
   await page.getByPlaceholder('Search artifacts and folders…').fill('Browser')
   await assert.doesNotReject(() => page.getByText(/In Programs and its subfolders/).waitFor())
   // Searching must keep the folder tree and the row's folder path intact.
-  await assert.doesNotReject(() => page.getByRole('button', { name: /Programs/ }).waitFor())
+  await assert.doesNotReject(() => page.getByRole('button', { name: 'Programs', exact: true }).waitFor())
   await assert.doesNotReject(() => page.getByText(/· Archive \/ Programs/).waitFor())
   await page.getByRole('button', { name: 'Clear', exact: true }).click()
   await assert.doesNotReject(() => page.getByRole('heading', { name: 'Programs', exact: true }).waitFor())
@@ -750,7 +755,7 @@ test('anonymous 404 recovery returns to the landing page and its title', async (
     await anon.getByRole('heading', { name: 'This page is off the map.' }).waitFor()
     await anon.getByRole('button', { name: 'Back to home' }).click()
     await anon.waitForURL(`${base}/`)
-    await assert.doesNotReject(() => anon.getByRole('heading', { name: /An artifact workspace/ }).waitFor())
+    await assert.doesNotReject(() => anon.getByRole('heading', { name: /Good work deserves/ }).waitFor())
     assert.equal(await anon.title(), 'Serangkai — artifact and knowledge workspace')
   } finally {
     await context.close()
@@ -769,7 +774,7 @@ test('missing artifacts show the custom error page and recover', async () => {
 })
 
 test('workspace load errors are shown inline, recover, and never block navigation', async () => {
-  const artifactsFilter = url => url.pathname === '/api/artifacts'
+  const artifactsFilter = url => url.pathname === '/api/workspace'
   const failArtifacts = route => route.fulfill({
     status: 503,
     contentType: 'application/json',
@@ -948,5 +953,85 @@ test('the appearance theme applies instantly and persists across reloads', async
     assert.equal(await themePage.locator('html').getAttribute('data-serangkai-theme'), 'rose-pine')
   } finally {
     await themePage.close()
+  }
+})
+
+test('workspace stays usable on narrow screens with long names and pagination', async () => {
+  const context = await browser.newContext({ viewport: { width: 320, height: 720 } })
+  const mobile = await context.newPage()
+  try {
+    await mobile.goto(`${base}/auth/login`)
+    await mobile.getByLabel('Username').fill(adminUsername)
+    await mobile.getByLabel('Password').fill(adminPassword)
+    await mobile.getByRole('button', { name: 'Log in' }).click()
+    await mobile.waitForURL('**/workspace')
+    const name = 'A-very-long-folder-name-without-any-spaces-to-break-the-layout'
+    const folders = Array.from({ length: 12 }, (_, i) => ({ id: `folder-${i}`, name: i === 11 ? name : `Folder ${i}`, parentId: i ? `folder-${i - 1}` : null, path: `/${i === 11 ? name : `Folder ${i}`}` }))
+    await mobile.route(url => url.pathname === '/api/workspace', route => route.fulfill({
+      json: { folders, counts: [{ folderId: 'folder-11', value: 26 }], total: 26, page: Number(new URL(route.request().url()).searchParams.get('page') || 1), pageSize: 25, artifacts: [{ id: 'mobile-test', title: 'A very long artifact title that should stay readable alongside its visibility badge and preview', type: 'markdown', visibility: 'unlisted', folderId: 'folder-11', updatedAt: new Date().toISOString(), shareUrl: '/share/example' }] },
+    }))
+    await mobile.reload()
+    await mobile.getByRole('link', { name: /^A very long artifact title/ }).waitFor()
+    for (const width of [320, 375, 768]) {
+      await mobile.setViewportSize({ width, height: 720 })
+      const sizes = await mobile.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
+      assert.ok(sizes.content <= sizes.viewport, `horizontal overflow at ${width}px: ${JSON.stringify(sizes)}`)
+      assert.equal(await mobile.getByRole('button', { name: 'Next', exact: true }).isVisible(), true)
+      assert.equal(await mobile.getByRole('link', { name: /Preview A very long artifact/ }).isVisible(), true)
+      assert.equal(await mobile.getByRole('button', { name: 'Browse folders' }).isVisible(), true)
+    }
+    await mobile.setViewportSize({ width: 320, height: 720 })
+    await mobile.getByRole('button', { name: 'Next', exact: true }).click()
+    await mobile.getByText('Page 2 of 2').waitFor()
+    await mobile.getByRole('button', { name: 'Browse folders' }).click()
+    const foldersPanel = mobile.getByRole('dialog', { name: 'Folders' })
+    await foldersPanel.waitFor()
+    await mobile.waitForFunction(() => { const panel = document.querySelector('[role=dialog]'); return panel && Math.abs(panel.getBoundingClientRect().left) < 2 })
+    await foldersPanel.getByRole('button', { name: `Actions for ${name}` }).click()
+    await mobile.getByRole('button', { name: 'Rename', exact: true }).click()
+    await mobile.getByRole('dialog', { name: 'Rename folder' }).waitFor()
+    await mobile.getByRole('dialog', { name: 'Rename folder' }).getByRole('button', { name: 'Cancel' }).click()
+    await mobile.getByRole('button', { name: 'Browse folders' }).click()
+    await foldersPanel.waitFor()
+    await foldersPanel.getByRole('button', { name, exact: true }).click()
+    await foldersPanel.waitFor({ state: 'hidden' })
+    await mobile.getByRole('heading', { name, exact: true }).waitFor()
+    const sizes = await mobile.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
+    assert.ok(sizes.content <= sizes.viewport, `selected folder causes horizontal overflow: ${JSON.stringify(sizes)}`)
+  } finally {
+    await context.close()
+  }
+})
+
+test('mobile account navigation opens from the right and closes after navigation', async () => {
+  const context = await browser.newContext({ viewport: { width: 375, height: 720 } })
+  const mobile = await context.newPage()
+  try {
+    await mobile.goto(`${base}/auth/login`)
+    await mobile.getByLabel('Username').fill(adminUsername)
+    await mobile.getByLabel('Password').fill(adminPassword)
+    await mobile.getByRole('button', { name: 'Log in' }).click()
+    await mobile.waitForURL('**/workspace')
+    const trigger = mobile.getByRole('button', { name: `Open navigation for ${adminUsername}` })
+    await trigger.waitFor()
+    assert.match(await trigger.innerText(), new RegExp(adminUsername))
+    assert.equal(await mobile.getByRole('navigation', { name: 'Workspace sections' }).count(), 0)
+    await trigger.click()
+    const dialog = mobile.getByRole('dialog', { name: 'Navigation' })
+    await dialog.waitFor()
+    assert.match(await dialog.innerText(), new RegExp(`Signed in as ${adminUsername}`))
+    await mobile.waitForFunction(() => { const panel = document.querySelector('[role=dialog]'); if (!panel) return false; const rect = panel.getBoundingClientRect(); return Math.abs(rect.right - innerWidth) < 2 })
+    await dialog.getByRole('link', { name: 'Overview' }).click()
+    await mobile.waitForURL('**/dashboard')
+    await dialog.waitFor({ state: 'hidden' })
+    await trigger.click()
+    await dialog.waitFor()
+    await mobile.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    await mobile.setViewportSize({ width: 1280, height: 720 })
+    assert.equal(await trigger.isVisible(), false)
+    await mobile.getByRole('link', { name: 'Workspace', exact: true }).first().waitFor()
+  } finally {
+    await context.close()
   }
 })

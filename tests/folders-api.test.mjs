@@ -149,3 +149,24 @@ test('rejects foreign parent folders, foreign artifact folders, and slash names'
   const slashName = await json(cookieA, 'POST', '/api/folders', { name: 'Bad/Name' })
   assert.equal(slashName.status, 400)
 })
+
+test('workspace paginates and scopes results while preserving total folder counts', async () => {
+  const parent = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Pagination parent' })).json()).folder
+  const childFolder = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Pagination child', parentId: parent.id })).json()).folder
+  for (let i = 0; i < 27; i++) {
+    const response = await json(cookieA, 'POST', '/api/artifacts', { title: `Pagination example ${i}`, type: 'markdown', content: '# Example', folderId: i % 2 ? parent.id : childFolder.id })
+    assert.equal(response.status, 200)
+  }
+  const path = `/api/workspace?folderId=${parent.id}&q=Pagination%20example`
+  const first = await (await json(cookieA, 'GET', `${path}&page=1`)).json()
+  const second = await (await json(cookieA, 'GET', `${path}&page=2`)).json()
+  assert.equal(first.total, 27)
+  assert.equal(first.artifacts.length, 25)
+  assert.equal(second.artifacts.length, 2)
+  assert.equal(new Set([...first.artifacts, ...second.artifacts].map(item => item.id)).size, 27)
+  assert.equal(first.counts.find(row => row.folderId === childFolder.id).value, 14)
+  assert.equal((await (await json(cookieA, 'GET', `${path}&page=99`)).json()).page, 2)
+  assert.equal((await json(cookieB, 'GET', `/api/workspace?folderId=${parent.id}`)).status, 404)
+  assert.equal((await fetch(`${base}/api/workspace`)).status, 401)
+  assert.equal((await json(cookieA, 'GET', '/api/workspace?page=0')).status, 400)
+})

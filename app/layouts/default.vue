@@ -28,32 +28,44 @@
           </template>
 
           <template v-else>
-            <SDropdown :items="accountItems">
+            <div class="hidden lg:block">
+              <SDropdown :items="accountItems">
+                <template #default>
+                  <SButton variant="ghost" size="sm" icon="lucide:user-round" aria-haspopup="menu" class="gap-1.5">
+                    <span class="max-w-40 truncate">{{ user?.username }}</span>
+                  </SButton>
+                </template>
+              </SDropdown>
+            </div>
+            <SSlideover v-model:open="mobileMenuOpen" side="right" title="Navigation" :description="user?.username ? `Signed in as ${user.username}` : undefined">
               <template #default>
-                <SButton variant="ghost" size="sm" icon="lucide:user-round" aria-haspopup="menu" class="gap-1.5">
-                  <span class="hidden max-w-40 truncate sm:inline">{{ user?.username }}</span>
-                  <span class="sm:hidden">Menu</span>
+                <SButton variant="ghost" size="sm" icon="lucide:menu" class="lg:hidden" :aria-label="`Open navigation for ${user?.username || 'account'}`">
+                  <span class="max-w-24 truncate">{{ user?.username }}</span>
                 </SButton>
               </template>
-            </SDropdown>
+              <template #body>
+                <nav aria-label="Workspace sections" class="space-y-1">
+                  <NuxtLink
+                    v-for="link in workspaceLinks"
+                    :key="link.to"
+                    :to="link.to"
+                    class="flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium text-[var(--selaras-resolved-text-muted)] hover:bg-[var(--selaras-resolved-surface-elevated)]"
+                    active-class="!text-[var(--selaras-resolved-color-primary-text)] !bg-[var(--selaras-resolved-color-primary-subtle)]"
+                    @click="mobileMenuOpen = false"
+                  >
+                    <SIcon :name="link.icon" class="size-4 shrink-0" aria-hidden="true" />
+                    {{ link.label }}
+                  </NuxtLink>
+                </nav>
+              </template>
+              <template #footer>
+                <SButton variant="ghost" icon="lucide:log-out" @click="logout">Log out</SButton>
+              </template>
+            </SSlideover>
           </template>
         </div>
       </div>
 
-      <nav v-if="loggedIn" aria-label="Workspace sections" class="border-t border-[var(--selaras-resolved-border-muted)] lg:hidden">
-        <div class="serangkai-shell flex gap-1 overflow-x-auto py-1.5">
-          <NuxtLink
-            v-for="link in workspaceLinks"
-            :key="link.to"
-            :to="link.to"
-            class="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-[var(--selaras-resolved-text-muted)] hover:bg-[var(--selaras-resolved-surface-elevated)]"
-            active-class="!text-[var(--selaras-resolved-text-default)] !bg-[var(--selaras-resolved-surface-elevated)]"
-          >
-            <SIcon :name="link.icon" class="size-4 shrink-0" aria-hidden="true" />
-            {{ link.label }}
-          </NuxtLink>
-        </div>
-      </nav>
     </header>
 
     <main id="main" class="flex-1 py-8 md:py-10">
@@ -73,6 +85,7 @@
 
 <script setup lang="ts">
 const { loggedIn, user, ready, clear } = useUserSession()
+const mobileMenuOpen = ref(false)
 
 const workspaceLinks = [
   { to: '/dashboard', label: 'Overview', icon: 'lucide:layout-dashboard' },
@@ -87,6 +100,7 @@ const accountItems = computed(() => [
 ])
 
 const logout = async () => {
+  mobileMenuOpen.value = false
   await clear()
   await navigateTo('/')
 }
