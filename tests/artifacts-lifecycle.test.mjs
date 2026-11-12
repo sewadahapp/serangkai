@@ -220,6 +220,28 @@ test('requires baseVersion for content writes and refuses stale ones', async () 
   assert.equal(restored.content, '# One')
 })
 
+test('concurrent writes on the same baseVersion publish exactly one version', async () => {
+  const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Race', type: 'markdown', content: '# Base' }) })
+  const artifact = (await created.json()).artifact
+
+  const write = content => fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ baseVersion: 1, content }) })
+  const contents = Array.from({ length: 6 }, (_, index) => `# Writer ${index}`)
+  const responses = await Promise.all(contents.map(write))
+  const statuses = responses.map(response => response.status)
+
+  // One writer wins; every other one is a retryable 409, never a 500.
+  assert.equal(statuses.filter(status => status === 200).length, 1, `statuses: ${statuses}`)
+  assert.equal(statuses.filter(status => status === 409).length, contents.length - 1, `statuses: ${statuses}`)
+  const winner = contents[statuses.indexOf(200)]
+
+  // The losers must not have overwritten the winner's stored bytes.
+  const version2 = await (await fetch(`${base}/api/artifacts/${artifact.id}/versions/2`, { headers: { cookie: cookieA } })).json()
+  assert.equal(version2.content, winner)
+  const current = await (await fetch(`${base}/api/artifacts/${artifact.id}`, { headers: { cookie: cookieA } })).json()
+  assert.equal(current.content, winner)
+  assert.equal(await latestVersionOf(artifact.id), 2)
+})
+
 test('does not record a version when content is unchanged', async () => {
   const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie: cookieA, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'No-op writes', type: 'markdown', content: '# Stable' }) })
   const artifact = (await created.json()).artifact

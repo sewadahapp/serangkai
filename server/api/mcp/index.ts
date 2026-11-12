@@ -9,6 +9,7 @@ import { getRequestDatabase } from '../../db/adapter'
 import { requireScope } from '../../utils/require-auth'
 import { readArtifactBytes, writeArtifact } from '../../utils/artifact-storage'
 import { reserveSlug } from '../../utils/artifacts'
+import { appendVersion } from '../../utils/artifact-versions'
 import { isSlugConflict } from '../../db/migrations'
 import { findGrantByApiTokenId, resourceMatches } from '../../utils/oauth'
 import { mcpResourceUrl, protectedResourceMetadataUrl } from '../../utils/oauth-urls'
@@ -218,8 +219,16 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
       if (currentContent !== content) {
         const version = currentVersion + 1
         contentPath = `${userId}/${id}/versions/${version}`
-        await writeArtifact(contentPath, content)
-        await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version, contentPath, metadata: row.metadata || {}, createdAt: new Date() })
+        const claimed = await appendVersion(db, { artifactId: id, version, contentPath, metadata: row.metadata || {}, content })
+        if (!claimed) {
+          return {
+            isError: true,
+            content: [{
+              type: 'text',
+              text: `Stale write refused: version ${version} was published by another writer. Re-read the artifact with get_artifact, merge your changes, then publish again with baseVersion ${version}.`,
+            }],
+          }
+        }
       }
     }
     await db.update(artifacts).set({ ...(title === undefined ? {} : { title }), ...(artifactVisibility === undefined ? {} : { visibility: artifactVisibility }), ...(folderId === undefined ? {} : { folderId }), ...(content === undefined ? {} : { contentPath }), updatedAt: new Date() }).where(eq(artifacts.id, id))

@@ -114,6 +114,9 @@ filesystem layout and all existing artifacts remain compatible.
 - Vercel/portable: `serangkai-s3` driver when `STORAGE_DRIVER=s3`
 - Static bundles are extracted into the same store under
   `userId/artifactId/bundle/...`; no route reads the filesystem directly.
+  Storage keys treat `:` like `/`, so bundle entry names and asset paths may
+  not contain `:`, and the S3 driver refuses `.`/`..` key segments (the fs
+  driver already does) so a key can never resolve to another object.
 
 `server/plugins/storage.ts` mounts the driver once at startup, and
 `server/utils/artifact-storage.ts` is the single read/write surface. The S3
@@ -154,7 +157,10 @@ per day and does not remove the current version.
 - `PUT /api/artifacts/:id` - Update artifact, including visibility and folder.
   Content changes require `baseVersion`; a missing value is `400` and a stale
   one is `409` with `data.currentVersion`. The web editor sends the loaded
-  version and reloads on conflict.
+  version and reloads on conflict. The version row is inserted before its
+  bytes are stored, so `UNIQUE(artifact_id, version)` picks one winner when
+  writers race on the same `baseVersion`; the others get `409` and never
+  overwrite the winner's file.
 - `DELETE /api/artifacts/:id` - Delete artifact
 - `GET /api/artifacts/:id/versions` - Version history
 - `GET /api/artifacts/:id/versions/:version` - Read a historical version

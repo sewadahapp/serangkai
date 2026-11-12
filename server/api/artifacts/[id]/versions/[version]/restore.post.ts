@@ -1,9 +1,9 @@
-import { nanoid } from 'nanoid'
 import { artifactVersions, artifacts } from '../../../../../db/schema'
 import { getRequestDatabase } from '../../../../../db/adapter'
 import { requireScope } from '../../../../../utils/require-auth'
 import { and, eq, max } from 'drizzle-orm'
-import { readArtifactBytes, writeArtifact } from '../../../../../utils/artifact-storage'
+import { readArtifactBytes } from '../../../../../utils/artifact-storage'
+import { appendVersion } from '../../../../../utils/artifact-versions'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
@@ -29,13 +29,14 @@ export default defineEventHandler(async (event) => {
   const version = Number(latest?.value || 0) + 1
   const contentPath = `${user.id}/${artifact.id}/versions/${version}`
   const content = await readArtifactBytes(source.contentPath)
-  await writeArtifact(contentPath, content)
+  const claimed = await appendVersion(db, {
+    artifactId: artifact.id, version, contentPath, metadata: source.metadata || {}, content,
+  })
+  if (!claimed) {
+    throw createError({ statusCode: 409, message: 'Another change was published at the same time. Reload the history and try again.' })
+  }
 
   const now = new Date()
-  await db.insert(artifactVersions).values({
-    id: nanoid(), artifactId: artifact.id, version, contentPath,
-    metadata: source.metadata || {}, createdAt: now,
-  })
   await db.update(artifacts).set({ contentPath, updatedAt: now })
     .where(and(eq(artifacts.id, artifact.id), eq(artifacts.userId, user.id)))
 

@@ -87,6 +87,11 @@ export function isSlugConflict(error: any) {
     || /artifacts_slug_unique/i.test(message)
 }
 
+/** True when a unique-constraint error came from `UNIQUE(artifact_id, version)`. */
+export function isVersionConflict(error: any) {
+  return /unique constraint failed.*artifact_versions\.(artifact_id|version)/i.test(errorText(error))
+}
+
 /**
  * Adds the single-owner username column to databases created before this
  * milestone. `ALTER TABLE` failures for an existing column are ignored, so the

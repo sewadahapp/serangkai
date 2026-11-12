@@ -1,10 +1,10 @@
-import { nanoid } from 'nanoid'
 import { artifacts, artifactVersions, folders } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { requireScope } from '../../utils/require-auth'
 import { z } from 'zod'
 import { and, eq, max } from 'drizzle-orm'
-import { readArtifactBytes, writeArtifact } from '../../utils/artifact-storage'
+import { readArtifactBytes } from '../../utils/artifact-storage'
+import { appendVersion } from '../../utils/artifact-versions'
 
 const schema = z.object({
   title: z.string().min(1).optional(),
@@ -60,11 +60,18 @@ export default defineEventHandler(async (event) => {
     if (currentContent !== changes.content) {
       version = currentVersion + 1
       contentPath = `${user.id}/${artifact.id}/versions/${version}`
-      await writeArtifact(contentPath, changes.content)
-      await db.insert(artifactVersions).values({
-        id: nanoid(), artifactId: artifact.id, version, contentPath,
-        metadata: changes.metadata || artifact.metadata || {}, createdAt: now,
+      const claimed = await appendVersion(db, {
+        artifactId: artifact.id, version, contentPath,
+        metadata: changes.metadata || artifact.metadata || {}, content: changes.content,
       })
+      if (!claimed) {
+        // A concurrent writer with the same baseVersion won the number.
+        throw createError({
+          statusCode: 409,
+          message: `Stale write refused: version ${version} was published by another writer. Re-read the artifact, merge your changes, then save again with baseVersion ${version}.`,
+          data: { currentVersion: version },
+        })
+      }
     }
   }
 
