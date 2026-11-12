@@ -99,6 +99,7 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await assert.doesNotReject(() => page.getByText('Saved version 2').waitFor())
   await page.getByRole('button', { name: 'View' }).last().click()
   await assert.doesNotReject(() => page.getByText('# Browser flow', { exact: true }).first().waitFor())
+  await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Restore' }).last().click()
   await assert.doesNotReject(() => page.getByText('Restored version 1 as version 3.').waitFor())
   await assert.doesNotReject(() => page.getByText('v3', { exact: true }).first().waitFor())
@@ -133,8 +134,9 @@ test('human browser workflow logs in and creates an artifact', async () => {
   assert.match(await preview.getAttribute('href'), /\/share\/[^?]+\?k=[a-f0-9]{64}$/)
   await page.getByRole('link', { name: /^Browser-created artifact/ }).click()
   await page.waitForURL('**/artifacts/**')
-  await assert.doesNotReject(() => page.getByRole('link', { name: /Download/ }).waitFor())
-  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await page.getByRole('button', { name: 'Artifact actions' }).click()
+  await assert.doesNotReject(() => page.getByRole('menuitem', { name: 'Download' }).waitFor())
+  await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete artifact' }).click()
   await page.waitForURL('**/workspace')
   await assert.doesNotReject(() => page.getByText('No artifacts yet').waitFor())
@@ -150,7 +152,8 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await assert.doesNotReject(() => image.waitFor())
   assert.equal(await image.evaluate(element => element.complete && element.naturalWidth), 1)
 
-  await page.getByRole('button', { name: 'Duplicate' }).click()
+  await page.getByRole('button', { name: 'Artifact actions' }).click()
+  await page.getByRole('menuitem', { name: 'Duplicate' }).click()
   await assert.doesNotReject(() => page.getByRole('heading', { name: 'pixel (copy)' }).waitFor())
 })
 
@@ -1034,4 +1037,67 @@ test('mobile account navigation opens from the right and closes after navigation
   } finally {
     await context.close()
   }
+})
+
+test('agent connection reference fits narrow viewports and keeps copy controls available', async () => {
+  const context = await browser.newContext({ viewport: { width: 320, height: 720 } })
+  const mobile = await context.newPage()
+  try {
+    await mobile.goto(`${base}/agent`)
+    await mobile.getByRole('heading', { name: 'Connect an agent' }).waitFor()
+    for (const width of [320, 375, 768, 1280]) {
+      await mobile.setViewportSize({ width, height: 720 })
+      const sizes = await mobile.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
+      assert.ok(sizes.content <= sizes.viewport, `agent page overflows at ${width}px: ${JSON.stringify(sizes)}`)
+      assert.equal(await mobile.getByRole('button', { name: 'Copy MCP endpoint' }).isVisible(), true)
+      assert.equal(await mobile.getByRole('button', { name: 'Copy REST endpoint' }).isVisible(), true)
+      assert.match(await mobile.getByRole('textbox', { name: 'MCP endpoint' }).inputValue(), /\/api\/mcp$/)
+    }
+    await mobile.setViewportSize({ width: 320, height: 720 })
+    await mobile.getByRole('navigation', { name: 'Agent page sections' }).getByRole('link', { name: 'MCP setup' }).click()
+    assert.equal(new URL(mobile.url()).hash, '#mcp-config')
+    await mobile.getByRole('heading', { name: 'MCP client configuration' }).waitFor()
+  } finally { await context.close() }
+})
+
+test('artifact history pages and actions work on a narrow screen', async () => {
+  const context = await browser.newContext({ viewport: { width: 320, height: 720 } })
+  const mobile = await context.newPage()
+  try {
+    await mobile.goto(`${base}/auth/login`)
+    await mobile.getByLabel('Username').fill(adminUsername)
+    await mobile.getByLabel('Password').fill(adminPassword)
+    await mobile.getByRole('button', { name: 'Log in' }).click()
+    await mobile.waitForURL('**/workspace')
+    const id = await mobile.evaluate(async () => {
+      const headers = { 'content-type': 'application/json' }
+      const created = await fetch('/api/artifacts', { method: 'POST', headers, body: JSON.stringify({ title: 'Long history on mobile', type: 'markdown', content: '# Version 1' }) })
+      const id = (await created.json()).artifact.id
+      for (let i = 2; i <= 10; i++) {
+        const response = await fetch(`/api/artifacts/${id}`, { method: 'PUT', headers, body: JSON.stringify({ content: `# Version ${i}`, baseVersion: i - 1 }) })
+        if (!response.ok) throw new Error(`Failed to create version ${i}`)
+      }
+      return id
+    })
+    await mobile.goto(`${base}/artifacts/${id}`)
+    await mobile.getByText('10 versions', { exact: true }).waitFor()
+    assert.equal(await mobile.getByRole('navigation', { name: 'History pages' }).getByText('Page 1 of 2').isVisible(), true)
+    const sizes = await mobile.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
+    assert.ok(sizes.content <= sizes.viewport, `artifact page overflows: ${JSON.stringify(sizes)}`)
+    await mobile.getByRole('navigation', { name: 'History pages' }).getByRole('button', { name: 'Next' }).click()
+    await mobile.getByText('Page 2 of 2').waitFor()
+    await mobile.getByRole('button', { name: 'View' }).last().click()
+    const preview = mobile.getByRole('dialog', { name: 'Version 1' })
+    await preview.waitFor()
+    assert.match(await preview.innerText(), /# Version 1/)
+    await mobile.keyboard.press('Escape')
+    await preview.waitFor({ state: 'hidden' })
+    await mobile.getByRole('button', { name: 'Edit', exact: true }).click()
+    await mobile.getByRole('textbox', { name: 'Content' }).fill('# Version 11')
+    await mobile.getByRole('button', { name: 'Save version' }).click()
+    await mobile.getByText('Saved version 11').waitFor()
+    await mobile.getByText('11 versions', { exact: true }).waitFor()
+    await mobile.getByRole('button', { name: 'Artifact actions' }).click()
+    await mobile.getByRole('button', { name: 'Duplicate', exact: true }).waitFor()
+  } finally { await context.close() }
 })

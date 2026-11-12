@@ -371,3 +371,24 @@ test('share identifiers are globally unique and cannot collide across users', as
   const second = (await (await duplicate(cookieB)).json()).artifact
   assert.notEqual(first.slug, second.slug)
 })
+
+test('history pagination retains latest version and isolates owners', async () => {
+  const headers = { cookie: cookieA, 'content-type': 'application/json' }
+  const artifact = (await (await fetch(`${base}/api/artifacts`, { method: 'POST', headers, body: JSON.stringify({ title: 'Long history', type: 'markdown', content: '# Version 1' }) })).json()).artifact
+  for (let i = 2; i <= 11; i++) {
+    const response = await fetch(`${base}/api/artifacts/${artifact.id}`, { method: 'PUT', headers, body: JSON.stringify({ baseVersion: i - 1, content: `# Version ${i}` }) })
+    assert.equal(response.status, 200)
+  }
+  const endpoint = `${base}/api/artifacts/${artifact.id}/versions`
+  const first = await (await fetch(`${endpoint}?page=1`, { headers })).json()
+  const second = await (await fetch(`${endpoint}?page=2`, { headers })).json()
+  assert.equal(first.total, 11)
+  assert.equal(first.latestVersion, 11)
+  assert.equal(second.latestVersion, 11)
+  assert.deepEqual(first.versions.map(v => v.version), [11, 10, 9, 8, 7, 6, 5, 4])
+  assert.deepEqual(second.versions.map(v => v.version), [3, 2, 1])
+  assert.equal((await (await fetch(`${endpoint}?page=50`, { headers })).json()).page, 2)
+  assert.equal((await fetch(`${endpoint}?page=0`, { headers })).status, 400)
+  assert.equal((await fetch(`${endpoint}?page=1`, { headers: { cookie: cookieB } })).status, 404)
+  assert.equal((await (await fetch(endpoint, { headers })).json()).versions.length, 11)
+})

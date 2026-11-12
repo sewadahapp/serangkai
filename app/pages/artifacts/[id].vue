@@ -32,7 +32,7 @@
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="min-w-0">
           <NuxtLink to="/workspace" class="text-sm text-[var(--selaras-resolved-text-muted)] underline-offset-4 hover:underline">← Workspace</NuxtLink>
-          <h1 class="serangkai-balance mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{{ artifact.title }}</h1>
+          <h1 class="serangkai-balance mt-2 break-words text-2xl font-semibold tracking-tight sm:text-3xl">{{ artifact.title }}</h1>
           <div class="mt-2 flex flex-wrap items-center gap-1.5">
             <SBadge :label="artifact.type" variant="subtle" color="neutral" size="sm" />
             <SBadge
@@ -45,13 +45,11 @@
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-          <SButton v-if="isTextArtifact" variant="outline" icon="lucide:pencil" @click="openEditor">Edit</SButton>
-          <SButton variant="outline" :to="`/api/artifacts/${route.params.id}/download`" icon="lucide:download">Download</SButton>
-          <SButton variant="outline" icon="lucide:copy" :loading="duplicating" :disabled="duplicating" @click="duplicateArtifact">Duplicate</SButton>
-          <SButton v-if="artifact.type === 'bundle'" variant="outline" :to="`/share/${artifact.slug}`" target="_blank" rel="noopener">Open bundle</SButton>
-          <SButton v-if="shareUrl" variant="outline" icon="lucide:external-link" :to="shareUrl" target="_blank" rel="noopener">Open share link</SButton>
-          <SButton variant="ghost" color="danger" icon="lucide:trash-2" :loading="deleting" :disabled="deleting" @click="removeArtifact">Delete</SButton>
+        <div class="flex shrink-0 items-center gap-2">
+          <SButton v-if="isTextArtifact" icon="lucide:pencil" :disabled="historyLoading || latestVersion === null" @click="openEditor">Edit</SButton>
+          <SDropdown :items="artifactActions" :adaptive="true">
+            <SButton variant="outline" icon="lucide:ellipsis" aria-label="Artifact actions" title="Artifact actions" />
+          </SDropdown>
         </div>
       </div>
 
@@ -101,7 +99,7 @@
           </div>
         </section>
 
-        <div class="space-y-4">
+        <div class="min-w-0 space-y-4">
           <section class="serangkai-panel p-4" aria-labelledby="sharing-heading">
             <h2 id="sharing-heading" class="text-sm font-semibold">Sharing</h2>
 
@@ -143,48 +141,37 @@
             </div>
           </section>
 
-          <section v-if="versions.length" class="serangkai-panel p-4" aria-labelledby="versions-heading">
-            <div class="flex items-center justify-between gap-2">
-              <h2 id="versions-heading" class="text-sm font-semibold">History</h2>
-              <span class="serangkai-tabular text-xs text-[var(--selaras-resolved-text-muted)]">{{ versions.length }} versions</span>
+          <section class="serangkai-panel p-4" aria-labelledby="versions-heading">
+            <div class="flex items-start justify-between gap-2">
+              <div><h2 id="versions-heading" class="text-sm font-semibold">History</h2><p class="mt-1 text-xs text-[var(--selaras-resolved-text-muted)]">{{ versionTotal }} {{ versionTotal === 1 ? 'version' : 'versions' }}</p></div>
+              <SIcon name="lucide:history" class="size-4 text-[var(--selaras-resolved-text-muted)]" aria-hidden="true" />
             </div>
-
-            <STimeline :items="versionItems" size="sm" class="mt-3">
-              <template #title="{ item }">
-                <span class="text-sm font-medium">v{{ item.version }}</span>
-              </template>
-              <template #content="{ item }">
-                <div class="flex items-center justify-between gap-2">
-                  <span class="text-sm font-medium">v{{ item.version }}</span>
-                  <time class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ formatDate(item.createdAt) }}</time>
-                </div>
-                <div class="mt-1.5 flex gap-1.5">
-                  <SButton variant="text" size="sm" icon="lucide:eye" @click="viewVersion(item.version)">View</SButton>
-                  <SButton
-                    v-if="item.version !== latestVersion"
-                    variant="text"
-                    size="sm"
-                    icon="lucide:history"
-                    :loading="restoring === item.version"
-                    :disabled="restoring === item.version"
-                    @click="restoreVersion(item.version)"
-                  >
-                    Restore
-                  </SButton>
-                </div>
-              </template>
-            </STimeline>
-
-            <div v-if="viewing" class="mt-3 border-t border-[var(--selaras-resolved-border-muted)] pt-3">
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-xs font-semibold uppercase tracking-wider text-[var(--selaras-resolved-text-muted)]">Version {{ viewing.version }}</p>
-                <SButton variant="text" size="sm" @click="closeViewing">Close</SButton>
-              </div>
-              <pre class="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-3 font-mono text-xs">{{ viewing.content }}</pre>
-            </div>
-
-            <p v-if="versionMessage" class="mt-2 text-xs text-[var(--selaras-resolved-text-muted)]">{{ versionMessage }}</p>
+            <p v-if="historyLoading" class="mt-4 text-sm text-[var(--selaras-resolved-text-muted)]" role="status">Loading history…</p>
+            <template v-else>
+              <ul v-if="versions.length" class="mt-3 divide-y divide-[var(--selaras-resolved-border-muted)]">
+                <li v-for="item in versions" :key="item.id" class="py-3">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2"><span class="text-sm font-semibold">v{{ item.version }}</span><SBadge v-if="item.version === latestVersion" label="Current" variant="subtle" color="primary" size="sm" /></div>
+                    <time :datetime="item.createdAt" class="text-right text-xs text-[var(--selaras-resolved-text-muted)]">{{ formatDate(item.createdAt) }}</time>
+                  </div>
+                  <div class="mt-1 flex flex-wrap gap-1">
+                    <SButton variant="ghost" size="sm" icon="lucide:eye" @click="viewVersion(item.version)">View</SButton>
+                    <SButton v-if="item.version !== latestVersion" variant="ghost" size="sm" icon="lucide:history" :loading="restoring === item.version" :disabled="restoring !== null" @click="restoreVersion(item.version)">Restore</SButton>
+                  </div>
+                </li>
+              </ul>
+              <p v-else-if="!historyError" class="mt-3 text-sm text-[var(--selaras-resolved-text-muted)]">No versions yet.</p>
+              <nav v-if="versionPages > 1" aria-label="History pages" class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--selaras-resolved-border-muted)] pt-3">
+                <span class="text-xs text-[var(--selaras-resolved-text-muted)]">Page {{ versionPage }} of {{ versionPages }}</span>
+                <div class="flex gap-1"><SButton variant="outline" size="sm" :disabled="versionPage <= 1" @click="loadVersions(versionPage - 1)">Previous</SButton><SButton variant="outline" size="sm" :disabled="versionPage >= versionPages" @click="loadVersions(versionPage + 1)">Next</SButton></div>
+              </nav>
+            </template>
+            <div v-if="historyError" class="mt-3"><p role="alert" class="text-sm text-[var(--selaras-resolved-color-danger-text)]">{{ historyError }}</p><SButton variant="ghost" size="sm" @click="loadVersions(versionPage)">Retry history</SButton></div>
+            <p v-if="versionMessage" class="mt-3 text-xs text-[var(--selaras-resolved-text-muted)]" role="status">{{ versionMessage }}</p>
           </section>
+          <SModal :open="!!viewing" :title="`Version ${viewing?.version || ''}`" description="Saved content from this version." :ui="{ content: 'max-w-2xl' }" @update:open="value => { if (!value) closeViewing() }">
+            <template #body><pre class="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-3 font-mono text-xs">{{ viewing?.content }}</pre></template>
+          </SModal>
         </div>
       </div>
     </div>
@@ -221,6 +208,14 @@ const editing = ref(false)
 const draftTitle = ref('')
 const draftContent = ref('')
 const versions = ref<any[]>([])
+const versionTotal = ref(0)
+const versionPage = ref(1)
+const versionPageSize = ref(8)
+const versionPages = computed(() => Math.max(1, Math.ceil(versionTotal.value / versionPageSize.value)))
+const latestVersion = ref<number | null>(null)
+const historyLoading = ref(false)
+const historyError = ref('')
+let historySequence = 0
 const saving = ref(false)
 const message = ref('')
 const saveMessageColor = ref<'danger' | 'warning'>('danger')
@@ -278,7 +273,6 @@ const artifactPageTitle = computed(() => {
 // applied. A watcher would run after the SSR head snapshot is taken.
 useHead(() => ({ title: artifactPageTitle.value }))
 
-const latestVersion = computed(() => versions.value[0]?.version ?? null)
 
 const TEXT_ARTIFACT_TYPES = ['markdown', 'html', 'json', 'javascript'] as const
 
@@ -344,19 +338,30 @@ onBeforeUnmount(() => {
   if (import.meta.client) document.documentElement.classList.remove('serangkai-editor-workspace-open')
 })
 
-// STimeline wants a flat item list; carry the raw version so the #content
-// slot can render the View/Restore actions for each entry.
-const versionItems = computed(() => versions.value.map(version => ({
-  id: version.id,
-  version: version.version,
-  createdAt: version.createdAt,
-  title: `v${version.version}`,
-  date: formatDate(version.createdAt),
-  icon: version.version === latestVersion.value ? 'lucide:circle-dot' : 'lucide:git-commit-horizontal',
-})))
 const folderPath = computed(() => folders.value.find(folder => folder.id === artifact.value?.folderId)?.path || '')
 
 const formatDate = (value: string) => new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+
+const loadVersions = async (page = 1) => {
+  const sequence = ++historySequence
+  const id = String(route.params.id)
+  historyLoading.value = true
+  historyError.value = ''
+  try {
+    const result = await $fetch<any>(`/api/artifacts/${id}/versions`, { query: { page } })
+    if (sequence !== historySequence || id !== String(route.params.id)) return
+    versions.value = result.versions
+    versionTotal.value = result.total
+    versionPage.value = result.page
+    versionPageSize.value = result.pageSize
+    latestVersion.value = result.latestVersion
+  } catch (e: any) {
+    if (sequence !== historySequence || id !== String(route.params.id)) return
+    historyError.value = e?.data?.message || 'Could not load history.'
+  } finally {
+    if (sequence === historySequence) historyLoading.value = false
+  }
+}
 
 const viewVersion = async (version: number) => {
   versionMessage.value = ''
@@ -387,7 +392,7 @@ const reloadArtifact = async () => {
   const res = await $fetch<any>(`/api/artifacts/${route.params.id}`)
   applyArtifact(res)
   shareMessage.value = ''
-  versions.value = (await $fetch<any>(`/api/artifacts/${route.params.id}/versions`)).versions || []
+  await loadVersions()
 }
 
 const loadShareLink = async () => {
@@ -457,6 +462,16 @@ const removeArtifact = async () => {
   }
 }
 
+const artifactActions = computed(() => [
+  [
+    { label: 'Download', icon: 'lucide:download', to: `/api/artifacts/${route.params.id}/download` },
+    { label: 'Duplicate', icon: 'lucide:copy', disabled: duplicating.value, onSelect: () => { void duplicateArtifact() } },
+    ...(artifact.value?.type === 'bundle' ? [{ label: 'Open bundle', icon: 'lucide:external-link', to: `/share/${artifact.value.slug}`, target: '_blank', rel: 'noopener' }] : []),
+    ...(shareUrl.value ? [{ label: 'Open share link', icon: 'lucide:external-link', to: shareUrl.value, target: '_blank', rel: 'noopener' }] : []),
+  ],
+  [{ label: 'Delete', icon: 'lucide:trash-2', destructive: true, disabled: deleting.value, onSelect: () => { void removeArtifact() } }],
+])
+
 // A direct load already has the artifact from SSR. Missing or forbidden
 // artifacts become a real error page (with its status code) instead of a soft
 // 200 with an empty shell.
@@ -494,12 +509,14 @@ if (artifactData.value) applyArtifact(artifactData.value)
 // Secondary panels: loaded once the document is on screen. They never block the
 // artifact and never replace it on failure.
 const loadSecondary = async () => {
-  const [history, folderList] = await Promise.allSettled([
-    $fetch<any>(`/api/artifacts/${route.params.id}/versions`),
+  versions.value = []
+  latestVersion.value = null
+  versionTotal.value = 0
+  versionPage.value = 1
+  const [, folderList] = await Promise.allSettled([
+    loadVersions(),
     $fetch<any>('/api/folders'),
   ])
-  if (history.status === 'fulfilled') versions.value = history.value.versions || []
-  else versions.value = []
   if (folderList.status === 'fulfilled') folders.value = folderList.value.folders || []
   await loadShareLink()
 }
@@ -581,7 +598,7 @@ const save = async () => {
     contentBody.value = res.artifact.type === 'markdown'
       ? ((await $fetch<any>(`/api/artifacts/${route.params.id}`)).body || null)
       : null
-    versions.value = (await $fetch<any>(`/api/artifacts/${route.params.id}/versions`)).versions || []
+    await loadVersions()
     editing.value = false
     message.value = res.versionCreated ? `Saved version ${res.version}` : 'Saved without a new version'
   } catch (e: any) {
