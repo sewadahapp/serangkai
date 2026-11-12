@@ -136,3 +136,42 @@ test('X-Forwarded-For is ignored unless the proxy is trusted', async () => {
   const blocked = await jsonLogin(base, { forwarded: '198.51.100.3' })
   assert.equal(blocked.status, 429)
 })
+
+test('a known device keeps its own bucket when the shared address is exhausted', async () => {
+  // No trusted proxy: every request shares the loopback bucket, as it would
+  // behind an untrusted reverse proxy.
+  const { base } = await startServer({
+    SERANGKAI_LOGIN_RATE_LIMIT: '2',
+    SERANGKAI_LOGIN_RATE_WINDOW_MS: '60000',
+  })
+  const login = (password, cookie) => fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) },
+    body: JSON.stringify({ username: adminUsername, password }),
+  })
+
+  // The owner signs in once and receives the device cookie.
+  const first = await login(adminPassword)
+  assert.equal(first.status, 200)
+  const deviceCookie = first.headers.getSetCookie().find(value => value.startsWith('serangkai_device='))
+  assert.ok(deviceCookie, 'device cookie issued')
+  assert.match(deviceCookie, /HttpOnly/i)
+  assert.match(deviceCookie, /Path=\/api\/auth\/login/i)
+  const device = deviceCookie.split(';')[0]
+
+  // A stranger exhausts the shared bucket.
+  assert.equal((await login('wrong')).status, 401)
+  assert.equal((await login('wrong')).status, 401)
+  assert.equal((await login(adminPassword)).status, 429)
+
+  // A forged device cookie does not escape the shared bucket.
+  assert.equal((await login(adminPassword, `serangkai_device=${'a'.repeat(32)}.${'b'.repeat(64)}`)).status, 429)
+
+  // The owner's known browser still signs in.
+  assert.equal((await login(adminPassword, device)).status, 200)
+
+  // The device bucket is still a real limit for whoever holds the cookie.
+  assert.equal((await login('wrong', device)).status, 401)
+  assert.equal((await login('wrong', device)).status, 401)
+  assert.equal((await login(adminPassword, device)).status, 429)
+})

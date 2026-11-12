@@ -49,8 +49,11 @@ Optional deployment settings:
   and the default there). With `s3`, set `S3_ENDPOINT`, `S3_REGION`,
   `S3_BUCKET`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`.
 - `TRUST_PROXY=true`, or `TRUSTED_PROXY_IPS` with the proxy's socket addresses,
-  makes rate limiting honor `X-Forwarded-For`. Leave both unset otherwise: the
-  header is caller-controlled and is ignored by default.
+  makes rate limiting honor `X-Forwarded-For`. Set one when Serangkai runs
+  behind a reverse proxy (Caddy, Traefik, nginx, a tunnel); otherwise every
+  visitor shares the proxy's login limit, and the server logs a warning. Leave
+  both unset when clients connect directly: the header is caller-controlled
+  and is ignored by default.
 - `SERANGKAI_LOGIN_RATE_LIMIT` / `SERANGKAI_LOGIN_RATE_WINDOW_MS` tune the
   per-process login throttle; `SERANGKAI_OAUTH_REGISTER_RATE_LIMIT`,
   `SERANGKAI_OAUTH_AUTHORIZE_RATE_LIMIT`, and

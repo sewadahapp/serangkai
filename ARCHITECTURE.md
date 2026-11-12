@@ -416,7 +416,14 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   run a dummy scrypt verification, and every failure is the same generic message.
   `X-Forwarded-For` is ignored unless `TRUST_PROXY=true` or the socket peer is in
   `TRUSTED_PROXY_IPS`; otherwise a caller could rotate the header to reset its
-  bucket. A successful login clears the bucket.
+  bucket. A successful login clears the bucket and sets an HttpOnly, signed
+  `serangkai_device` cookie (path `/api/auth/login`, one year). Later logins
+  from that browser count against a per-device bucket instead of the address
+  bucket, so a stranger exhausting the shared address (every visitor behind an
+  untrusted reverse proxy) cannot lock the owner out of a known browser. The
+  cookie only selects a bucket; it authorizes nothing. The first request that
+  arrives with `X-Forwarded-For` on an untrusted socket logs a one-time warning
+  naming `TRUST_PROXY`.
 - The single owner is created or adopted at first request
   (`server/utils/owner.ts`). The owner id is stable; username/password changes
   rotate credentials in place. A multi-user database fails with instructions

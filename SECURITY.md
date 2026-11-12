@@ -157,6 +157,13 @@ on the server and does not run build jobs for uploaded bundles.
 - `X-Forwarded-For` is ignored by default because a caller can rotate it. It is
   honored only with `TRUST_PROXY=true` or when the socket peer is listed in
   `TRUSTED_PROXY_IPS`. This affects rate-limit buckets, never authorization.
+  Without it, every client behind a proxy shares one bucket; the server logs a
+  one-time warning when it sees the header on an untrusted socket.
+- A browser that has signed in successfully gets a signed, HttpOnly
+  `serangkai_device` cookie and is throttled on its own bucket, so failures on
+  the shared address bucket cannot lock the owner out of a known browser. A
+  new browser during an attack still waits for the window to expire. The
+  cookie selects a rate-limit bucket only and grants no access.
 - Browser sessions are sealed by Nuxt Auth Utils in an HttpOnly, SameSite=Lax
   cookie (`Secure` in production). The sealing key is derived from `JWT_SECRET`
   with HKDF-SHA256 and a versioned purpose, so no fifth secret is needed for

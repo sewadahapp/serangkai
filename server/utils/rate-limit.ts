@@ -81,6 +81,25 @@ function envList(value: string | undefined): string[] {
   return String(value || '').split(',').map(item => item.trim()).filter(Boolean)
 }
 
+let warnedUntrustedProxy = false
+
+/**
+ * A forwarded header on a direct socket means a proxy sits in front, and
+ * without trust every visitor shares the proxy's bucket. Warn once so the
+ * operator can set `TRUST_PROXY`. Workers have no socket and use
+ * `cf-connecting-ip`, so they are not affected and never warn.
+ */
+function warnUntrustedProxy(event: any, socket: string) {
+  if (warnedUntrustedProxy || !event?.node?.req?.socket?.remoteAddress) return
+  if (!event.node.req.headers?.['x-forwarded-for']) return
+  warnedUntrustedProxy = true
+  console.warn(
+    `[serangkai] Requests from ${socket} carry X-Forwarded-For, but no proxy is trusted, `
+    + 'so every client behind it shares one rate-limit bucket. If this is your reverse proxy, '
+    + 'set TRUST_PROXY=true or TRUSTED_PROXY_IPS to its address.',
+  )
+}
+
 /**
  * Coarse client bucket.
  *
@@ -99,7 +118,10 @@ export function clientBucketKey(event: any, env: NodeJS.ProcessEnv = process.env
   const trustAll = String(env.TRUST_PROXY || '').toLowerCase() === 'true'
   const trustedPeers = envList(env.TRUSTED_PROXY_IPS)
   const trusted = trustAll || (socket !== 'unknown' && trustedPeers.includes(socket))
-  if (!trusted) return socket
+  if (!trusted) {
+    warnUntrustedProxy(event, socket)
+    return socket
+  }
 
   const forwarded = String(event?.node?.req?.headers?.['x-forwarded-for'] || '')
     .split(',')[0]
