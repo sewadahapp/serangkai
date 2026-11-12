@@ -30,5 +30,9 @@ jobs:
       - run: bun run test:database
       - run: bun run test:session-secret
       - run: bun run test:ci-workflow
-      - run: bun test --timeout 30000 tests/mcp-protocol.test.mjs tests/upload-api.test.mjs tests/share-api.test.mjs tests/tokens-api.test.mjs tests/folders-api.test.mjs tests/artifacts-lifecycle.test.mjs tests/security-api.test.mjs tests/bundle-api.test.mjs tests/browser-workspace.test.mjs tests/local-runtime.test.mjs tests/auth-api.test.mjs tests/auth-migration.test.mjs
+      - run: bun test --timeout 30000 tests/mcp-protocol.test.mjs tests/upload-api.test.mjs tests/share-api.test.mjs tests/tokens-api.test.mjs tests/folders-api.test.mjs tests/artifacts-lifecycle.test.mjs tests/security-api.test.mjs tests/bundle-api.test.mjs tests/local-runtime.test.mjs tests/auth-api.test.mjs tests/auth-migration.test.mjs
+      # Browser E2E runs alone: it drives real Chrome against its own server and
+      # is the slowest suite. Running it beside the other integration files
+      # pushed it past the per-test ceiling on a 2-core runner.
+      - run: bun test --timeout 90000 tests/browser-workspace.test.mjs tests/browser-themes.test.mjs
       - run: SERANGKAI_TEST_RUNTIME=node bun test tests/local-runtime.test.mjs
