@@ -1,10 +1,10 @@
 <template>
   <div
     class="serangkai-editor"
-    :class="{ 'serangkai-editor-fill': fill, 'serangkai-editor-fullscreen': fullscreen }"
+    :class="{ 'serangkai-editor-fill': fill, 'serangkai-editor-embedded': embedded, 'serangkai-editor-fullscreen': fullscreen }"
     :style="{ '--serangkai-editor-height': height }"
   >
-    <div class="serangkai-editor-toolbar">
+    <div v-if="!embedded" class="serangkai-editor-toolbar">
       <STooltip :text="fileName"><div class="serangkai-editor-tab">
         <SIcon :name="fileMeta.icon" class="size-3.5 shrink-0" aria-hidden="true" />
         <span class="truncate">{{ fileName }}</span>
@@ -57,7 +57,9 @@
 
     <div class="serangkai-editor-status" aria-hidden="true">
       <span class="flex min-w-0 items-center gap-2">
-        <span class="serangkai-tabular">Ln {{ status.line }}, Col {{ status.column }}</span>
+        <span v-if="embedded" class="hidden min-w-0 max-w-56 truncate sm:inline">{{ fileName }}</span>
+        <span v-if="embedded" class="serangkai-editor-status-sep hidden sm:inline" />
+        <span class="serangkai-tabular shrink-0">Ln {{ status.line }}, Col {{ status.column }}</span>
         <span class="serangkai-editor-status-sep hidden sm:inline" />
         <span class="hidden sm:inline">{{ status.lines }} lines</span>
         <span class="serangkai-editor-status-sep hidden md:inline" />
@@ -85,6 +87,7 @@ const props = withDefaults(defineProps<{
   dirty?: boolean
   ariaLabel?: string
   fill?: boolean
+  embedded?: boolean
   height?: string
   autofocus?: boolean
 }>(), {
@@ -94,6 +97,7 @@ const props = withDefaults(defineProps<{
   dirty: false,
   ariaLabel: 'Content',
   fill: false,
+  embedded: false,
   height: '28rem',
   autofocus: true,
 })

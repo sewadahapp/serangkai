@@ -364,8 +364,12 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - Source editing uses CodeMirror 6 directly rather than a wrapper component.
   `SerangkaiEditor.client.vue` owns the editor view, language compartment, a
   Selaras-token theme (so light/dark needs no foreign theme), JSON parse linting,
-  Markdown line wrapping, and `Mod-S`. `SerangkaiCodeEditor.vue` adds the file
-  tab, dirty dot, fullscreen toggle, and Ln/Col/lines/chars/UTF-8 status bar.
+  Markdown line wrapping, and `Mod-S`. Add and edit screens use its embedded
+  mode directly in the app content area, retaining the workspace navigation
+  and a compact filename/cursor status footer. Title and save controls live in
+  the page toolbar; new rangka also expose type, visibility, and folder fields.
+  Route changes and browser exits protect unsaved drafts. The reusable framed
+  mode retains its file tab, dirty dot, and fullscreen toggle.
   The editor is lazy-loaded: previews, share pages, and the workspace list do
   not pay for it. HTML gets tag/attribute autocomplete and auto-closing tags;
   JSON gets inline parse errors before saving.

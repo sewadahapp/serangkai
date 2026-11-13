@@ -392,6 +392,9 @@ test('the JSON editor surfaces parse errors before saving', async () => {
   await assert.doesNotReject(() => page.locator('.cm-lintPoint-error, .cm-lint-marker-error').first().waitFor({ timeout: 4000 }))
   // The marker follows the parser's error node instead of defaulting to line 1.
   assert.equal(await page.locator('.cm-line').nth(2).locator('.cm-lintPoint-error').count(), 1)
+  await page.getByRole('button', { name: 'Close editor', exact: true }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Discard changes', exact: true }).click()
+  await editor.waitFor({ state: 'hidden' })
 })
 
 test('HTML rangka render Mermaid and TanStack charts in the sandbox', async () => {

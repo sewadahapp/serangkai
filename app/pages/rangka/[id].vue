@@ -3,18 +3,19 @@
     <section v-if="editing" class="serangkai-editor-workspace" aria-label="Rangka editor">
       <header class="serangkai-editor-workspace-bar">
         <div class="flex min-w-0 flex-1 items-center gap-2">
-          <SButton variant="ghost" size="sm" icon="lucide:arrow-left" aria-label="Close editor" @click="cancelEdit" />
-          <SInput v-model="draftTitle" size="sm" aria-label="Title" class="min-w-0 max-w-xl flex-1" />
-          <SBadge :label="rangka.type" variant="subtle" color="neutral" size="sm" class="hidden sm:inline-flex" />
+          <STooltip text="Back to rangka"><SButton variant="ghost" color="neutral" icon="lucide:arrow-left" aria-label="Close editor" class="shrink-0" @click="cancelEdit" /></STooltip>
+          <SInput v-model="draftTitle" aria-label="Title" class="min-w-0 max-w-xl flex-1" :ui="{ base: 'bg-transparent font-semibold ring-0 not-focus:hover:ring-0' }" />
+          <SBadge :label="rangka.type" variant="subtle" color="neutral" size="sm" class="hidden md:inline-flex" />
+          <span v-if="dirty" role="status" class="hidden shrink-0 text-xs text-[var(--selaras-resolved-text-muted)] lg:inline">Unsaved changes</span>
         </div>
         <div class="flex shrink-0 items-center gap-2">
-          <SButton variant="ghost" size="sm" class="hidden sm:inline-flex" @click="cancelEdit">Cancel</SButton>
-          <SButton size="sm" icon="lucide:save" :loading="saving" :disabled="saving" @click="save">Save version</SButton>
+          <SButton variant="ghost" color="neutral" class="hidden sm:inline-flex" @click="cancelEdit">Cancel</SButton>
+          <STooltip text="Save version"><SButton icon="lucide:check" aria-label="Save version" :loading="saving" :disabled="saving" @click="save"><span class="hidden sm:inline">Save version</span></SButton></STooltip>
         </div>
       </header>
 
       <div class="serangkai-editor-workspace-body">
-        <SAlert v-if="message" :color="saveMessageColor" variant="subtle" :title="message" class="mb-3 shrink-0" />
+        <SAlert v-if="message" :color="saveMessageColor" variant="subtle" :title="message" class="m-3 shrink-0" />
         <SerangkaiCodeEditor
           v-model="draftContent"
           :language="editorLanguage"
@@ -22,6 +23,7 @@
           :version="latestVersion"
           :dirty="dirty"
           fill
+          embedded
           aria-label="Content"
           @save="save"
         />
@@ -30,9 +32,10 @@
 
     <div v-else class="rangka-reader">
       <header class="rangka-toolbar">
+        <STooltip text="Back to rangka list"><SButton to="/" variant="ghost" color="neutral" icon="lucide:arrow-left" aria-label="Back to rangka list" class="shrink-0" /></STooltip>
         <div class="min-w-0 flex-1">
           <h1 class="min-w-0" :aria-label="rangka.title">
-            <STooltip :text="rangka.title"><span class="inline-flex min-w-0"><SDropdown :positioning="{ collisionPadding: 12 }" :items="rangkaActions" :adaptive="true"><SButton variant="ghost" color="neutral" trailing-icon="lucide:chevron-down" aria-label="Rangka actions" class="max-w-full"><span class="truncate">{{ rangka.title }}</span></SButton></SDropdown></span></STooltip>
+            <STooltip :text="rangka.title"><span class="inline-flex min-w-0 max-w-full"><SDropdown :positioning="{ collisionPadding: 12 }" :items="rangkaActions" :adaptive="true"><SButton variant="ghost" color="neutral" trailing-icon="lucide:chevron-down" aria-label="Rangka actions" class="min-w-0 max-w-full"><span class="truncate">{{ rangka.title }}</span></SButton></SDropdown></span></STooltip>
           </h1>
         </div>
         <div class="flex shrink-0 items-center gap-1">
@@ -177,6 +180,7 @@
 <script setup lang="ts">
 import { NO_FOLDER, folderIdFromSelection, folderSelection } from '~/utils/folders'
 import type { EditorLanguage } from '~/utils/editor'
+import { onBeforeRouteLeave } from 'vue-router'
 
 const route = useRoute()
 const requestFetch = useRequestFetch()
@@ -307,18 +311,20 @@ const cancelEdit = async () => {
     })
     if (!accepted) return
   }
+  draftTitle.value = rangka.value.title
+  draftContent.value = content.value
   editing.value = false
   message.value = ''
 }
 
-watch(editing, (active) => {
-  if (!import.meta.client) return
-  document.documentElement.classList.toggle('serangkai-editor-workspace-open', active)
+onBeforeRouteLeave(async () => {
+  if (!editing.value || !dirty.value) return true
+  return await confirm({ title: 'Discard unsaved changes?', description: 'Your edits to this rangka have not been saved as a version.', confirmLabel: 'Discard changes', confirmColor: 'danger', icon: 'lucide:undo-2' })
 })
 
-onBeforeUnmount(() => {
-  if (import.meta.client) document.documentElement.classList.remove('serangkai-editor-workspace-open')
-})
+const beforeUnload = (event: BeforeUnloadEvent) => { if (editing.value && dirty.value) { event.preventDefault(); event.returnValue = '' } }
+onMounted(() => window.addEventListener('beforeunload', beforeUnload))
+onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
 
 const folderPath = computed(() => folders.value.find(folder => folder.id === rangka.value?.folderId)?.path || '')
 

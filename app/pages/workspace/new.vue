@@ -1,31 +1,32 @@
 <template>
-  <div class="mx-auto max-w-5xl space-y-6">
-    <div class="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <NuxtLink to="/workspace" class="inline-flex items-center gap-1 text-sm text-[var(--selaras-resolved-text-muted)] hover:underline"><SIcon name="lucide:arrow-left" class="size-4" /> Workspace</NuxtLink>
-        <h1 class="mt-4 text-2xl font-semibold tracking-tight">New rangka</h1>
-        <p class="mt-1 text-sm text-[var(--selaras-resolved-text-muted)]">Create a Markdown, HTML, or JSON rangka.</p>
+  <form class="serangkai-editor-workspace" aria-label="New rangka" @submit.prevent="createRangka">
+    <header class="serangkai-editor-workspace-bar">
+      <h1 class="sr-only">New rangka</h1>
+      <div class="flex min-w-0 flex-1 items-center gap-2">
+        <STooltip text="Back to rangka list"><SButton to="/" variant="ghost" color="neutral" icon="lucide:arrow-left" aria-label="Back to rangka list" class="shrink-0" /></STooltip>
+        <SInput v-model="title" placeholder="Untitled rangka" required aria-label="Title" class="min-w-0 max-w-xl flex-1" :ui="{ base: 'bg-transparent font-semibold ring-0 not-focus:hover:ring-0' }" />
+        <span class="hidden shrink-0 text-xs text-[var(--selaras-resolved-text-muted)] md:inline">Draft</span>
       </div>
+      <div class="flex shrink-0 items-center gap-2">
+        <SButton to="/" variant="ghost" color="neutral" class="hidden sm:inline-flex" :disabled="saving">Cancel</SButton>
+        <STooltip text="Create rangka"><SButton type="submit" icon="lucide:plus" aria-label="Create rangka" :loading="saving" :disabled="saving || loading || !!loadError"><span class="hidden sm:inline">Create rangka</span></SButton></STooltip>
+      </div>
+    </header>
+
+    <div class="serangkai-editor-properties">
+      <SFormField v-slot="{ id }" label="Type"><SSelect :id="id" v-model="type" :items="typeOptions" size="sm" class="w-full" /></SFormField>
+      <SFormField v-slot="{ id }" label="Visibility"><SSelect :id="id" v-model="visibility" :items="visibilityOptions" size="sm" class="w-full" /></SFormField>
+      <SFormField v-slot="{ id }" label="Folder" class="col-span-2 sm:col-span-1"><SSelect :id="id" v-model="folderId" :items="folderOptions" size="sm" placeholder="No folder" :disabled="loading" class="w-full" /></SFormField>
     </div>
 
-    <SerangkaiErrorState v-if="loadError" title="Could not load folders" :description="loadError" retry-label="Try again" @retry="loadFolders" />
-    <form v-else class="space-y-5" @submit.prevent="createRangka">
-      <div class="serangkai-panel grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
-        <SFormField label="Title" required><SInput v-model="title" placeholder="Rangka title" required class="w-full" /></SFormField>
-        <SFormField v-slot="{ id }" label="Type"><SSelect :id="id" v-model="type" :items="typeOptions" class="w-full" /></SFormField>
-        <SFormField v-slot="{ id }" label="Visibility"><SSelect :id="id" v-model="visibility" :items="visibilityOptions" class="w-full" /></SFormField>
-        <SFormField v-slot="{ id }" label="Folder"><SSelect :id="id" v-model="folderId" :items="folderOptions" placeholder="No folder" :disabled="loading" class="w-full" /></SFormField>
-      </div>
-      <SFormField v-slot="{ id }" label="Content" required>
-        <SerangkaiCodeEditor :id="id" v-model="content" :language="language" aria-label="Content" height="32rem" />
-      </SFormField>
-      <SAlert v-if="error" color="danger" variant="subtle" :title="error" />
-      <div class="flex flex-wrap gap-2">
-        <SButton type="submit" :loading="saving" :disabled="saving || loading">Create rangka</SButton>
-        <SButton to="/workspace" variant="ghost" :disabled="saving">Cancel</SButton>
-      </div>
-    </form>
-  </div>
+    <div class="serangkai-editor-workspace-body">
+      <SerangkaiErrorState v-if="loadError" title="Could not load folders" :description="loadError" retry-label="Try again" class="m-4" @retry="loadFolders" />
+      <template v-else>
+        <SAlert v-if="error" color="danger" variant="subtle" :title="error" class="m-3 shrink-0" />
+        <SerangkaiCodeEditor id="new-rangka-content" v-model="content" :language="language" :dirty="dirty" :autofocus="false" fill embedded aria-label="Content" @save="createRangka" />
+      </template>
+    </div>
+  </form>
 </template>
 
 <script setup lang="ts">
@@ -87,6 +88,7 @@ onMounted(async () => {
   await loadFolders()
 })
 const createRangka = async () => {
+  if (saving.value || loading.value || loadError.value) return
   if (!title.value.trim() || !content.value.trim()) { error.value = 'Add a title and content before creating the rangka.'; return }
   saving.value = true
   error.value = ''

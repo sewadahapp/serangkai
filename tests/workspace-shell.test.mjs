@@ -296,6 +296,60 @@ test('Markdown readers use wider centered content and an independent contents ra
   } finally { await context.close() }
 })
 
+test('integrated add and edit screens retain navigation and protect unsaved drafts', async () => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  try {
+    await context.request.post(`${base}/api/auth/login`, { data: { username: adminUsername, password: adminPassword } })
+    await page.goto(`${base}/workspace/new`)
+    await page.getByRole('textbox', { name: 'Title', exact: true }).fill('Integrated draft')
+    const editor = page.getByRole('textbox', { name: 'Content', exact: true })
+    await editor.fill('# Integrated draft')
+    const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' })
+    await sidebar.getByRole('link', { name: 'Agents', exact: true }).click()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel', exact: true }).click()
+    assert.equal(new URL(page.url()).pathname, '/workspace/new')
+    assert.equal(await editor.innerText(), '# Integrated draft')
+    for (const width of [1440, 768, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 })
+      const layout = await page.evaluate(() => ({
+        viewport: document.documentElement.clientWidth,
+        content: document.documentElement.scrollWidth,
+        editorLeft: document.querySelector('.serangkai-editor-workspace').getBoundingClientRect().left,
+        statusBottom: document.querySelector('.serangkai-editor-status').getBoundingClientRect().bottom,
+      }))
+      assert.ok(layout.content <= layout.viewport, `add screen overflows at ${width}px`)
+      assert.equal(layout.editorLeft, width >= 1024 ? 256 : 0)
+      assert.ok(layout.statusBottom <= 901, 'editor footer stays within the viewport')
+      if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/serangkai-add-${width}.png` })
+    }
+    await page.getByRole('button', { name: 'Create rangka', exact: true }).click()
+    await page.waitForURL('**/rangka/**')
+    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    await editor.fill('# Unsaved edit')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await sidebar.getByRole('link', { name: 'Workspace', exact: true }).click()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel', exact: true }).click()
+    assert.equal(await editor.innerText(), '# Unsaved edit')
+    await page.getByRole('button', { name: 'Close editor', exact: true }).click()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Discard changes', exact: true }).click()
+    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    assert.equal(await editor.innerText(), '# Integrated draft')
+    await editor.fill('# Saved draft')
+    for (const width of [1440, 768, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 })
+      assert.ok(await sidebar.isVisible() === (width >= 1024))
+      const [viewport, content] = await page.evaluate(() => [document.documentElement.clientWidth, document.documentElement.scrollWidth])
+      assert.ok(content <= viewport, `edit screen overflows at ${width}px`)
+      if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/serangkai-edit-${width}.png` })
+    }
+    await editor.focus()
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+s' : 'Control+s')
+    await page.getByText('Saved version 2', { exact: true }).waitFor()
+    await page.getByRole('heading', { name: 'Saved draft', exact: true }).waitFor()
+  } finally { await context.close() }
+})
+
 test('color mode lives in Settings and the desktop account label has a direct logout', async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'light' })
   const page = await context.newPage()
