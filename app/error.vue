@@ -117,7 +117,7 @@ useHead(() => ({
 
       <footer class="border-t border-[var(--selaras-resolved-border-muted)] py-6">
         <div class="serangkai-shell flex flex-col gap-2 text-sm text-[var(--selaras-resolved-text-muted)] sm:flex-row sm:items-center sm:justify-between">
-          <p>Serangkai — artifact and knowledge workspace.</p>
+          <p>Serangkai — rangka and knowledge workspace.</p>
           <NuxtLink to="/" class="underline-offset-4 hover:underline">Back to home</NuxtLink>
         </div>
       </footer>

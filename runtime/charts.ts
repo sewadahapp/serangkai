@@ -3,12 +3,12 @@ import { Chart } from '@tanstack/charts/vue'
 import { resolveChart } from '../app/utils/chart'
 
 /**
- * Trusted chart runtime for sandboxed HTML artifacts.
+ * Trusted chart runtime for sandboxed HTML rangka.
  *
- * The artifact iframe has no network access and cannot load npm packages. This
- * small same-origin bundle is injected only when the artifact carries a
+ * The rangka iframe has no network access and cannot load npm packages. This
+ * small same-origin bundle is injected only when the rangka carries a
  * `data-serangkai-chart` marker, so the author gets TanStack Charts without
- * turning on remote scripts. The definition stays JSON: no artifact JavaScript
+ * turning on remote scripts. The definition stays JSON: no rangka JavaScript
  * is evaluated.
  */
 
@@ -105,7 +105,7 @@ function ready() {
   }
 }
 
-const api = ((window as any).SerangkaiArtifacts ||= {}) as RuntimeApi
+const api = ((window as any).SerangkaiRangka ||= {}) as RuntimeApi
 api.renderCharts = renderCharts
 
 ready()

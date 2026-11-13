@@ -6,7 +6,7 @@ import { getServerConfig } from './config'
 /**
  * Ensures the single owner account exists and matches the environment.
  *
- * - Existing single-user installs adopt that account (its id, artifacts,
+ * - Existing single-user installs adopt that account (its id, rangka,
  *   folders, versions, and API tokens are preserved).
  * - An empty database creates one owner.
  * - A multi-user database is never merged automatically. Startup fails with

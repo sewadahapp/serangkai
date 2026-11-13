@@ -45,24 +45,24 @@ before(async () => {
 
 after(async () => { await stopChild(); await rm('.wrangler', { recursive: true, force: true }) })
 
-test('Cloudflare local D1 runtime supports owner login, artifact creation, and listing', async () => {
+test('Cloudflare local D1 runtime supports owner login, rangka creation, and listing', async () => {
   const { cookie } = await login(base)
-  const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'D1 runtime artifact', type: 'markdown', content: '# D1' }) })
+  const created = await fetch(`${base}/api/rangka`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'D1 runtime rangka', type: 'markdown', content: '# D1' }) })
   assert.equal(created.status, 200, await created.text())
-  const listed = await fetch(`${base}/api/artifacts`, { headers: { cookie } })
+  const listed = await fetch(`${base}/api/rangka`, { headers: { cookie } })
   assert.equal(listed.status, 200)
-  assert.equal((await listed.json()).artifacts[0].title, 'D1 runtime artifact')
+  assert.equal((await listed.json()).rangka[0].title, 'D1 runtime rangka')
 
   // Exercise the R2 binding, not just D1: upload and read back binary bytes.
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
   const form = new FormData()
   form.append('file', new Blob([png], { type: 'image/png' }), 'pixel.png')
   form.append('title', 'CF image')
-  const uploaded = await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie }, body: form })
+  const uploaded = await fetch(`${base}/api/rangka/upload`, { method: 'POST', headers: { cookie }, body: form })
   const uploadBody = await uploaded.text()
   assert.equal(uploaded.status, 200, uploadBody)
-  const image = JSON.parse(uploadBody).artifact
-  const downloaded = await fetch(`${base}/api/artifacts/${image.id}/download`, { headers: { cookie } })
+  const image = JSON.parse(uploadBody).rangka
+  const downloaded = await fetch(`${base}/api/rangka/${image.id}/download`, { headers: { cookie } })
   assert.equal(downloaded.status, 200)
   assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()), png)
   assert.doesNotMatch(stderr, /ephemeral memory storage/)
@@ -70,10 +70,10 @@ test('Cloudflare local D1 runtime supports owner login, artifact creation, and l
   const tokenResponse = await fetch(`${base}/api/tokens`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Edge agent', scopes: ['read'] }) })
   if (tokenResponse.status !== 200) assert.fail(await tokenResponse.text())
   const { token } = await tokenResponse.json()
-  const bearerListed = await fetch(`${base}/api/artifacts`, { headers: { authorization: `Bearer ${token}` } })
+  const bearerListed = await fetch(`${base}/api/rangka`, { headers: { authorization: `Bearer ${token}` } })
   assert.equal(bearerListed.status, 200)
-  const titles = (await bearerListed.json()).artifacts.map(artifact => artifact.title)
-  assert.deepEqual(titles.sort(), ['CF image', 'D1 runtime artifact'])
+  const titles = (await bearerListed.json()).rangka.map(rangka => rangka.title)
+  assert.deepEqual(titles.sort(), ['CF image', 'D1 runtime rangka'])
 
   // Shiki must initialize on Workers. The full shiki bundle's Oniguruma WASM
   // fails here, so this endpoint has to use the core + JavaScript engine.

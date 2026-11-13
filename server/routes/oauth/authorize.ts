@@ -305,8 +305,8 @@ function renderConsentPage({ client, input, scopes, consentToken, owner }: Conse
           <span>
             <strong>${scope === 'read' ? 'Read your workspace' : 'Write to your workspace'}</strong>
             <small>${scope === 'read'
-              ? 'See artifacts, folders, versions, and the overview.'
-              : 'Create, edit, move, and version artifacts, and change sharing.'}</small>
+              ? 'See rangka, folders, versions, and the overview.'
+              : 'Create, edit, move, and version rangka, and change sharing.'}</small>
           </span>
         </label>
       </li>`).join('')

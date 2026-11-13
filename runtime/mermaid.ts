@@ -1,11 +1,11 @@
 import mermaid from 'mermaid'
 
 /**
- * Trusted Mermaid runtime for sandboxed HTML artifacts.
+ * Trusted Mermaid runtime for sandboxed HTML rangka.
  *
- * Injected only when the artifact contains a `.mermaid` element or a
+ * Injected only when the rangka contains a `.mermaid` element or a
  * `data-serangkai-mermaid` marker. Mermaid source is declarative: it never
- * evaluates artifact-authored JavaScript, and the strict security level keeps
+ * evaluates rangka-authored JavaScript, and the strict security level keeps
  * HTML labels sanitized. The original source is kept so theme changes can
  * re-render the diagram.
  */
@@ -82,7 +82,7 @@ function ready() {
 // Mermaid receives a matching theme instead of a mismatched light/dark SVG.
 window.addEventListener('serangkai:colormode', renderMermaid)
 
-const api = ((window as any).SerangkaiArtifacts ||= {}) as RuntimeApi
+const api = ((window as any).SerangkaiRangka ||= {}) as RuntimeApi
 api.renderMermaid = renderMermaid
 
 ready()

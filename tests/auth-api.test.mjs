@@ -158,13 +158,13 @@ test('logout clears the browser session but leaves token authentication intact',
   const me = await fetch(`${base}/api/auth/me`)
   assert.equal(me.status, 401)
 
-  const viaToken = await fetch(`${base}/api/artifacts`, { headers: { authorization: `Bearer ${token}` } })
+  const viaToken = await fetch(`${base}/api/rangka`, { headers: { authorization: `Bearer ${token}` } })
   assert.equal(viaToken.status, 200)
 })
 
 test('private REST access requires a session or token', async () => {
-  assert.equal((await fetch(`${base}/api/artifacts`)).status, 401)
-  const anonymous = await fetch(`${base}/api/artifacts`, { headers: { cookie: 'nuxt-auth-session=forged' } })
+  assert.equal((await fetch(`${base}/api/rangka`)).status, 401)
+  const anonymous = await fetch(`${base}/api/rangka`, { headers: { cookie: 'nuxt-auth-session=forged' } })
   assert.equal(anonymous.status, 401)
 })
 
@@ -177,7 +177,7 @@ test('the login page asks for username and exposes no registration link', async 
 
 test('an expired or forged token never falls back to the browser session', async () => {
   const fresh = await login(base)
-  const response = await fetch(`${base}/api/artifacts`, {
+  const response = await fetch(`${base}/api/rangka`, {
     headers: { cookie: fresh.cookie, authorization: `Bearer ${'x'.repeat(32)}` },
   })
   assert.equal(response.status, 401)
@@ -192,7 +192,7 @@ test('the bearer scheme is case-insensitive and malformed headers never fall bac
   })
   const { token } = await tokenResponse.json()
 
-  const lower = await fetch(`${base}/api/artifacts`, {
+  const lower = await fetch(`${base}/api/rangka`, {
     headers: { authorization: `bearer ${token}` },
   })
   assert.equal(lower.status, 200)
@@ -200,7 +200,7 @@ test('the bearer scheme is case-insensitive and malformed headers never fall bac
   // Any Authorization header marks an agent request. A malformed value must
   // not silently inherit the owner's cookie.
   for (const value of ['Bearer', 'Bearer ', 'Basic abc', 'token']) {
-    const response = await fetch(`${base}/api/artifacts`, {
+    const response = await fetch(`${base}/api/rangka`, {
       headers: { cookie: fresh.cookie, authorization: value },
     })
     assert.equal(response.status, 401, `authorization: ${value}`)

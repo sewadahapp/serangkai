@@ -1,15 +1,19 @@
 # Serangkai
 
-A production-minded, open-source, self-hosted artifact and knowledge workspace for AI agents and humans.
+A production-minded, open-source, self-hosted rangka and knowledge workspace for AI agents and humans.
+
+A **rangka** is a document, file, or interactive work saved in Serangkai. The name
+is the same in the UI, REST API, and MCP tools: ask an agent to “create a rangka
+in Serangkai” to identify the intended workspace.
 
 ## Features
 
-- 🗂️ **Organized Workspace** - Nested folders, pages, and artifacts like Notion
+- 🗂️ **Organized Workspace** - Nested folders, pages, and rangka like Notion
 - ✨ **Beautiful by Default** - Markdown renders with polished Selaras styling
 - 🖌️ **Themeable UI** - Switch between the Serangkai and Rosé Pine palettes in Settings; light and dark modes stay independent
-- 🎨 **Interactive Artifacts** - HTML, JavaScript, Mermaid diagrams, TanStack charts, and static web apps
-- 🤖 **Agent-Ready** - MCP and REST APIs for AI agents to create and update artifacts
-- 🔒 **Private by Default** - Artifacts are private to the workspace owner with explicit public sharing
+- 🎨 **Interactive Rangka** - HTML, JavaScript, Mermaid diagrams, TanStack charts, and static web apps
+- 🤖 **Agent-Ready** - MCP and REST APIs for AI agents to create and update rangka
+- 🔒 **Private by Default** - Rangka are private to the workspace owner with explicit public sharing
 - 👤 **Single-owner, zero-registration** - One account configured from environment variables; no sign-up flow
 - 🚀 **Simple Self-Hosting** - One container, SQLite + local filesystem by default, Bun runtime
 
@@ -65,9 +69,31 @@ production.
 
 Upgrading from the earlier custom-session build signs browsers out once (the
 cookie format changed) and replaces email login with `ADMIN_USERNAME`. Existing
-artifacts, folders, versions, and API tokens are preserved. If the database has
+rangka, folders, versions, and API tokens are preserved. If the database has
 more than one user, startup lists the ids; choose one with
 `SERANGKAI_MIGRATION_OWNER_USER_ID`.
+
+### Upgrading to the Rangka terminology
+
+Back up the database and files together before upgrading. Startup automatically
+renames the legacy `artifacts` and `artifact_versions` tables to `rangka` and
+`rangka_versions`, including `artifact_id` → `rangka_id`. IDs, slugs, version
+numbers, stored content paths, and signed share links are preserved. SQLite
+startup automatically repairs empty duplicate tables left by a development
+reload. If both legacy and new tables contain data, startup stops rather than
+choosing one dataset. D1 retains the strict duplicate-table check.
+
+Integrations must update `/api/artifacts` to `/api/rangka`, response fields
+`artifact` / `artifacts` to `rangka`, and MCP names to `get_rangka_capabilities`,
+`list_rangka`, `get_rangka`, `create_rangka`, and `update_rangka`. Reconnect MCP
+clients to refresh tool discovery. Application detail URLs now use `/rangka/:id`;
+public `/share/:slug` links stay the same. The legacy opt-in HTML theme URL
+redirects to `/rangka-themes/selaras-document.css` for saved HTML that links it.
+
+Cloudflare deployments now name the R2 binding `RANGKA`. Keep it mapped to the
+same existing bucket. Alternatively set `R2_BINDING` to the binding name in your
+existing deployment. Filesystem paths, S3 configuration, and object keys do not
+change.
 
 ## Deploy to Cloudflare
 
@@ -136,7 +162,7 @@ Then set the secrets once with `wrangler secret put S3_ENDPOINT`, `S3_REGION`,
 authentication secrets plus `NUXT_APP_SECRET`. `S3_ENDPOINT` must be the full
 URL including `https://` (Backblaze displays the hostname without the scheme);
 `S3_REGION` is the region segment of that endpoint, such as `us-west-004`. If
-storage is misconfigured, artifact writes fail with a clear error instead of
+storage is misconfigured, rangka writes fail with a clear error instead of
 falling back to Worker memory — the rest of the app still loads, so a health
 check alone does not prove uploads work. `bun run deploy:b2` builds and deploys
 with the same config. On Workers, uploads and downloads are stored in B2 and
@@ -164,7 +190,7 @@ bun run dev
 bun run build
 
 # Run the unit tests
-bun test tests/markdown-render.test.mjs tests/toc-extract.test.mjs tests/artifact-runtime.test.mjs
+bun test tests/markdown-render.test.mjs tests/toc-extract.test.mjs tests/rangka-runtime.test.mjs
 ```
 
 `bun.lock` is the only committed lockfile. Do not add `package-lock.json` or run
@@ -176,7 +202,7 @@ prebuilt Node binary remains available for the Node fallback.
 
 The image is designed for a single container with `/data` as the persistent
 volume, and the repository includes a healthcheck at `/api/health`. Verified
-locally with Podman (Docker-compatible): image build, owner login, artifact
+locally with Podman (Docker-compatible): image build, owner login, rangka
 creation, binary upload, API-token use, unlisted sharing, and a full container
 replacement on the same `/data` volume. Run `bun run test:docker` to repeat the
 check with Podman or Docker.
@@ -190,9 +216,9 @@ bun run build:vercel
 
 Cloudflare uses Nitro's `cloudflare_module` preset, a request-scoped Drizzle D1
 adapter, and a native R2 binding. The local Wrangler/Miniflare test covers owner
-login, artifact creation, binary upload, and download; a second local Worker
+login, rangka creation, binary upload, and download; a second local Worker
 run covers the B2 path with D1, no R2 binding, and a Backblaze-compatible mock
-(signing, binary integrity, artifact update/delete, and persistence across a
+(signing, binary integrity, rangka update/delete, and persistence across a
 Worker restart). Vercel uses Nitro's `vercel` preset and a Node 24 function
 runtime, but its filesystem is ephemeral: durable data needs an external
 database plus `STORAGE_DRIVER=s3`.
@@ -200,7 +226,7 @@ database plus `STORAGE_DRIVER=s3`.
 ### What has actually been exercised
 
 Docker persistence is checked locally with Podman: the container is replaced on
-the same volume and the owner, artifacts, uploads, tokens, and share links are
+the same volume and the owner, rangka, uploads, tokens, and share links are
 verified. Vercel and Cloudflare are exercised through their credential-free
 local test matrices, not a hosted deployment. Nothing in this repository deploys
 anywhere on its own, and no platform is a supported contract until health and
@@ -250,10 +276,10 @@ which is why the workflow does not do it automatically.
 
 Markdown is rendered with Comark and styled by Selaras. Agents can create
 tables, task lists, callouts, cards, tabs, timelines, Mermaid diagrams, and
-declarative TanStack charts without writing CSS or JavaScript. HTML artifacts are
+declarative TanStack charts without writing CSS or JavaScript. HTML rangka are
 self-styled by default and can opt into the Selaras document theme.
 
-MCP clients can discover everything through `get_artifact_capabilities` and the
+MCP clients can discover everything through `get_rangka_capabilities` and the
 `serangkai://guides/*` resources. See
 [`docs/authoring/README.md`](docs/authoring/README.md).
 
@@ -304,7 +330,7 @@ and copy `files/` alongside it. Restore by mounting the same `/data` volume.
 
 **Object storage.** R2: sync with `wrangler r2 object` commands or `rclone sync`.
 Backblaze B2: `b2 sync` or `rclone sync` against the S3 endpoint. Keep the bucket
-private; artifact bytes are meaningless without the matching database rows.
+private; rangka bytes are meaningless without the matching database rows.
 
 A restore is only consistent if the database and object store come from the same
 point in time, and the secrets match the ones in use when the backup was taken.

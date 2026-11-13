@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { Database } from 'bun:sqlite'
+import { readFileSync } from 'node:fs'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { sql } from 'drizzle-orm'
-import { ensureUserSchema, ensureGlobalSlugUniqueness, ensureOAuthSchema } from '../server/db/migrations.ts'
+import { ensureUserSchema, ensureGlobalSlugUniqueness, ensureOAuthSchema, ensureRangkaSchema, recoverEmptyRangkaTables } from '../server/db/migrations.ts'
+import { BOOTSTRAP_SQL } from '../server/db/bootstrap.ts'
 import { signShareKey, isValidShareKey } from '../server/utils/share.ts'
 
 /**
@@ -75,7 +77,7 @@ function oldSchema() {
   return sqlite
 }
 
-test('upgrading an old database preserves identity, artifacts, grants, and tokens', async () => {
+test('upgrading an old database preserves identity, rangka, grants, and tokens', async () => {
   const sqlite = oldSchema()
   const db = drizzle(sqlite)
   const now = Math.floor(Date.now() / 1000)
@@ -89,6 +91,7 @@ test('upgrading an old database preserves identity, artifacts, grants, and token
   sqlite.prepare(`INSERT INTO oauth_device_codes (id,client_id,user_code,scopes,expires_at,created_at) VALUES ('dev-1','cli-1','ABCDABCD','["read"]',?,?)`).run(now + 600, now)
 
   // The current startup migration path.
+  await ensureRangkaSchema(db)
   await ensureUserSchema(db)
   await ensureGlobalSlugUniqueness(db)
   await ensureOAuthSchema(db)
@@ -98,10 +101,11 @@ test('upgrading an old database preserves identity, artifacts, grants, and token
   assert.equal(user.email, 'owner@example.test')
   assert.equal(user.password_hash, 'scrypt-hash')
 
-  // Artifacts + versions intact.
-  assert.equal(sqlite.prepare(`SELECT COUNT(*) n FROM artifacts WHERE id='art-1'`).get().n, 1)
-  assert.equal(sqlite.prepare(`SELECT COUNT(*) n FROM artifact_versions WHERE artifact_id='art-1'`).get().n, 1)
-  assert.equal(sqlite.prepare(`SELECT visibility FROM artifacts WHERE id='art-1'`).get().visibility, 'unlisted')
+  // Rangka + versions intact; the old tables are gone.
+  assert.equal(sqlite.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name IN ('artifacts','artifact_versions')").get().n, 0)
+  assert.equal(sqlite.prepare(`SELECT COUNT(*) n FROM rangka WHERE id='art-1'`).get().n, 1)
+  assert.equal(sqlite.prepare(`SELECT COUNT(*) n FROM rangka_versions WHERE rangka_id='art-1'`).get().n, 1)
+  assert.equal(sqlite.prepare(`SELECT visibility FROM rangka WHERE id='art-1'`).get().visibility, 'unlisted')
 
   // API token + OAuth grant intact; resource column added (null until bound).
   assert.equal(sqlite.prepare(`SELECT COUNT(*) n FROM api_tokens WHERE id='tok-1'`).get().n, 1)
@@ -115,17 +119,83 @@ test('upgrading an old database preserves identity, artifacts, grants, and token
   assert.equal(device.api_token_id, null)
 
   // Running the migrations again is idempotent (no duplicate-column throw).
+  await ensureRangkaSchema(db)
   await ensureUserSchema(db)
   await ensureOAuthSchema(db)
   assert.equal(sqlite.prepare(`SELECT COUNT(*) n FROM users`).get().n, 1)
 })
 
 test('signed share links remain valid across an upgrade with a stable secret', () => {
-  // The key is an HMAC of the artifact id under SHARE_SECRET; with the secret
+  // The key is an HMAC of the rangka id under SHARE_SECRET; with the secret
   // unchanged across an upgrade, existing links keep validating.
   const key = signShareKey('art-1')
   assert.match(key, /^[a-f0-9]{64}$/)
   assert.ok(isValidShareKey('art-1', key))
   assert.ok(!isValidShareKey('art-1', '0'.repeat(64)))
   assert.ok(!isValidShareKey('art-2', key))
+})
+
+test('Rangka migration preserves real foreign keys and version history', async () => {
+  const sqlite = new Database(':memory:')
+  sqlite.exec(`PRAGMA foreign_keys = ON;
+    CREATE TABLE artifacts (id TEXT PRIMARY KEY, slug TEXT NOT NULL);
+    CREATE UNIQUE INDEX artifacts_slug_unique ON artifacts(slug);
+    CREATE TABLE artifact_versions (id TEXT PRIMARY KEY, artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE, version INTEGER NOT NULL, content_path TEXT NOT NULL, UNIQUE(artifact_id,version));
+    INSERT INTO artifacts VALUES ('keep-id','keep-slug');
+    INSERT INTO artifact_versions VALUES ('v1','keep-id',1,'owner/keep-id/content');`)
+  const db = drizzle(sqlite)
+  await ensureRangkaSchema(db)
+  await ensureRangkaSchema(db)
+  assert.deepEqual(sqlite.prepare('SELECT * FROM rangka').get(), { id: 'keep-id', slug: 'keep-slug' })
+  assert.equal(sqlite.prepare('SELECT content_path FROM rangka_versions').get().content_path, 'owner/keep-id/content')
+  sqlite.exec(`INSERT INTO rangka_versions VALUES ('v2','keep-id',2,'owner/keep-id/versions/2')`)
+  assert.deepEqual(sqlite.prepare('PRAGMA foreign_key_check').all(), [])
+  sqlite.exec(`DELETE FROM rangka WHERE id='keep-id'`)
+  assert.equal(sqlite.prepare('SELECT COUNT(*) n FROM rangka_versions').get().n, 0)
+  sqlite.close()
+})
+
+test('Rangka migration refuses conflicting old and new datasets without deleting either', async () => {
+  const sqlite = new Database(':memory:')
+  sqlite.exec(`CREATE TABLE artifacts (id TEXT PRIMARY KEY); CREATE TABLE rangka (id TEXT PRIMARY KEY);
+    INSERT INTO artifacts VALUES ('legacy'); INSERT INTO rangka VALUES ('new');`)
+  recoverEmptyRangkaTables(sqlite)
+  await assert.rejects(() => ensureRangkaSchema(drizzle(sqlite)), /already exists/)
+  assert.equal(sqlite.prepare('SELECT id FROM artifacts').get().id, 'legacy')
+  assert.equal(sqlite.prepare('SELECT id FROM rangka').get().id, 'new')
+  sqlite.close()
+})
+
+test('SQLite startup recovers empty duplicate bootstrap tables and preserves legacy content and history', async () => {
+  const sqlite = new Database(':memory:')
+  sqlite.exec('PRAGMA foreign_keys = ON')
+  sqlite.exec(readFileSync(new URL('./fixtures/pre-rangka-schema.sql', import.meta.url), 'utf8'))
+  sqlite.exec(`INSERT INTO users (id,email,password_hash) VALUES ('owner','owner@example.test','hash');
+    INSERT INTO artifacts (id,user_id,slug,title,type,content_path) VALUES ('doc','owner','keep-slug','Keep document','markdown','owner/doc/content');
+    INSERT INTO artifact_versions (id,artifact_id,version,content_path) VALUES ('v1','doc',1,'owner/doc/content');`)
+  // Reproduce a dev reload that bootstrapped new names before migrating.
+  sqlite.exec(BOOTSTRAP_SQL)
+  recoverEmptyRangkaTables(sqlite)
+  await ensureRangkaSchema(drizzle(sqlite))
+  sqlite.exec(BOOTSTRAP_SQL)
+  recoverEmptyRangkaTables(sqlite)
+  await ensureRangkaSchema(drizzle(sqlite))
+  assert.equal(sqlite.prepare('SELECT slug FROM rangka').get().slug, 'keep-slug')
+  assert.equal(sqlite.prepare('SELECT rangka_id, content_path FROM rangka_versions').get().rangka_id, 'doc')
+  assert.equal(sqlite.prepare('SELECT content_path FROM rangka_versions').get().content_path, 'owner/doc/content')
+  assert.deepEqual(sqlite.prepare('PRAGMA foreign_key_check').all(), [])
+  assert.equal(sqlite.prepare("SELECT count(*) n FROM sqlite_master WHERE name IN ('artifacts','artifact_versions')").get().n, 0)
+  sqlite.close()
+})
+
+test('SQLite recovery preserves even orphaned version data in the new tables', async () => {
+  const sqlite = new Database(':memory:')
+  sqlite.exec(`CREATE TABLE artifacts (id TEXT PRIMARY KEY); CREATE TABLE rangka (id TEXT PRIMARY KEY);
+    CREATE TABLE rangka_versions (id TEXT PRIMARY KEY);
+    INSERT INTO artifacts VALUES ('legacy'); INSERT INTO rangka_versions VALUES ('keep-version');`)
+  recoverEmptyRangkaTables(sqlite)
+  await assert.rejects(() => ensureRangkaSchema(drizzle(sqlite)), /already exists/)
+  assert.equal(sqlite.prepare('SELECT id FROM artifacts').get().id, 'legacy')
+  assert.equal(sqlite.prepare('SELECT id FROM rangka_versions').get().id, 'keep-version')
+  sqlite.close()
 })

@@ -6,8 +6,8 @@ import { scalePoint } from '@tanstack/charts/scales/point'
 /**
  * A JSON-safe chart description.
  *
- * Markdown fences and HTML artifacts cannot carry functions, and evaluating
- * author-supplied JavaScript would break the artifact security model. This
+ * Markdown fences and HTML rangka cannot carry functions, and evaluating
+ * author-supplied JavaScript would break the rangka security model. This
  * small schema maps data rows onto a fixed set of TanStack Charts marks instead.
  */
 export interface ChartInput {

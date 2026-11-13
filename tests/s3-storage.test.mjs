@@ -45,7 +45,7 @@ test('misconfigured options fail with an actionable message before any request',
 
 test('binary objects round-trip byte-for-byte through create, read, update, delete', async () => {
   const driver = makeDriver()
-  const key = 'user-1/artifact-1/content.bin'
+  const key = 'user-1/rangka-1/content.bin'
   const first = randomBytes(4096)
   await driver.setItemRaw(key, first)
   assert.deepEqual(Buffer.from(await driver.getItemRaw(key)), first)
@@ -98,22 +98,22 @@ test('listing is prefix-scoped and paginated', async () => {
 test('a failed write is loud, never a silent success', async () => {
   const driver = makeDriver({ bucket: 'no-such-bucket' })
   // The upstream unstorage driver maps 404 to null even for PUT; this must throw.
-  await assert.rejects(() => driver.setItemRaw('user-1/artifact-x/content', new Uint8Array([1])), /404/)
+  await assert.rejects(() => driver.setItemRaw('user-1/rangka-x/content', new Uint8Array([1])), /404/)
 })
 
 test('the driver works through the unstorage mount surface', async () => {
   const storage = createStorage()
-  storage.mount('artifacts', makeDriver())
-  const key = 'user-9/artifact-9/v1'
-  await storage.setItemRaw(`artifacts:${key}`, new Uint8Array([0, 255, 1, 254]))
-  assert.deepEqual(Buffer.from(await storage.getItemRaw(`artifacts:${key}`)), Buffer.from([0, 255, 1, 254]))
-  const keys = await storage.getKeys('artifacts:user-9/')
+  storage.mount('rangka', makeDriver())
+  const key = 'user-9/rangka-9/v1'
+  await storage.setItemRaw(`rangka:${key}`, new Uint8Array([0, 255, 1, 254]))
+  assert.deepEqual(Buffer.from(await storage.getItemRaw(`rangka:${key}`)), Buffer.from([0, 255, 1, 254]))
+  const keys = await storage.getKeys('rangka:user-9/')
   // unstorage normalizes returned keys to its colon-separated key space.
-  assert.deepEqual(keys, ['artifacts:user-9:artifact-9:v1'])
+  assert.deepEqual(keys, ['rangka:user-9:rangka-9:v1'])
   // The object itself keeps the path hierarchy in the bucket.
   assert.ok(mock.objects.has(key))
-  await storage.removeItem(`artifacts:${key}`)
-  assert.equal(await storage.getItemRaw(`artifacts:${key}`), null)
+  await storage.removeItem(`rangka:${key}`)
+  assert.equal(await storage.getItemRaw(`rangka:${key}`), null)
 })
 
 test('every request the driver sends carries a valid signature', async () => {

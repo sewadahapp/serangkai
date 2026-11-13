@@ -39,7 +39,7 @@ function validateOptions(options: S3DriverOptions) {
  * S3 API that accepts SigV4 with a signed payload hash).
  *
  * unstorage's built-in s3 driver runs on Workers but maps every 404 to null —
- * including failed writes, which silently loses artifacts — and its listing
+ * including failed writes, which silently loses rangka — and its listing
  * ignores the prefix and pagination. This driver keeps the same unstorage
  * surface with loud write errors and prefix-aware, paginated listing. Signing
  * is aws4fetch (Web Crypto + fetch), so one implementation runs on Node, Bun,
@@ -56,7 +56,7 @@ export function s3Driver(options: S3DriverOptions) {
   })
   const baseURL = `${options.endpoint.replace(/\/+$/, '')}/${options.bucket}`
   // unstorage hands drivers colon-separated keys; map them back to path
-  // segments (as the fs driver does) so objects keep the userId/artifactId/…
+  // segments (as the fs driver does) so objects keep the userId/rangkaId/…
   // hierarchy. Encode per segment so spaces and unicode in bundle filenames
   // survive.
   const storageKey = (key: string) => key.replace(/:/g, '/')

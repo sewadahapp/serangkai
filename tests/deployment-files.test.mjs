@@ -168,6 +168,6 @@ test('the checked-in Wrangler config serves static assets', async () => {
 
   // The bindings the runtime requires.
   assert.match(config, /"binding"\s*:\s*"DB"/)
-  assert.match(config, /"binding"\s*:\s*"ARTIFACTS"/)
+  assert.match(config, /"binding"\s*:\s*"RANGKA"/)
   assert.match(config, /nodejs_compat/)
 })

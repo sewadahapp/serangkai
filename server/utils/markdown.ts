@@ -5,11 +5,11 @@ import shiki from 'comark/plugins/shiki'
 import toc from 'comark/plugins/toc'
 import { SHIKI_LANGUAGES, SHIKI_THEMES } from './shiki'
 import {
-  artifactComponents,
+  rangkaComponents,
   findComponent,
   normalizeComponentTag,
   type ComponentProp,
-} from '../../shared/artifact-components'
+} from '../../shared/rangka-components'
 
 /**
  * Comark-based Markdown rendering.
@@ -34,7 +34,7 @@ const htmlTags = [
   'img', 'figure', 'figcaption', 'div', 'span', 'details', 'summary', 'template', 'input',
 ]
 
-const supportedTags = artifactComponents.map(component => component.tag)
+const supportedTags = rangkaComponents.map(component => component.tag)
 
 const blockedTags = [
   'script', 'iframe', 'frame', 'frameset', 'object', 'embed', 'link', 'meta', 'base',
@@ -425,8 +425,8 @@ function transformNode(node: ComarkNode): ComarkNode | null {
   return [tag, props, ...normalizedChildren]
 }
 
-const artifactPlugin = defineComarkPlugin({
-  name: 'serangkai-artifact',
+const rangkaPlugin = defineComarkPlugin({
+  name: 'serangkai-rangka',
   post({ tree }) {
     tree.nodes = tree.nodes
       .map(node => transformNode(node as ComarkNode))
@@ -438,7 +438,7 @@ let parserPromise: Promise<(source: string) => Promise<any>> | undefined
 
 function getParser() {
   parserPromise ||= createMarkdownParser({
-    plugins: [artifactPlugin, securityPlugin, shikiPlugin, tocPlugin],
+    plugins: [rangkaPlugin, securityPlugin, shikiPlugin, tocPlugin],
     autoClose: false,
     headingIds: 'flat',
   })

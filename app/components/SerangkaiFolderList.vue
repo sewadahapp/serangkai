@@ -1,7 +1,7 @@
 <template>
   <nav aria-label="Folders" class="space-y-0.5">
     <SButton variant="ghost" color="neutral" class="folder-select w-full justify-between text-left" :class="{ 'folder-active': selectedId === null }" @click="$emit('select', null)">
-      <span class="flex items-center gap-1.5"><SIcon name="lucide:layers" class="size-4 shrink-0" aria-hidden="true" /> All artifacts</span>
+      <span class="flex items-center gap-1.5"><SIcon name="lucide:layers" class="size-4 shrink-0" aria-hidden="true" /> All rangka</span>
       <span class="serangkai-tabular text-xs text-[var(--selaras-resolved-text-muted)]">{{ total }}</span>
     </SButton>
     <div v-for="row in rows" :key="row.id" class="folder-row" :class="{ 'folder-active': selectedId === row.id }">

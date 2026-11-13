@@ -76,19 +76,19 @@ test('owner credentials and identity survive restarts, and rotations take effect
         headers: { cookie, 'content-type': 'application/json' },
         body: JSON.stringify({ name: 'persisted', scopes: ['read'] }),
       })).json()).token
-      await fetch(`${base}/api/artifacts`, {
+      await fetch(`${base}/api/rangka`, {
         method: 'POST',
         headers: { cookie, 'content-type': 'application/json' },
-        body: JSON.stringify({ title: 'Persisted artifact', type: 'markdown', content: '# Persisted' }),
+        body: JSON.stringify({ title: 'Persisted rangka', type: 'markdown', content: '# Persisted' }),
       })
     })
 
     await withServer({ dataDir, port }, async (base) => {
       const { cookie, user } = await login(base)
       assert.equal(user.id, ownerId, 'owner identity must be stable')
-      const list = await (await fetch(`${base}/api/artifacts`, { headers: { cookie } })).json()
-      assert.equal(list.artifacts[0].title, 'Persisted artifact')
-      assert.equal((await fetch(`${base}/api/artifacts`, { headers: { authorization: `Bearer ${token}` } })).status, 200)
+      const list = await (await fetch(`${base}/api/rangka`, { headers: { cookie } })).json()
+      assert.equal(list.rangka[0].title, 'Persisted rangka')
+      assert.equal((await fetch(`${base}/api/rangka`, { headers: { authorization: `Bearer ${token}` } })).status, 200)
     })
 
     await withServer({ dataDir, port, password: 'rotated password 123' }, async (base) => {
@@ -142,10 +142,10 @@ test('an existing single-user database is adopted without losing data', async ()
         body: JSON.stringify({ username: 'owner', password: 'old legacy password' }),
       })
       assert.equal(old.status, 401, 'the environment password becomes authoritative')
-      const created = await fetch(`${base}/api/artifacts`, {
+      const created = await fetch(`${base}/api/rangka`, {
         method: 'POST',
         headers: { cookie: (await login(base, 'owner', 'new owner password')).cookie, 'content-type': 'application/json' },
-        body: JSON.stringify({ title: 'Adopted artifact', type: 'markdown', content: '# ok' }),
+        body: JSON.stringify({ title: 'Adopted rangka', type: 'markdown', content: '# ok' }),
       })
       assert.equal(created.status, 200)
     })

@@ -22,7 +22,7 @@
         <SButton v-else-if="route.path !== '/auth/login'" to="/auth/login" size="sm">Log in</SButton>
       </div>
     </header>
-    <main id="main" class="app-main" :class="{ 'app-main-login': route.path === '/auth/login', 'app-main-document': route.path.startsWith('/artifacts/') }"><slot /></main>
+    <main id="main" class="app-main" :class="{ 'app-main-login': route.path === '/auth/login', 'app-main-document': route.path.startsWith('/rangka/') }"><slot /></main>
     <footer v-if="!appShell" class="app-public-footer">Serangkai · Private by default</footer>
   </div>
 </template>

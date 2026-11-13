@@ -80,7 +80,7 @@ export default defineNuxtConfig({
   },
   routeRules: {
     // Ask supporting browsers to send their color preference so shared HTML
-    // artifacts render in the right mode without a flash.
+    // rangka render in the right mode without a flash.
     '/api/share/**': { headers: { 'Accept-CH': 'Sec-CH-Prefers-Color-Scheme' } },
     // The opt-in document theme loads its webfont inside a sandboxed iframe.
     // A sandboxed frame has an opaque origin, so the font request is a CORS

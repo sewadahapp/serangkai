@@ -1,19 +1,19 @@
 import yauzl from 'yauzl'
-import { artifactStorage, writeArtifact } from './artifact-storage'
+import { rangkaStorage, writeRangka } from './rangka-storage'
 
 export const MAX_BUNDLE_FILES = 500
 export const MAX_BUNDLE_UNPACKED_BYTES = 100 * 1024 * 1024
 
 function safeEntryName(name: string) {
   // `:` is a storage key separator (and covers Windows drive letters), so an
-  // entry like `..:..:other` must not reach `writeArtifact`.
+  // entry like `..:..:other` must not reach `writeRangka`.
   if (!name || name.includes('\0') || name.includes(':') || name.startsWith('/')) return false
   const clean = name.replaceAll('\\', '/')
   return clean !== '..' && !clean.startsWith('../') && !clean.split('/').includes('..')
 }
 
 /**
- * Extracts a static bundle into the artifact storage under `prefix`.
+ * Extracts a static bundle into the rangka storage under `prefix`.
  *
  * Entries are written one at a time, so a 100 MB unpacked archive does not
  * have to be held in memory all at once. The same keys work on the filesystem,
@@ -57,7 +57,7 @@ export async function extractBundle(buffer: Buffer, prefix: string) {
           stream.on('error', fail)
           stream.on('end', async () => {
             try {
-              await writeArtifact(`${prefix}/${entry.fileName}`, Buffer.concat(chunks))
+              await writeRangka(`${prefix}/${entry.fileName}`, Buffer.concat(chunks))
               if (!finished) zip.readEntry()
             } catch (writeError) {
               fail(writeError as Error)
@@ -96,7 +96,7 @@ export function bundleMimeType(path: string) {
 }
 
 export async function deleteBundle(prefix: string) {
-  const storage = artifactStorage()
+  const storage = rangkaStorage()
   const keys = await storage.getKeys(prefix)
   await Promise.all(keys.map(key => storage.removeItem(key)))
 }

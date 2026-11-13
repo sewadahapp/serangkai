@@ -1394,7 +1394,7 @@ html.serangkai-editor-fullscreen-open body {
   }
 }
 
-/* Full-viewport edit mode for artifacts. The page keeps the global chrome in
+/* Full-viewport edit mode for rangka. The page keeps the global chrome in
    preview, then hands the whole viewport to the editor while editing. */
 .serangkai-editor-workspace {
   position: fixed;

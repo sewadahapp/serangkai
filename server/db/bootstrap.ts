@@ -32,7 +32,7 @@ export const BOOTSTRAP_STATEMENTS = [
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
   )`,
-  `CREATE TABLE IF NOT EXISTS artifacts (
+  `CREATE TABLE IF NOT EXISTS rangka (
     id TEXT PRIMARY KEY NOT NULL,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
@@ -46,14 +46,14 @@ export const BOOTSTRAP_STATEMENTS = [
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     UNIQUE(user_id, slug)
   )`,
-  `CREATE TABLE IF NOT EXISTS artifact_versions (
+  `CREATE TABLE IF NOT EXISTS rangka_versions (
     id TEXT PRIMARY KEY NOT NULL,
-    artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
+    rangka_id TEXT NOT NULL REFERENCES rangka(id) ON DELETE CASCADE,
     version INTEGER NOT NULL,
     content_path TEXT NOT NULL,
     metadata TEXT DEFAULT '{}',
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-    UNIQUE(artifact_id, version)
+    UNIQUE(rangka_id, version)
   )`,
   `CREATE TABLE IF NOT EXISTS oauth_clients (
     id TEXT PRIMARY KEY NOT NULL,

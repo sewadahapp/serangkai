@@ -33,9 +33,9 @@ test('workspace is the private home and uses a responsive app sidebar', async ()
     await page.getByLabel('Password').fill(adminPassword)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
-    await page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor()
+    await page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor()
     const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' })
-    await sidebar.getByRole('button', { name: 'All artifacts' }).waitFor()
+    await sidebar.getByRole('button', { name: 'All rangka' }).waitFor()
     assert.equal(await page.getByRole('link', { name: 'Overview', exact: true }).count(), 0)
     await page.getByRole('button', { name: 'New folder', exact: true }).click()
     await page.getByLabel('Folder name').fill('Research')
@@ -43,7 +43,7 @@ test('workspace is the private home and uses a responsive app sidebar', async ()
     await sidebar.getByRole('button', { name: 'Research', exact: true }).waitFor()
     await page.evaluate(async () => {
       for (const [title, type, content] of [['Research notes', 'markdown', '# Research notes'], ['Project brief', 'html', '<h1>Project brief</h1>'], ['Ideas to explore', 'markdown', '# Ideas']]) {
-        await fetch('/api/artifacts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, type, content }) })
+        await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, type, content }) })
       }
     })
     await page.reload()
@@ -64,14 +64,14 @@ test('workspace is the private home and uses a responsive app sidebar', async ()
     await page.goto(`${base}/dashboard`)
     await page.waitForURL(`${base}/`)
     await page.goto(`${base}/workspace`)
-    await page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor()
+    await page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor()
     await page.goto(`${base}/agent`)
     await page.getByRole('heading', { name: 'Connect an agent' }).waitFor()
     assert.equal(errors.length, 0, errors.join('\n'))
   } finally { await context.close() }
 })
 
-test('private entry routes redirect to login while shared artifacts remain readable', async () => {
+test('private entry routes redirect to login while shared rangka remain readable', async () => {
   for (const path of ['/', '/workspace', '/dashboard', '/agent', '/settings']) {
     const response = await fetch(`${base}${path}`, { redirect: 'manual' })
     assert.equal(response.status, 302)
@@ -79,13 +79,13 @@ test('private entry routes redirect to login while shared artifacts remain reada
   }
   const login = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: adminUsername, password: adminPassword }) })
   const cookie = login.headers.get('set-cookie')
-  const artifact = (await (await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Public document', type: 'markdown', content: '# Shared document', visibility: 'public' }) })).json()).artifact
-  const shared = await fetch(`${base}/share/${artifact.slug}`)
+  const rangka = (await (await fetch(`${base}/api/rangka`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Public document', type: 'markdown', content: '# Shared document', visibility: 'public' }) })).json()).rangka
+  const shared = await fetch(`${base}/share/${rangka.slug}`)
   assert.equal(shared.status, 200)
   assert.match(await shared.text(), /Shared document/)
 })
 
-test('artifact grid and list preserve filtering, pagination, and the chosen view', async () => {
+test('rangka grid and list preserve filtering, pagination, and the chosen view', async () => {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const page = await context.newPage()
   try {
@@ -98,39 +98,39 @@ test('artifact grid and list preserve filtering, pagination, and the chosen view
       const headers = { 'content-type': 'application/json' }
       const folder = (await (await fetch('/api/folders', { method: 'POST', headers, body: JSON.stringify({ name: 'Grid examples' }) })).json()).folder
       for (let i = 0; i < 26; i++) {
-        const response = await fetch('/api/artifacts', { method: 'POST', headers, body: JSON.stringify({ title: `Grid sample ${i} with a long descriptive title for the layout`, type: 'markdown', content: '# Example', folderId: folder.id, visibility: i === 0 ? 'public' : 'private' }) })
+        const response = await fetch('/api/rangka', { method: 'POST', headers, body: JSON.stringify({ title: `Grid sample ${i} with a long descriptive title for the layout`, type: 'markdown', content: '# Example', folderId: folder.id, visibility: i === 0 ? 'public' : 'private' }) })
         if (!response.ok) throw new Error('Could not create grid example')
       }
     })
     await page.reload()
     await page.getByRole('complementary', { name: 'Workspace sidebar' }).getByRole('button', { name: 'Grid examples', exact: true }).click()
-    await page.getByText('26 artifacts', { exact: true }).waitFor()
+    await page.getByText('26 rangka', { exact: true }).waitFor()
     await page.getByRole('button', { name: 'Grid view', exact: true }).click()
     assert.equal(await page.getByRole('button', { name: 'Grid view' }).getAttribute('aria-pressed'), 'true')
-    assert.equal(await page.locator('.workspace-artifacts-grid .workspace-artifact').count(), 25)
+    assert.equal(await page.locator('.workspace-rangka-grid .workspace-rangka').count(), 25)
     for (const width of [320, 375, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 })
       const [viewport, content] = await page.evaluate(() => [document.documentElement.clientWidth, document.documentElement.scrollWidth])
       assert.ok(content <= viewport, `grid overflows at ${width}: ${content}`)
     }
-    await page.screenshot({ path: '/tmp/serangkai-artifact-grid.png' })
-    await page.getByRole('navigation', { name: 'Artifact pages' }).getByRole('button', { name: 'Next' }).click()
+    await page.screenshot({ path: '/tmp/serangkai-rangka-grid.png' })
+    await page.getByRole('navigation', { name: 'Rangka pages' }).getByRole('button', { name: 'Next' }).click()
     await page.getByText('Page 2 of 2').waitFor()
-    assert.equal(await page.locator('.workspace-artifacts-grid .workspace-artifact').count(), 1)
+    assert.equal(await page.locator('.workspace-rangka-grid .workspace-rangka').count(), 1)
     await page.getByRole('button', { name: 'List view', exact: true }).click()
-    assert.equal(await page.locator('.workspace-artifacts-grid').count(), 0)
+    assert.equal(await page.locator('.workspace-rangka-grid').count(), 0)
     await page.getByRole('button', { name: 'Grid view', exact: true }).click()
     await page.reload()
-    await page.locator('.workspace-artifacts-grid').waitFor()
+    await page.locator('.workspace-rangka-grid').waitFor()
     assert.equal(await page.getByRole('button', { name: 'Grid view' }).getAttribute('aria-pressed'), 'true')
-    await page.getByRole('searchbox', { name: 'Search artifacts and folders' }).fill('Grid sample 0 with')
+    await page.getByRole('searchbox', { name: 'Search rangka and folders' }).fill('Grid sample 0 with')
     await page.getByText('1 found', { exact: false }).waitFor()
-    assert.equal(await page.locator('.workspace-artifact').count(), 1)
+    assert.equal(await page.locator('.workspace-rangka').count(), 1)
     await page.getByRole('link', { name: /^Preview Grid sample 0/ }).waitFor()
   } finally { await context.close() }
 })
 
-test('artifact menus support management from list and grid on desktop and mobile', async () => {
+test('rangka menus support management from list and grid on desktop and mobile', async () => {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
   const page = await context.newPage()
   try {
@@ -142,11 +142,11 @@ test('artifact menus support management from list and grid on desktop and mobile
     const id = await page.evaluate(async () => {
       const headers = { 'content-type': 'application/json' }
       await fetch('/api/folders', { method: 'POST', headers, body: JSON.stringify({ name: 'Action destination' }) })
-      const created = await fetch('/api/artifacts', { method: 'POST', headers, body: JSON.stringify({ title: 'Action example', type: 'markdown', content: '# Keep this content' }) })
-      return (await created.json()).artifact.id
+      const created = await fetch('/api/rangka', { method: 'POST', headers, body: JSON.stringify({ title: 'Action example', type: 'markdown', content: '# Keep this content' }) })
+      return (await created.json()).rangka.id
     })
     await page.reload()
-    await page.getByRole('searchbox', { name: 'Search artifacts and folders' }).fill('Action example')
+    await page.getByRole('searchbox', { name: 'Search rangka and folders' }).fill('Action example')
     await page.getByText('1 found', { exact: false }).waitFor()
     await page.getByRole('button', { name: 'Actions for Action example', exact: true }).click()
     await page.getByRole('menuitem', { name: 'Duplicate', exact: true }).click()
@@ -155,7 +155,7 @@ test('artifact menus support management from list and grid on desktop and mobile
     await page.getByRole('button', { name: 'Grid view', exact: true }).click()
     await page.getByRole('button', { name: 'Actions for Action example', exact: true }).click()
     await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
-    await page.getByLabel('Artifact title').fill('Action example renamed')
+    await page.getByLabel('Rangka title').fill('Action example renamed')
     await page.getByRole('button', { name: 'Save name', exact: true }).click()
     await page.getByRole('link', { name: /^Action example renamed/ }).waitFor()
     await page.setViewportSize({ width: 320, height: 800 })
@@ -163,7 +163,7 @@ test('artifact menus support management from list and grid on desktop and mobile
     await page.getByRole('button', { name: 'Move to folder', exact: true }).click()
     await page.getByRole('combobox', { name: 'Move to', exact: true }).click()
     await page.getByRole('option', { name: 'Action destination', exact: true }).click()
-    await page.getByRole('button', { name: 'Move artifact', exact: true }).click()
+    await page.getByRole('button', { name: 'Move rangka', exact: true }).click()
     await page.getByRole('link', { name: /^Action example renamed/ }).getByText(/Action destination/).waitFor()
     await page.getByRole('button', { name: 'Actions for Action example renamed', exact: true }).click()
     await page.getByRole('button', { name: 'Share', exact: true }).click()
@@ -174,13 +174,13 @@ test('artifact menus support management from list and grid on desktop and mobile
     await share.waitFor()
     assert.match(await share.inputValue(), /\/share\/.+\?k=[a-f0-9]{64}$/)
     assert.equal((await fetch(await share.inputValue())).status, 200)
-    await page.getByRole('dialog', { name: 'Share artifact', exact: true }).getByRole('button', { name: 'Done', exact: true }).click()
-    const beforeDelete = await page.evaluate(async id => (await (await fetch(`/api/artifacts/${id}`)).json()), id)
+    await page.getByRole('dialog', { name: 'Share rangka', exact: true }).getByRole('button', { name: 'Done', exact: true }).click()
+    const beforeDelete = await page.evaluate(async id => (await (await fetch(`/api/rangka/${id}`)).json()), id)
     assert.equal(beforeDelete.content, '# Keep this content')
-    assert.equal(beforeDelete.artifact.visibility, 'unlisted')
+    assert.equal(beforeDelete.rangka.visibility, 'unlisted')
     await page.getByRole('button', { name: 'Actions for Action example renamed', exact: true }).click()
     await page.getByRole('button', { name: 'Delete', exact: true }).click()
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete artifact', exact: true }).click()
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete rangka', exact: true }).click()
     await page.getByRole('alertdialog').waitFor({ state: 'hidden' })
     await page.getByRole('button', { name: 'Actions for Action example renamed', exact: true }).waitFor({ state: 'hidden' })
     await page.getByRole('link', { name: /^Action example \(copy\)/ }).waitFor()
@@ -219,7 +219,7 @@ test('Selaras tooltips describe actions and preserve dropdown triggers', async (
   } finally { await context.close() }
 })
 
-test('anchored artifact menus leave space at the viewport edges', async () => {
+test('anchored rangka menus leave space at the viewport edges', async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } })
   const page = await context.newPage()
   try {
@@ -229,10 +229,10 @@ test('anchored artifact menus leave space at the viewport edges', async () => {
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     await page.evaluate(async () => {
-      await fetch('/api/artifacts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Viewport edge example', type: 'markdown', content: '# Example' }) })
+      await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Viewport edge example', type: 'markdown', content: '# Example' }) })
     })
     await page.reload()
-    await page.getByRole('searchbox', { name: 'Search artifacts and folders' }).fill('Viewport edge example')
+    await page.getByRole('searchbox', { name: 'Search rangka and folders' }).fill('Viewport edge example')
     const action = page.getByRole('button', { name: 'Actions for Viewport edge example', exact: true })
     await action.waitFor()
     // Exercise collision handling with the trigger at the extreme bottom-right.
@@ -246,7 +246,7 @@ test('anchored artifact menus leave space at the viewport edges', async () => {
       return bounds.left >= 11 && bounds.top >= 11 && bounds.right <= innerWidth - 11 && bounds.bottom <= innerHeight - 11
     })
     await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
-    await page.getByRole('dialog', { name: 'Rename artifact', exact: true }).waitFor()
+    await page.getByRole('dialog', { name: 'Rename rangka', exact: true }).waitFor()
   } finally { await context.close() }
 })
 
@@ -261,11 +261,11 @@ test('Markdown readers use wider centered content and an independent contents ra
     await page.waitForURL(`${base}/`)
     const item = await page.evaluate(async () => {
       const content = '# Centered reader\n\n' + Array.from({ length: 12 }, (_, i) => `## Topic ${i + 1}\n\n${'A paragraph that keeps the document readable across screen sizes. '.repeat(10)}`).join('\n\n')
-      const result = await fetch('/api/artifacts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Centered reader', type: 'markdown', content, visibility: 'public' }) })
-      return (await result.json()).artifact
+      const result = await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Centered reader', type: 'markdown', content, visibility: 'public' }) })
+      return (await result.json()).rangka
     })
-    await page.goto(`${base}/artifacts/${item.id}`)
-    const content = page.locator('.artifact-document-markdown .selaras-prose')
+    await page.goto(`${base}/rangka/${item.id}`)
+    const content = page.locator('.rangka-document-markdown .selaras-prose')
     await content.waitFor()
     const prose = await content.boundingBox()
     assert.ok(prose.width >= 820 && prose.width <= 880, `detail prose should be wider: ${prose.width}`)
@@ -349,10 +349,10 @@ test('Markdown code tokens switch palettes in dark mode in both readers', async 
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const item = await page.evaluate(async () => {
-      const result = await fetch('/api/artifacts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Code palette', type: 'markdown', content: '# Data Model\n\n```typescript\ninterface User {\n  id: string\n  username: string | null\n  createdAt: Date\n}\n```', visibility: 'public' }) })
-      return (await result.json()).artifact
+      const result = await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Code palette', type: 'markdown', content: '# Data Model\n\n```typescript\ninterface User {\n  id: string\n  username: string | null\n  createdAt: Date\n}\n```', visibility: 'public' }) })
+      return (await result.json()).rangka
     })
-    await page.goto(`${base}/artifacts/${item.id}`)
+    await page.goto(`${base}/rangka/${item.id}`)
     await page.waitForFunction(() => document.documentElement.classList.contains('dark'))
     await assertTokenPalette(true)
     await page.goto(`${base}/share/${item.slug}`)

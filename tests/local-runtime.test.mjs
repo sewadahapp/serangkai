@@ -22,8 +22,8 @@ after(async () => { child?.kill('SIGTERM'); await rm(dataDir, { recursive: true,
 
 test('local runtime uses SQLite through the provider-aware route path', async () => {
   const { cookie } = await login(base)
-  const artifact = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Provider runtime', type: 'markdown', content: '# SQLite route' }) })
-  assert.equal(artifact.status, 200)
-  const list = await fetch(`${base}/api/artifacts`, { headers: { cookie } })
-  assert.equal((await list.json()).artifacts[0].title, 'Provider runtime')
+  const rangka = await fetch(`${base}/api/rangka`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Provider runtime', type: 'markdown', content: '# SQLite route' }) })
+  assert.equal(rangka.status, 200)
+  const list = await fetch(`${base}/api/rangka`, { headers: { cookie } })
+  assert.equal((await list.json()).rangka[0].title, 'Provider runtime')
 })

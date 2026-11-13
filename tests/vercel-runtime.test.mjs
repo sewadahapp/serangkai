@@ -19,10 +19,10 @@ before(async () => {
 })
 after(async () => { child?.kill('SIGTERM'); await rm(dataDir, { recursive: true, force: true }) })
 
-test('Vercel Node runtime path supports owner login and artifact listing', async () => {
+test('Vercel Node runtime path supports owner login and rangka listing', async () => {
   const { cookie } = await login(base)
-  const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Vercel runtime', type: 'markdown', content: '# Vercel' }) })
+  const created = await fetch(`${base}/api/rangka`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Vercel runtime', type: 'markdown', content: '# Vercel' }) })
   assert.equal(created.status, 200)
-  const listed = await fetch(`${base}/api/artifacts`, { headers: { cookie } })
-  assert.equal((await listed.json()).artifacts[0].title, 'Vercel runtime')
+  const listed = await fetch(`${base}/api/rangka`, { headers: { cookie } })
+  assert.equal((await listed.json()).rangka[0].title, 'Vercel runtime')
 })

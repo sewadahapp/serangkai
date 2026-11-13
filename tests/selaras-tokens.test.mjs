@@ -2,12 +2,12 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   ALL_SELARAS_TOKENS,
-  ARTIFACT_THEME_VALUES,
+  RANGKA_THEME_VALUES,
   RESOLVED_TOKEN_NAMES,
-  buildArtifactTokenCss,
+  buildRangkaTokenCss,
   selarasTokensGuide,
 } from '../shared/selaras-tokens.ts'
-import { withDocumentTheme } from '../server/utils/artifact-theme.ts'
+import { withDocumentTheme } from '../server/utils/rangka-theme.ts'
 import { capabilities } from '../server/utils/authoring.ts'
 
 const themed = '<!doctype html><html><head><meta name="serangkai-theme" content="selaras-document"><title>Doc</title></head><body><h1>Hello</h1></body></html>'
@@ -27,14 +27,14 @@ test('capabilities advertise the same token set as the catalog', () => {
 })
 
 test('generated CSS declares a resolved wrapper for every token', () => {
-  const css = buildArtifactTokenCss()
+  const css = buildRangkaTokenCss()
   for (const name of RESOLVED_TOKEN_NAMES) {
     assert.match(css, new RegExp(`--selaras-resolved-${name}: var\\(--selaras-${name}\\)`), `missing resolved ${name}`)
     assert.match(css, new RegExp(`--selaras-${name}:`), `missing semantic ${name}`)
   }
   // light/dark follows the viewer; every non-default theme is scoped by attribute.
   assert.match(css, /light-dark\(/)
-  for (const id of Object.keys(ARTIFACT_THEME_VALUES)) {
+  for (const id of Object.keys(RANGKA_THEME_VALUES)) {
     if (id === 'serangkai') continue
     assert.match(css, new RegExp(`:root\\[data-serangkai-theme='${id}'\\]`), `missing override for ${id}`)
   }
@@ -42,7 +42,7 @@ test('generated CSS declares a resolved wrapper for every token', () => {
 
 test('generated CSS satisfies every token the Selaras prose stylesheet reads', async () => {
   const { readFile } = await import('node:fs/promises')
-  const css = buildArtifactTokenCss()
+  const css = buildRangkaTokenCss()
   const prose = await readFile(new URL('../node_modules/@sewadah/selaras/dist/runtime/prose.css', import.meta.url), 'utf8')
   const used = [...prose.matchAll(/var\((--[a-z0-9-]+)/g)].map(m => m[1])
   for (const token of new Set(used)) {

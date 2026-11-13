@@ -10,7 +10,7 @@ import { adminEnv, login } from './helpers/auth.mjs'
 
 const port = 4860 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
-let child, dataDir, cookie, artifact
+let child, dataDir, cookie, rangka
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-head-test-'))
@@ -34,12 +34,12 @@ before(async () => {
 
   const session = await login(base)
   cookie = session.cookie
-  const response = await fetch(`${base}/api/artifacts`, {
+  const response = await fetch(`${base}/api/rangka`, {
     method: 'POST',
     headers: { cookie, 'content-type': 'application/json' },
-    body: JSON.stringify({ title: 'Head probe artifact', type: 'markdown', content: '# Hello', visibility: 'private' }),
+    body: JSON.stringify({ title: 'Head probe rangka', type: 'markdown', content: '# Hello', visibility: 'private' }),
   })
-  artifact = (await response.json()).artifact
+  rangka = (await response.json()).rangka
 })
 
 after(async () => {
@@ -81,23 +81,23 @@ test('workspace and app pages keep the private indexing policy', async () => {
   }
 })
 
-test('artifact titles render server-side and missing artifacts answer 404', async () => {
-  const owned = await htmlPage(`/artifacts/${artifact.id}`, { cookie })
+test('rangka titles render server-side and missing rangka answer 404', async () => {
+  const owned = await htmlPage(`/rangka/${rangka.id}`, { cookie })
   assert.equal(owned.status, 200)
-  assert.match(headOf(await owned.text()), /<title>Head probe artifact · Serangkai<\/title>/)
+  assert.match(headOf(await owned.text()), /<title>Head probe rangka · Serangkai<\/title>/)
 
-  const missing = await htmlPage('/artifacts/definitely-not-an-artifact', { cookie })
+  const missing = await htmlPage('/rangka/definitely-not-an-rangka', { cookie })
   assert.equal(missing.status, 404)
   const body = await missing.text()
   assert.match(body, /<title>This page is off the map\. · Serangkai<\/title>/)
   assert.match(body, /<meta name="robots" content="noindex, nofollow">/)
 })
 
-test('shared artifacts and share errors are not indexed', async () => {
+test('shared rangka and share errors are not indexed', async () => {
   const missing = await htmlPage('/share/definitely-not-a-share')
   assert.equal(missing.status, 404)
   const body = await missing.text()
-  assert.match(body, /<title>This shared artifact is off the map\. · Serangkai<\/title>/)
+  assert.match(body, /<title>This shared rangka is off the map\. · Serangkai<\/title>/)
   assert.match(body, /<meta name="robots" content="noindex, nofollow">/)
 })
 

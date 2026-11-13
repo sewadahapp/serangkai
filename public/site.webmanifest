@@ -1,7 +1,7 @@
 {
   "name": "Serangkai",
   "short_name": "Serangkai",
-  "description": "Self-hosted artifact and knowledge workspace for AI agents and humans.",
+  "description": "Self-hosted rangka and knowledge workspace for AI agents and humans.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

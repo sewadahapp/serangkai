@@ -90,64 +90,64 @@ after(async () => {
 test('B2-style storage works on Workers with D1 and no R2 binding', { timeout: 90000 }, async () => {
   const { cookie } = await login(base)
 
-  // A markdown artifact stores its content through the S3 driver.
-  const created = await fetch(`${base}/api/artifacts`, {
+  // A markdown rangka stores its content through the S3 driver.
+  const created = await fetch(`${base}/api/rangka`, {
     method: 'POST',
     headers: { cookie, 'content-type': 'application/json' },
-    body: JSON.stringify({ title: 'B2 runtime artifact', type: 'markdown', content: '# Stored in B2' }),
+    body: JSON.stringify({ title: 'B2 runtime rangka', type: 'markdown', content: '# Stored in B2' }),
   })
   const createdBody = await created.text()
   assert.equal(created.status, 200, createdBody)
-  const artifact = JSON.parse(createdBody).artifact
+  const rangka = JSON.parse(createdBody).rangka
 
   // Binary uploads must survive the S3 round-trip without corruption.
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
   const form = new FormData()
   form.append('file', new Blob([png], { type: 'image/png' }), 'pixel.png')
   form.append('title', 'B2 image')
-  const uploaded = await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie }, body: form })
+  const uploaded = await fetch(`${base}/api/rangka/upload`, { method: 'POST', headers: { cookie }, body: form })
   const uploadBody = await uploaded.text()
   assert.equal(uploaded.status, 200, uploadBody)
-  const image = JSON.parse(uploadBody).artifact
+  const image = JSON.parse(uploadBody).rangka
 
-  const downloaded = await fetch(`${base}/api/artifacts/${image.id}/download`, { headers: { cookie } })
+  const downloaded = await fetch(`${base}/api/rangka/${image.id}/download`, { headers: { cookie } })
   assert.equal(downloaded.status, 200)
   assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()), png)
 
   // The bytes in the bucket match the upload, and the object path keeps the
-  // userId/artifactId hierarchy.
+  // userId/rangkaId hierarchy.
   // The bytes in the bucket match the upload, and the object path keeps the
-  // userId/artifactId hierarchy.
+  // userId/rangkaId hierarchy.
   const stored = [...mock.objects.entries()].find(([key]) => key.includes(image.id))
   assert.ok(stored, `expected an object for ${image.id} in ${[...mock.objects.keys()].join(', ')}`)
   assert.deepEqual(stored[1], png)
 
   // D1 still holds metadata; no R2 binding is configured anywhere.
-  const listed = await (await fetch(`${base}/api/artifacts`, { headers: { cookie } })).json()
-  const titles = listed.artifacts.map(entry => entry.title).sort()
-  assert.deepEqual(titles, ['B2 image', 'B2 runtime artifact'])
-  assert.ok(artifact.id)
+  const listed = await (await fetch(`${base}/api/rangka`, { headers: { cookie } })).json()
+  const titles = listed.rangka.map(entry => entry.title).sort()
+  assert.deepEqual(titles, ['B2 image', 'B2 runtime rangka'])
+  assert.ok(rangka.id)
 
   // Updating goes through the same adapter, and deletion removes the object.
-  const updated = await fetch(`${base}/api/artifacts/${artifact.id}`, {
+  const updated = await fetch(`${base}/api/rangka/${rangka.id}`, {
     method: 'PUT',
     headers: { cookie, 'content-type': 'application/json' },
     body: JSON.stringify({ content: '# Updated in B2', baseVersion: 1 }),
   })
   assert.equal(updated.status, 200, await updated.text())
-  const fetched = await (await fetch(`${base}/api/artifacts/${artifact.id}`, { headers: { cookie } })).json()
+  const fetched = await (await fetch(`${base}/api/rangka/${rangka.id}`, { headers: { cookie } })).json()
   assert.equal(fetched.content, '# Updated in B2')
 
-  const deleted = await fetch(`${base}/api/artifacts/${image.id}`, { method: 'DELETE', headers: { cookie } })
+  const deleted = await fetch(`${base}/api/rangka/${image.id}`, { method: 'DELETE', headers: { cookie } })
   assert.equal(deleted.status, 200, await deleted.text())
-  assert.ok(![...mock.objects.keys()].some(key => key.includes(image.id)), 'the deleted artifact object must be removed from the bucket')
+  assert.ok(![...mock.objects.keys()].some(key => key.includes(image.id)), 'the deleted rangka object must be removed from the bucket')
 
   // A local redeploy (Worker restart on the same bucket and D1 state) must
-  // keep serving the stored artifact.
+  // keep serving the stored rangka.
   await stopWorker()
   await startWorker()
   const relogin = await login(base)
-  const afterRestart = await fetch(`${base}/api/artifacts/${artifact.id}`, { headers: { cookie: relogin.cookie } })
+  const afterRestart = await fetch(`${base}/api/rangka/${rangka.id}`, { headers: { cookie: relogin.cookie } })
   assert.equal(afterRestart.status, 200)
   assert.equal((await afterRestart.json()).content, '# Updated in B2')
 
@@ -180,7 +180,7 @@ test('a misconfigured S3 endpoint fails storage loudly instead of using Worker m
   const { cookie } = await login(badBase)
   const before = mock.requests.length
   for (let attempt = 0; attempt < 2; attempt++) {
-    const created = await fetch(`${badBase}/api/artifacts`, {
+    const created = await fetch(`${badBase}/api/rangka`, {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ title: `Broken storage ${attempt}`, type: 'markdown', content: '# nope' }),

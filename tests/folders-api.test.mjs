@@ -30,7 +30,7 @@ before(async () => {
 
 after(async () => { child?.kill('SIGTERM'); await rm(dataDir, { recursive: true, force: true }) })
 
-test('folders nest with paths and artifacts can be created and moved inside them', async () => {
+test('folders nest with paths and rangka can be created and moved inside them', async () => {
   const created = await json(cookieA, 'POST', '/api/folders', { name: 'Parent' })
   assert.equal(created.status, 200)
   const parent = (await created.json()).folder
@@ -42,16 +42,16 @@ test('folders nest with paths and artifacts can be created and moved inside them
   assert.equal(childFolder.path, '/Parent/Child')
   assert.equal(childFolder.parentId, parent.id)
 
-  const artifactResponse = await json(cookieA, 'POST', '/api/artifacts', { title: 'Nested artifact', type: 'markdown', content: '# Nested', folderId: childFolder.id })
-  assert.equal(artifactResponse.status, 200)
-  const artifact = (await artifactResponse.json()).artifact
+  const rangkaResponse = await json(cookieA, 'POST', '/api/rangka', { title: 'Nested rangka', type: 'markdown', content: '# Nested', folderId: childFolder.id })
+  assert.equal(rangkaResponse.status, 200)
+  const rangka = (await rangkaResponse.json()).rangka
 
-  const read = await json(cookieA, 'GET', `/api/artifacts/${artifact.id}`)
-  assert.equal((await read.json()).artifact.folderId, childFolder.id)
+  const read = await json(cookieA, 'GET', `/api/rangka/${rangka.id}`)
+  assert.equal((await read.json()).rangka.folderId, childFolder.id)
 
-  const moved = await json(cookieA, 'PUT', `/api/artifacts/${artifact.id}`, { folderId: null })
+  const moved = await json(cookieA, 'PUT', `/api/rangka/${rangka.id}`, { folderId: null })
   assert.equal(moved.status, 200)
-  assert.equal((await moved.json()).artifact.folderId, null)
+  assert.equal((await moved.json()).rangka.folderId, null)
 })
 
 test('moves folders, rewrites descendant paths, and rejects cycles', async () => {
@@ -87,19 +87,19 @@ test('search can be scoped to a folder subtree', async () => {
   const sibling = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Search sibling' })).json()).folder
 
   for (const [title, folderId] of [['Alpha parent', parent.id], ['Alpha child', child.id], ['Alpha sibling', sibling.id], ['Alpha root', undefined]]) {
-    const response = await json(cookieA, 'POST', '/api/artifacts', { title, type: 'markdown', content: '# Alpha', ...(folderId ? { folderId } : {}) })
+    const response = await json(cookieA, 'POST', '/api/rangka', { title, type: 'markdown', content: '# Alpha', ...(folderId ? { folderId } : {}) })
     assert.equal(response.status, 200)
   }
 
   const all = await json(cookieA, 'GET', '/api/search?q=Alpha')
-  assert.equal((await all.json()).artifacts.length, 4)
+  assert.equal((await all.json()).rangka.length, 4)
 
   const parentScope = await json(cookieA, 'GET', `/api/search?q=Alpha&folderId=${parent.id}`)
-  const parentTitles = (await parentScope.json()).artifacts.map(artifact => artifact.title).sort()
+  const parentTitles = (await parentScope.json()).rangka.map(rangka => rangka.title).sort()
   assert.deepEqual(parentTitles, ['Alpha child', 'Alpha parent'])
 
   const childScope = await json(cookieA, 'GET', `/api/search?q=Alpha&folderId=${child.id}`)
-  assert.deepEqual((await childScope.json()).artifacts.map(artifact => artifact.title), ['Alpha child'])
+  assert.deepEqual((await childScope.json()).rangka.map(rangka => rangka.title), ['Alpha child'])
 
   assert.equal((await json(cookieB, 'GET', `/api/search?q=Alpha&folderId=${parent.id}`)).status, 404)
 })
@@ -107,7 +107,7 @@ test('search can be scoped to a folder subtree', async () => {
 test('renames folder paths with descendants and refuses to delete non-empty folders', async () => {
   const parent = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Rename parent' })).json()).folder
   const childFolder = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Child', parentId: parent.id })).json()).folder
-  const artifact = (await (await json(cookieA, 'POST', '/api/artifacts', { title: 'Folder content', type: 'markdown', content: '# Content', folderId: parent.id })).json()).artifact
+  const rangka = (await (await json(cookieA, 'POST', '/api/rangka', { title: 'Folder content', type: 'markdown', content: '# Content', folderId: parent.id })).json()).rangka
 
   const renamed = await json(cookieA, 'PUT', `/api/folders/${parent.id}`, { name: 'Renamed parent' })
   assert.equal(renamed.status, 200)
@@ -129,21 +129,21 @@ test('renames folder paths with descendants and refuses to delete non-empty fold
   assert.equal((await json(cookieB, 'PUT', `/api/folders/${parent.id}`, { name: 'Stolen' })).status, 404)
   assert.equal((await json(cookieB, 'DELETE', `/api/folders/${parent.id}`)).status, 404)
 
-  // The artifact is still safe after the refused deletes.
-  assert.equal((await json(cookieA, 'GET', `/api/artifacts/${artifact.id}`)).status, 200)
+  // The rangka is still safe after the refused deletes.
+  assert.equal((await json(cookieA, 'GET', `/api/rangka/${rangka.id}`)).status, 200)
 })
 
-test('rejects foreign parent folders, foreign artifact folders, and slash names', async () => {
+test('rejects foreign parent folders, foreign rangka folders, and slash names', async () => {
   const parent = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Private parent' })).json()).folder
 
   const foreignChild = await json(cookieB, 'POST', '/api/folders', { name: 'Sneaky', parentId: parent.id })
   assert.equal(foreignChild.status, 400)
 
-  const foreignArtifact = await json(cookieB, 'POST', '/api/artifacts', { title: 'Sneaky', type: 'markdown', content: '# Sneaky', folderId: parent.id })
-  assert.equal(foreignArtifact.status, 400)
+  const foreignRangka = await json(cookieB, 'POST', '/api/rangka', { title: 'Sneaky', type: 'markdown', content: '# Sneaky', folderId: parent.id })
+  assert.equal(foreignRangka.status, 400)
 
-  const ownArtifact = (await (await json(cookieB, 'POST', '/api/artifacts', { title: 'Own', type: 'markdown', content: '# Own' })).json()).artifact
-  const foreignMove = await json(cookieB, 'PUT', `/api/artifacts/${ownArtifact.id}`, { folderId: parent.id })
+  const ownRangka = (await (await json(cookieB, 'POST', '/api/rangka', { title: 'Own', type: 'markdown', content: '# Own' })).json()).rangka
+  const foreignMove = await json(cookieB, 'PUT', `/api/rangka/${ownRangka.id}`, { folderId: parent.id })
   assert.equal(foreignMove.status, 400)
 
   const slashName = await json(cookieA, 'POST', '/api/folders', { name: 'Bad/Name' })
@@ -154,16 +154,16 @@ test('workspace paginates and scopes results while preserving total folder count
   const parent = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Pagination parent' })).json()).folder
   const childFolder = (await (await json(cookieA, 'POST', '/api/folders', { name: 'Pagination child', parentId: parent.id })).json()).folder
   for (let i = 0; i < 27; i++) {
-    const response = await json(cookieA, 'POST', '/api/artifacts', { title: `Pagination example ${i}`, type: 'markdown', content: '# Example', folderId: i % 2 ? parent.id : childFolder.id })
+    const response = await json(cookieA, 'POST', '/api/rangka', { title: `Pagination example ${i}`, type: 'markdown', content: '# Example', folderId: i % 2 ? parent.id : childFolder.id })
     assert.equal(response.status, 200)
   }
   const path = `/api/workspace?folderId=${parent.id}&q=Pagination%20example`
   const first = await (await json(cookieA, 'GET', `${path}&page=1`)).json()
   const second = await (await json(cookieA, 'GET', `${path}&page=2`)).json()
   assert.equal(first.total, 27)
-  assert.equal(first.artifacts.length, 25)
-  assert.equal(second.artifacts.length, 2)
-  assert.equal(new Set([...first.artifacts, ...second.artifacts].map(item => item.id)).size, 27)
+  assert.equal(first.rangka.length, 25)
+  assert.equal(second.rangka.length, 2)
+  assert.equal(new Set([...first.rangka, ...second.rangka].map(item => item.id)).size, 27)
   assert.equal(first.counts.find(row => row.folderId === childFolder.id).value, 14)
   assert.equal((await (await json(cookieA, 'GET', `${path}&page=99`)).json()).page, 2)
   assert.equal((await json(cookieB, 'GET', `/api/workspace?folderId=${parent.id}`)).status, 404)

@@ -1,4 +1,4 @@
-import { artifactComponents, applicationOnlyComponents, componentCatalogMarkdown } from '../../shared/artifact-components'
+import { rangkaComponents, applicationOnlyComponents, componentCatalogMarkdown } from '../../shared/rangka-components'
 import { ALL_SELARAS_TOKENS } from '../../shared/selaras-tokens'
 import { themes } from '../../shared/themes'
 
@@ -6,18 +6,18 @@ import { themes } from '../../shared/themes'
  * Authoring guidance exposed to MCP clients.
  *
  * Kept next to the component registry so discovery cannot drift from the
- * renderer. `get_artifact_capabilities` is the compact entry point; the longer
+ * renderer. `get_rangka_capabilities` is the compact entry point; the longer
  * guides are exposed as MCP resources.
  */
 
-export const authoringArtifactTypes = [
+export const authoringRangkaTypes = [
   { type: 'markdown', description: 'Comark Markdown with Selaras components, Mermaid, TanStack Charts, and syntax-highlighted code.' },
   { type: 'html', description: 'Standalone HTML. Self-styled by default; opt into the Selaras document theme with a meta tag.' },
   { type: 'javascript', description: 'Standalone JavaScript source, displayed with syntax highlighting. No server execution.' },
   { type: 'json', description: 'JSON source, displayed with syntax highlighting.' },
-  { type: 'image', description: 'SVG markup as text content (create_artifact or POST /api/artifacts). Raster images (PNG, JPEG, WebP, GIF) must be uploaded with POST /api/artifacts/upload.' },
-  { type: 'pdf', description: 'PDF viewed in the browser. Binary: upload with POST /api/artifacts/upload; not accepted as text content.' },
-  { type: 'bundle', description: 'Static ZIP web application, served sandboxed with authorization. Binary: upload the .zip with POST /api/artifacts/upload; not accepted as text content.' },
+  { type: 'image', description: 'SVG markup as text content (create_rangka or POST /api/rangka). Raster images (PNG, JPEG, WebP, GIF) must be uploaded with POST /api/rangka/upload.' },
+  { type: 'pdf', description: 'PDF viewed in the browser. Binary: upload with POST /api/rangka/upload; not accepted as text content.' },
+  { type: 'bundle', description: 'Static ZIP web application, served sandboxed with authorization. Binary: upload the .zip with POST /api/rangka/upload; not accepted as text content.' },
 ]
 
 export const chartSchema = {
@@ -35,12 +35,12 @@ export const chartSchema = {
 
 export const capabilities = {
   version: 1,
-  artifactTypes: authoringArtifactTypes,
+  rangkaTypes: authoringRangkaTypes,
   markdown: {
     engine: 'Comark',
     styling: 'Selaras prose by default',
     syntax: 'CommonMark + GFM + Comark components + attributes',
-    components: artifactComponents.map(component => component.tag),
+    components: rangkaComponents.map(component => component.tag),
     applicationOnlyComponents: Object.keys(applicationOnlyComponents),
     charts: chartSchema,
     mermaid: 'Fenced ```mermaid blocks and ::mermaid components',
@@ -103,7 +103,7 @@ Also supported:
 
 ::mermaid
 sequenceDiagram
-  Agent->>Serangkai: create_artifact
+  Agent->>Serangkai: create_rangka
   Serangkai-->>Agent: version
 ::
 
@@ -113,7 +113,7 @@ Serangkai's declarative chart schema supports bar, line, area, and horizontal
 bar charts. Do not write TanStack Charts code; provide JSON:
 
 \`\`\`chart
-{"type":"bar","title":"Artifacts per week","data":[{"week":"W1","value":6},{"week":"W2","value":12}],"x":"week","y":"value"}
+{"type":"bar","title":"Rangka per week","data":[{"week":"W1","value":6},{"week":"W2","value":12}],"x":"week","y":"value"}
 \`\`\`
 
 Supported keys: type, data, x, y, title, xLabel, yLabel, horizontal (bar only),
@@ -151,15 +151,15 @@ Use \`default-value\` for initial state. Do not use v-model or event handlers.
 - Links may use http, https, and mailto. Images may not use data: URLs.
 `
 
-export const htmlGuide = `# HTML artifact authoring guide
+export const htmlGuide = `# HTML rangka authoring guide
 
-HTML artifacts are standalone documents. They are self-styled by default:
+HTML rangka are standalone documents. They are self-styled by default:
 Serangkai does not inject Selaras, Tailwind, or global component CSS.
 
 ## Design independence
 
 Use your own CSS and layout for dashboards, prototypes, and applications. The
-artifact runs in a sandboxed iframe with no network access.
+rangka runs in a sandboxed iframe with no network access.
 
 ## Optional Selaras document theme
 
@@ -298,7 +298,7 @@ Use stable random secrets. Rotating \`JWT_SECRET\` signs everyone out; rotating
 
 ::s-card-group{cols="3"}
   ::s-card
-  ### Artifacts
+  ### Rangka
   **42**
   ::
   ::s-card
@@ -312,7 +312,7 @@ Use stable random secrets. Rotating \`JWT_SECRET\` signs everyone out; rotating
 ::
 
 \`\`\`chart
-{"type":"bar","title":"Artifacts per week","data":[{"week":"W1","value":6},{"week":"W2","value":12},{"week":"W3","value":18}],"x":"week","y":"value"}
+{"type":"bar","title":"Rangka per week","data":[{"week":"W1","value":6},{"week":"W2","value":12},{"week":"W3","value":18}],"x":"week","y":"value"}
 \`\`\`
 
 \`\`\`mermaid
@@ -354,7 +354,7 @@ flowchart LR
 <body>
   <h1>Custom dashboard</h1>
   <div class="cards">
-    <div class="card"><strong>42</strong><br>artifacts</div>
+    <div class="card"><strong>42</strong><br>rangka</div>
     <div class="card"><strong>18 ms</strong><br>preview</div>
   </div>
 </body>

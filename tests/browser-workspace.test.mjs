@@ -24,7 +24,7 @@ before(async () => {
 
 after(async () => { await browser?.close(); child?.kill('SIGTERM'); await rm(dataDir, { recursive: true, force: true }) })
 
-test('human browser workflow logs in and creates an artifact', async () => {
+test('human browser workflow logs in and creates a rangka', async () => {
   await page.goto(`${base}/`)
   await assert.doesNotReject(() => page.getByText('Serangkai').first().waitFor())
   await page.getByRole('heading', { name: 'Log in to Serangkai' }).waitFor()
@@ -32,7 +32,7 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await page.getByLabel('Password').fill(adminPassword)
   await page.getByRole('button', { name: 'Log in' }).click()
   await page.waitForURL(/\/(?:workspace)?$/)
-  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor())
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor())
   await page.getByRole('button', { name: 'New folder' }).click()
   await page.getByLabel('Folder name').fill('Projects')
   // The folder picker must open real options (Reka rejects an empty-string
@@ -43,12 +43,12 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await page.getByRole('button', { name: 'Create folder' }).click()
   await assert.doesNotReject(() => page.getByRole('button', { name: 'Projects', exact: true }).waitFor())
   await page.getByRole('button', { name: 'Projects', exact: true }).click()
-  await page.getByRole('button', { name: 'New artifact' }).first().click()
+  await page.getByRole('button', { name: 'New rangka' }).first().click()
   await page.waitForURL('**/workspace/new?*')
-  await page.getByLabel('Title').first().fill('Browser-created artifact')
+  await page.getByLabel('Title').first().fill('Browser-created rangka')
   await page.getByRole('textbox', { name: 'Content' }).fill('# Browser flow')
-  await page.getByRole('button', { name: 'Create artifact' }).click()
-  await page.waitForURL('**/artifacts/**')
+  await page.getByRole('button', { name: 'Create rangka' }).click()
+  await page.waitForURL('**/rangka/**')
   await page.getByRole('link', { name: 'Workspace', exact: true }).first().click()
   await page.waitForURL(/\/(?:workspace)?$/)
   await assert.doesNotReject(() => page.getByText(/· Projects/).waitFor())
@@ -58,7 +58,7 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await page.getByRole('button', { name: 'Save name' }).click()
   await assert.doesNotReject(() => page.getByRole('button', { name: 'Programs', exact: true }).waitFor())
   await assert.doesNotReject(() => page.getByText(/· Programs/).waitFor())
-  await page.getByRole('button', { name: 'All artifacts' }).click()
+  await page.getByRole('button', { name: 'All rangka' }).click()
   await page.getByRole('button', { name: 'New folder' }).click()
   await page.getByLabel('Folder name').fill('Archive')
   await page.getByRole('button', { name: 'Create folder' }).click()
@@ -71,17 +71,17 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await page.getByRole('button', { name: 'Move folder' }).click()
   await assert.doesNotReject(() => page.getByText('Folder moved').waitFor())
   await assert.doesNotReject(() => page.getByText(/· Archive \/ Programs/).waitFor())
-  await page.getByPlaceholder('Search artifacts and folders…').fill('Browser')
+  await page.getByPlaceholder('Search rangka and folders…').fill('Browser')
   await assert.doesNotReject(() => page.getByText(/In Programs and its subfolders/).waitFor())
   // Searching must keep the folder tree and the row's folder path intact.
   await assert.doesNotReject(() => page.getByRole('button', { name: 'Programs', exact: true }).waitFor())
   await assert.doesNotReject(() => page.getByText(/· Archive \/ Programs/).waitFor())
   await page.getByRole('button', { name: 'Clear', exact: true }).click()
   await assert.doesNotReject(() => page.getByRole('heading', { name: 'Programs', exact: true }).waitFor())
-  await assert.doesNotReject(() => page.getByText('1 artifact', { exact: true }).waitFor())
-  await page.getByRole('link', { name: /^Browser-created artifact/ }).click()
-  await page.waitForURL('**/artifacts/**')
-  await page.getByRole('region', { name: 'Artifact content' }).waitFor()
+  await assert.doesNotReject(() => page.getByText('1 rangka', { exact: true }).waitFor())
+  await page.getByRole('link', { name: /^Browser-created rangka/ }).click()
+  await page.waitForURL('**/rangka/**')
+  await page.getByRole('region', { name: 'Rangka content' }).waitFor()
   assert.equal(await page.getByRole('combobox', { name: 'Visibility' }).count(), 0)
   await page.screenshot({ path: '/tmp/serangkai-reader-desktop.png' })
   await page.getByRole('button', { name: 'Share', exact: true }).click()
@@ -124,41 +124,41 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await page.waitForURL('**/agent')
   await assert.doesNotReject(() => page.getByRole('textbox', { name: 'MCP endpoint', exact: true }).waitFor())
   assert.match(await page.getByRole('textbox', { name: 'MCP endpoint', exact: true }).inputValue(), /\/api\/mcp$/)
-  assert.match(await page.getByRole('textbox', { name: 'REST endpoint', exact: true }).inputValue(), /\/api\/artifacts$/)
+  assert.match(await page.getByRole('textbox', { name: 'REST endpoint', exact: true }).inputValue(), /\/api\/rangka$/)
   await assert.doesNotReject(() => page.getByText('list_folders').first().waitFor())
   await assert.doesNotReject(() => page.getByText(/Bearer YOUR_TOKEN/).waitFor())
 
   await page.getByRole('link', { name: 'Workspace', exact: true }).first().click()
   await page.waitForURL(`${base}/`)
-  await page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor()
-  await assert.doesNotReject(() => page.getByText('Browser-created artifact').first().waitFor())
+  await page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor()
+  await assert.doesNotReject(() => page.getByText('Browser-created rangka').first().waitFor())
 
   await page.getByRole('link', { name: 'Workspace', exact: true }).first().click()
   await page.waitForURL(/\/(?:workspace)?$/)
-  const preview = page.getByRole('link', { name: 'Preview Browser-created artifact' })
+  const preview = page.getByRole('link', { name: 'Preview Browser-created rangka' })
   await assert.doesNotReject(() => preview.waitFor())
   assert.match(await preview.getAttribute('href'), /\/share\/[^?]+\?k=[a-f0-9]{64}$/)
-  await page.getByRole('link', { name: /^Browser-created artifact/ }).click()
-  await page.waitForURL('**/artifacts/**')
-  await page.getByRole('button', { name: 'Artifact actions' }).click()
+  await page.getByRole('link', { name: /^Browser-created rangka/ }).click()
+  await page.waitForURL('**/rangka/**')
+  await page.getByRole('button', { name: 'Rangka actions' }).click()
   await assert.doesNotReject(() => page.getByRole('menuitem', { name: 'Download' }).waitFor())
   await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete artifact' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete rangka' }).click()
   await page.waitForURL(/\/(?:workspace)?$/)
-  await assert.doesNotReject(() => page.getByText('No artifacts yet').waitFor())
+  await assert.doesNotReject(() => page.getByText('No rangka yet').waitFor())
 
   await page.getByRole('button', { name: 'Upload' }).click()
   const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
   await page.locator('input[type="file"]').setInputFiles({ name: 'pixel.png', mimeType: 'image/png', buffer: pixel })
-  await page.getByRole('button', { name: 'Upload artifact' }).click()
+  await page.getByRole('button', { name: 'Upload rangka' }).click()
   await assert.doesNotReject(() => page.getByText('pixel').first().waitFor())
   await page.getByRole('link', { name: /pixel/ }).first().click()
-  await page.waitForURL('**/artifacts/**')
+  await page.waitForURL('**/rangka/**')
   const image = page.getByRole('img', { name: 'pixel' })
   await assert.doesNotReject(() => image.waitFor())
   assert.equal(await image.evaluate(element => element.complete && element.naturalWidth), 1)
 
-  await page.getByRole('button', { name: 'Artifact actions' }).click()
+  await page.getByRole('button', { name: 'Rangka actions' }).click()
   await page.getByRole('menuitem', { name: 'Duplicate' }).click()
   await assert.doesNotReject(() => page.getByRole('heading', { name: 'pixel (copy)' }).waitFor())
 })
@@ -178,7 +178,7 @@ test('the login form works before client hydration', async () => {
     await coldPage.getByLabel('Password').fill(adminPassword)
     await coldPage.getByRole('button', { name: 'Log in' }).click()
     await coldPage.waitForURL(/\/(?:workspace)?$/)
-    await assert.doesNotReject(() => coldPage.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor())
+    await assert.doesNotReject(() => coldPage.getByRole('heading', { name: 'Rangka', exact: true }).waitFor())
   } finally {
     await cold.close()
   }
@@ -186,7 +186,7 @@ test('the login form works before client hydration', async () => {
 
 test('Markdown renders Mermaid diagrams and JSON charts', async () => {
   await page.goto(`${base}/workspace`)
-  const artifactId = await page.evaluate(async () => {
+  const rangkaId = await page.evaluate(async () => {
     const content = [
       '# Render check',
       '',
@@ -200,18 +200,18 @@ test('Markdown renders Mermaid diagrams and JSON charts', async () => {
       '## Chart',
       '',
       '```chart',
-      '{"type":"bar","title":"Routes","data":[{"label":"auth","value":4},{"label":"artifacts","value":13}]}',
+      '{"type":"bar","title":"Routes","data":[{"label":"auth","value":4},{"label":"rangka","value":13}]}',
       '```',
     ].join('\n')
-    const res = await fetch('/api/artifacts', {
+    const res = await fetch('/api/rangka', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'Render check', type: 'markdown', content }),
     })
-    return (await res.json()).artifact.id
+    return (await res.json()).rangka.id
   })
 
-  await page.goto(`${base}/artifacts/${artifactId}`)
+  await page.goto(`${base}/rangka/${rangkaId}`)
   await assert.doesNotReject(() => page.locator('.serangkai-mermaid svg').first().waitFor())
   await assert.doesNotReject(() => page.locator('.ts-chart-host svg').first().waitFor())
   assert.equal(await page.locator('.serangkai-mermaid svg').count(), 1)
@@ -231,7 +231,7 @@ test('Markdown renders Mermaid diagrams and JSON charts', async () => {
 
 test('Markdown renders Selaras document components', async () => {
   await page.goto(`${base}/workspace`)
-  const artifactId = await page.evaluate(async () => {
+  const rangkaId = await page.evaluate(async () => {
     const content = [
       '# Component check',
       '',
@@ -268,15 +268,15 @@ test('Markdown renders Selaras document components', async () => {
       '::s-table{data=\'[{"name":"Ada","role":"Admin"},{"name":"Lin","role":"Member"}]\' columns=\'[{"field":"name","header":"Name"},{"field":"role","header":"Role"}]\' striped}',
       '::',
     ].join('\n')
-    const res = await fetch('/api/artifacts', {
+    const res = await fetch('/api/rangka', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'Component check', type: 'markdown', content }),
     })
-    return (await res.json()).artifact.id
+    return (await res.json()).rangka.id
   })
 
-  await page.goto(`${base}/artifacts/${artifactId}`)
+  await page.goto(`${base}/rangka/${rangkaId}`)
   await page.locator('.selaras-prose [data-selaras-color]').first().waitFor({ timeout: 15000 })
   await page.getByRole('tab', { name: 'Overview' }).first().waitFor({ timeout: 15000 })
   await page.getByRole('button', { name: 'First section' }).first().waitFor({ timeout: 15000 })
@@ -303,13 +303,13 @@ test('the share reader shows a table of contents', async () => {
       '',
       'More text.',
     ].join('\n')
-    const created = await fetch('/api/artifacts', {
+    const created = await fetch('/api/rangka', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'Shared doc', type: 'markdown', content, visibility: 'unlisted' }),
     })
-    const { artifact } = await created.json()
-    const link = await fetch(`/api/artifacts/${artifact.id}/share`, { method: 'POST' })
+    const { rangka } = await created.json()
+    const link = await fetch(`/api/rangka/${rangka.id}/share`, { method: 'POST' })
     return (await link.json()).url
   })
 
@@ -323,24 +323,24 @@ test('the share reader shows a table of contents', async () => {
   await page.setViewportSize({ width: 1280, height: 720 })
 })
 
-test('JSON artifacts are syntax highlighted in the preview', async () => {
-  const artifactId = await page.evaluate(async () => {
+test('JSON rangka are syntax highlighted in the preview', async () => {
+  const rangkaId = await page.evaluate(async () => {
     const form = new FormData()
     form.append('file', new File(['{"brand":"Sewadah","concepts":[{"name":"Shared Space"}]}'], 'presentation-spec.json', { type: 'application/json' }), 'presentation-spec.json')
     form.append('title', 'presentation-spec')
-    const res = await fetch('/api/artifacts/upload', { method: 'POST', body: form })
-    return (await res.json()).artifact.id
+    const res = await fetch('/api/rangka/upload', { method: 'POST', body: form })
+    return (await res.json()).rangka.id
   })
 
-  await page.goto(`${base}/artifacts/${artifactId}`)
+  await page.goto(`${base}/rangka/${rangkaId}`)
   await assert.doesNotReject(() => page.locator('.serangkai-shiki span[style*="--shiki-light"]').first().waitFor())
   assert.ok(await page.locator('.serangkai-shiki span[style*="--shiki-light"]').count() > 0)
   assert.match(await page.locator('.serangkai-prose, main').innerText(), /presentation-spec\.json/)
 })
 
-test('source artifacts open in a full editor with syntax highlighting', async () => {
-  const artifactId = await page.evaluate(async () => {
-    const res = await fetch('/api/artifacts', {
+test('source rangka open in a full editor with syntax highlighting', async () => {
+  const rangkaId = await page.evaluate(async () => {
+    const res = await fetch('/api/rangka', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -349,10 +349,10 @@ test('source artifacts open in a full editor with syntax highlighting', async ()
         content: '<!doctype html>\n<html>\n  <body>\n    <h1>Hello</h1>\n  </body>\n</html>',
       }),
     })
-    return (await res.json()).artifact.id
+    return (await res.json()).rangka.id
   })
 
-  await page.goto(`${base}/artifacts/${artifactId}`)
+  await page.goto(`${base}/rangka/${rangkaId}`)
   await page.getByRole('button', { name: 'Edit' }).click()
   const editor = page.getByRole('textbox', { name: 'Content' })
   await editor.waitFor()
@@ -375,16 +375,16 @@ test('source artifacts open in a full editor with syntax highlighting', async ()
 })
 
 test('the JSON editor surfaces parse errors before saving', async () => {
-  const artifactId = await page.evaluate(async () => {
-    const res = await fetch('/api/artifacts', {
+  const rangkaId = await page.evaluate(async () => {
+    const res = await fetch('/api/rangka', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'Release metadata', type: 'json', content: '{\n  "version": "0.1.0"\n}' }),
     })
-    return (await res.json()).artifact.id
+    return (await res.json()).rangka.id
   })
 
-  await page.goto(`${base}/artifacts/${artifactId}`)
+  await page.goto(`${base}/rangka/${rangkaId}`)
   await page.getByRole('button', { name: 'Edit' }).click()
   const editor = page.getByRole('textbox', { name: 'Content' })
   await editor.waitFor()
@@ -394,11 +394,11 @@ test('the JSON editor surfaces parse errors before saving', async () => {
   assert.equal(await page.locator('.cm-line').nth(2).locator('.cm-lintPoint-error').count(), 1)
 })
 
-test('HTML artifacts render Mermaid and TanStack charts in the sandbox', async () => {
-  const artifactId = await page.evaluate(async () => {
+test('HTML rangka render Mermaid and TanStack charts in the sandbox', async () => {
+  const rangkaId = await page.evaluate(async () => {
     const content = `<!doctype html>
 <html lang="en">
-  <head><meta charset="utf-8"><title>Rich HTML artifact</title></head>
+  <head><meta charset="utf-8"><title>Rich HTML rangka</title></head>
   <body>
     <h1>Launch dashboard</h1>
     <pre class="mermaid">flowchart LR
@@ -413,15 +413,15 @@ test('HTML artifacts render Mermaid and TanStack charts in the sandbox', async (
     <div data-serangkai-chart='{"type":"bar","horizontal":true,"title":"Releases","data":[{"team":"Web","value":14},{"team":"API","value":9},{"team":"Agents","value":5}],"x":"team","y":"value"}'></div>
   </body>
 </html>`
-    const res = await fetch('/api/artifacts', {
+    const res = await fetch('/api/rangka', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title: 'Rich HTML artifact', type: 'html', content }),
+      body: JSON.stringify({ title: 'Rich HTML rangka', type: 'html', content }),
     })
-    return (await res.json()).artifact.id
+    return (await res.json()).rangka.id
   })
 
-  await page.goto(`${base}/artifacts/${artifactId}`)
+  await page.goto(`${base}/rangka/${rangkaId}`)
   const frame = page.frameLocator('iframe')
   await frame.locator('.serangkai-mermaid svg').waitFor({ timeout: 15000 })
   await frame.locator('.serangkai-chart-figure svg').first().waitFor({ timeout: 15000 })
@@ -432,22 +432,22 @@ test('HTML artifacts render Mermaid and TanStack charts in the sandbox', async (
 })
 
 test('long HTML previews size to the document and scroll with the page', async () => {
-  const artifactId = await page.evaluate(async () => {
+  const rangkaId = await page.evaluate(async () => {
     const paragraphs = Array.from({ length: 80 }, (_, index) => `<p>Paragraph ${index + 1} — the preview should grow to fit this document.</p>`).join('')
     const content = `<!doctype html><html><head><title>Long preview</title></head><body><h1>Long preview</h1>${paragraphs}</body></html>`
-    const res = await fetch('/api/artifacts', {
+    const res = await fetch('/api/rangka', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title: 'Long preview artifact', type: 'html', content }),
+      body: JSON.stringify({ title: 'Long preview rangka', type: 'html', content }),
     })
-    return (await res.json()).artifact.id
+    return (await res.json()).rangka.id
   })
 
-  await page.goto(`${base}/artifacts/${artifactId}`)
-  await page.locator('section[aria-label="Artifact content"] iframe').waitFor({ timeout: 15000 })
+  await page.goto(`${base}/rangka/${rangkaId}`)
+  await page.locator('section[aria-label="Rangka content"] iframe').waitFor({ timeout: 15000 })
   // The injected bridge reports after layout; wait for the frame to outgrow 70vh.
   await page.waitForFunction(() => {
-    const frame = document.querySelector('section[aria-label="Artifact content"] iframe')
+    const frame = document.querySelector('section[aria-label="Rangka content"] iframe')
     return !!frame && frame.getBoundingClientRect().height > window.innerHeight
   }, undefined, { timeout: 15000 })
 
@@ -467,7 +467,7 @@ test('long HTML previews size to the document and scroll with the page', async (
   assert.ok(inner.scrollHeight <= inner.clientHeight + 1, `the frame must not scroll: ${inner.scrollHeight} > ${inner.clientHeight}`)
 
   const layout = await page.evaluate(() => {
-    const section = document.querySelector('section[aria-label="Artifact content"]')
+    const section = document.querySelector('section[aria-label="Rangka content"]')
     const frame = section?.querySelector('iframe')
     const content = frame?.parentElement
     const rect = (element) => {
@@ -493,40 +493,40 @@ test('long HTML previews size to the document and scroll with the page', async (
 
   // A short document keeps the 70vh floor instead of collapsing.
   const shortId = await page.evaluate(async () => {
-    const res = await fetch('/api/artifacts', {
+    const res = await fetch('/api/rangka', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title: 'Short preview artifact', type: 'html', content: '<!doctype html><html><head><title>Short</title></head><body><h1>Short</h1></body></html>' }),
+      body: JSON.stringify({ title: 'Short preview rangka', type: 'html', content: '<!doctype html><html><head><title>Short</title></head><body><h1>Short</h1></body></html>' }),
     })
-    return (await res.json()).artifact.id
+    return (await res.json()).rangka.id
   })
-  await page.goto(`${base}/artifacts/${shortId}`)
-  await page.locator('section[aria-label="Artifact content"] iframe').waitFor({ timeout: 15000 })
+  await page.goto(`${base}/rangka/${shortId}`)
+  await page.locator('section[aria-label="Rangka content"] iframe').waitFor({ timeout: 15000 })
   await page.waitForTimeout(400)
   const short = await page.evaluate(() => {
-    const frame = document.querySelector('section[aria-label="Artifact content"] iframe')
+    const frame = document.querySelector('section[aria-label="Rangka content"] iframe')
     return { height: Math.round(frame.getBoundingClientRect().height), viewport: window.innerHeight }
   })
   assert.ok(Math.abs(short.height - short.viewport * 0.7) <= 3, `short frame height ${short.height} at ${short.viewport}`)
 })
 
 test('viewport-sized HTML previews do not grow in a feedback loop', async () => {
-  const artifactId = await page.evaluate(async () => {
+  const rangkaId = await page.evaluate(async () => {
     const content = '<!doctype html><html><head><style>html,body{height:100%;margin:0}main{height:100vh;display:grid;place-items:center}</style></head><body><main><h1>Slide</h1></main></body></html>'
-    const res = await fetch('/api/artifacts', {
+    const res = await fetch('/api/rangka', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title: 'Viewport-sized artifact', type: 'html', content }),
+      body: JSON.stringify({ title: 'Viewport-sized rangka', type: 'html', content }),
     })
-    return (await res.json()).artifact.id
+    return (await res.json()).rangka.id
   })
 
-  await page.goto(`${base}/artifacts/${artifactId}`)
-  await page.locator('section[aria-label="Artifact content"] iframe').waitFor({ timeout: 15000 })
+  await page.goto(`${base}/rangka/${rangkaId}`)
+  await page.locator('section[aria-label="Rangka content"] iframe').waitFor({ timeout: 15000 })
   const heights = []
   for (let attempt = 0; attempt < 4; attempt++) {
     await page.waitForTimeout(350)
-    heights.push(await page.evaluate(() => Math.round(document.querySelector('section[aria-label="Artifact content"] iframe').getBoundingClientRect().height)))
+    heights.push(await page.evaluate(() => Math.round(document.querySelector('section[aria-label="Rangka content"] iframe').getBoundingClientRect().height)))
   }
   assert.ok(heights.every(height => Math.abs(height - heights[0]) <= 2), `heights ${heights.join(', ')}`)
   assert.ok(Math.abs(heights[0] - page.viewportSize().height * 0.7) <= 3, `frame height ${heights[0]}`)
@@ -545,16 +545,16 @@ test('read-only values offer a working copy button', async () => {
   assert.equal(await page.getByRole('button', { name: 'Copied' }).count(), 1)
 })
 
-test('shared HTML artifacts open in the reader with the app chrome', async () => {
+test('shared HTML rangka open in the reader with the app chrome', async () => {
   const shareUrl = await page.evaluate(async () => {
     const html = '<!doctype html><html><head><title>Framed</title></head><body><h1>Frame content</h1></body></html>'
     const form = new FormData()
     form.append('file', new File([html], 'framed.html', { type: 'text/html' }), 'framed.html')
     form.append('title', 'framed')
     form.append('visibility', 'unlisted')
-    const created = await fetch('/api/artifacts/upload', { method: 'POST', body: form })
-    const { artifact } = await created.json()
-    const share = await fetch(`/api/artifacts/${artifact.id}/share`, { method: 'POST' })
+    const created = await fetch('/api/rangka/upload', { method: 'POST', body: form })
+    const { rangka } = await created.json()
+    const share = await fetch(`/api/rangka/${rangka.id}/share`, { method: 'POST' })
     return (await share.json()).url
   })
 
@@ -586,7 +586,7 @@ test('shared HTML artifacts open in the reader with the app chrome', async () =>
   assert.ok(await page.getByRole('link', { name: 'Serangkai home' }).isVisible())
   await assert.doesNotReject(() => page.frameLocator('iframe').getByText('Frame content').waitFor())
 
-  // The artifact is the page, not a card inside it: the header and footer are
+  // The rangka is the page, not a card inside it: the header and footer are
   // the only chrome, the frame spans the width, and the footer follows the
   // content instead of being pinned.
   const layout = await page.evaluate(() => {
@@ -635,13 +635,13 @@ test('shared source files use the full page, with the footer at the end', async 
       project: 'Serangkai',
       items: Array.from({ length: 40 }, (_, index) => ({ id: index, name: `Item ${index}` })),
     }, null, 2)
-    const created = await fetch('/api/artifacts', {
+    const created = await fetch('/api/rangka', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'source-full', type: 'json', content, visibility: 'unlisted' }),
     })
-    const { artifact } = await created.json()
-    const share = await fetch(`/api/artifacts/${artifact.id}/share`, { method: 'POST' })
+    const { rangka } = await created.json()
+    const share = await fetch(`/api/rangka/${rangka.id}/share`, { method: 'POST' })
     return (await share.json()).url
   })
 
@@ -681,14 +681,14 @@ test('shared source files use the full page, with the footer at the end', async 
   assert.ok(Math.abs(scrolled.footerBottom - scrolled.viewportHeight) < 1, `footer bottom ${scrolled.footerBottom}`)
 })
 
-test('navigating from a public artifact to the workspace keeps the signed-in state', async () => {
+test('navigating from a public rangka to the workspace keeps the signed-in state', async () => {
   const slug = await page.evaluate(async () => {
-    const res = await fetch('/api/artifacts', {
+    const res = await fetch('/api/rangka', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'Public navigation check', type: 'markdown', content: '# Shared', visibility: 'public' }),
     })
-    return (await res.json()).artifact.slug
+    return (await res.json()).rangka.slug
   })
 
   await page.goto(`${base}/share/${slug}`)
@@ -696,17 +696,17 @@ test('navigating from a public artifact to the workspace keeps the signed-in sta
   await page.waitForURL(`${base}/`)
   await assert.doesNotReject(() => page.getByRole('link', { name: 'Workspace', exact: true }).first().waitFor())
   assert.equal(await page.getByRole('banner').getByRole('link', { name: 'Log in' }).count(), 0)
-  await assert.doesNotReject(() => page.getByRole('button', { name: new RegExp(adminUsername) }).waitFor())
+  await assert.doesNotReject(() => page.getByRole('complementary', { name: 'Workspace sidebar' }).getByText(adminUsername, { exact: true }).waitFor())
 })
 
 test('anonymous readers still see the login action after leaving a share link', async () => {
   const slug = await page.evaluate(async () => {
-    const res = await fetch('/api/artifacts', {
+    const res = await fetch('/api/rangka', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'Anonymous navigation check', type: 'markdown', content: '# Public', visibility: 'public' }),
     })
-    return (await res.json()).artifact.slug
+    return (await res.json()).rangka.slug
   })
 
   const context = await browser.newContext()
@@ -752,7 +752,7 @@ test('unknown pages render the custom 404 page and recover', async () => {
 
   await page.getByRole('button', { name: 'Back to workspace' }).click()
   await page.waitForURL(/\/(?:workspace)?$/)
-  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor())
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor())
   assert.equal(await page.getByRole('heading', { name: 'This page is off the map.' }).count(), 0)
   assert.equal(await page.title(), 'Workspace · Serangkai')
 })
@@ -772,26 +772,26 @@ test('anonymous 404 recovery returns to owner login and its title', async () => 
   }
 })
 
-test('missing artifacts show the custom error page and recover', async () => {
-  await page.goto(`${base}/artifacts/definitely-not-an-artifact`)
+test('missing rangka show the custom error page and recover', async () => {
+  await page.goto(`${base}/rangka/definitely-not-an-rangka`)
   await assert.doesNotReject(() => page.getByRole('heading', { name: 'This page is off the map.' }).waitFor())
   assert.match(await page.getByText('Error code').innerText(), /404/)
 
   await page.getByRole('button', { name: 'Back to workspace' }).click()
   await page.waitForURL(/\/(?:workspace)?$/)
-  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor())
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor())
   assert.equal(await page.getByRole('heading', { name: 'This page is off the map.' }).count(), 0)
 })
 
 test('workspace load errors are shown inline, recover, and never block navigation', async () => {
-  const artifactsFilter = url => url.pathname === '/api/workspace'
-  const failArtifacts = route => route.fulfill({
+  const rangkaFilter = url => url.pathname === '/api/workspace'
+  const failRangka = route => route.fulfill({
     status: 503,
     contentType: 'application/json',
     body: JSON.stringify({ statusCode: 503, statusMessage: 'Service Unavailable', message: 'Temporarily unavailable' }),
   })
 
-  await page.route(artifactsFilter, failArtifacts)
+  await page.route(rangkaFilter, failRangka)
   try {
     await page.goto(`${base}/workspace`)
     await assert.doesNotReject(() => page.getByText('Could not load the workspace').waitFor())
@@ -804,17 +804,17 @@ test('workspace load errors are shown inline, recover, and never block navigatio
     await page.waitForURL(/\/(?:workspace)?$/)
     await assert.doesNotReject(() => page.getByText('Could not load the workspace').waitFor())
 
-    await page.unroute(artifactsFilter, failArtifacts)
+    await page.unroute(rangkaFilter, failRangka)
     await page.getByRole('button', { name: 'Try again' }).click()
-    await assert.doesNotReject(() => page.getByRole('button', { name: 'All artifacts' }).waitFor())
+    await assert.doesNotReject(() => page.getByRole('button', { name: 'All rangka' }).waitFor())
     assert.equal(await page.getByText('Could not load the workspace').count(), 0)
   } finally {
-    await page.unroute(artifactsFilter, failArtifacts)
+    await page.unroute(rangkaFilter, failRangka)
   }
 
   // A boundary failure must clear on the next route, not cover every page.
   await page.goto(`${base}/workspace`)
-  await page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor()
   assert.equal(await triggerPageError(page), true)
   await assert.doesNotReject(() => page.getByText('This page hit an unexpected error').waitFor())
   await page.getByRole('link', { name: 'Agents', exact: true }).first().click()
@@ -825,12 +825,12 @@ test('workspace load errors are shown inline, recover, and never block navigatio
 
 test('a page component error can be retried without losing the app shell', async () => {
   await page.goto(`${base}/workspace`)
-  await page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor()
+  await page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor()
   assert.equal(await triggerPageError(page), true)
   await assert.doesNotReject(() => page.getByText('This page hit an unexpected error').waitFor())
 
   await page.getByRole('button', { name: 'Try again' }).click()
-  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor())
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor())
   assert.equal(await page.getByText('This page hit an unexpected error').count(), 0)
 })
 
@@ -872,8 +872,8 @@ function triggerPageError(target) {
 test('share errors use the error design and short share pages keep the footer at the bottom', async () => {
   const response = await page.goto(`${base}/share/definitely-not-a-share`)
   assert.equal(response?.status(), 404)
-  await assert.doesNotReject(() => page.getByRole('heading', { name: 'This shared artifact is off the map.' }).waitFor())
-  assert.equal(await page.getByText('This link is invalid or the artifact is no longer shared.').count(), 1)
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'This shared rangka is off the map.' }).waitFor())
+  assert.equal(await page.getByText('This link is invalid or the rangka is no longer shared.').count(), 1)
   assert.equal(await page.locator('.serangkai-error-doodle').count(), 1)
 
   const footerPosition = () => page.locator('footer').evaluate((element) => {
@@ -885,13 +885,13 @@ test('share errors use the error design and short share pages keep the footer at
   assert.ok(Math.abs(footer.bottom - footer.viewport) <= 2, 'the error page footer must sit at the viewport bottom')
 
   const sharePath = await page.evaluate(async () => {
-    const created = await fetch('/api/artifacts', {
+    const created = await fetch('/api/rangka', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'Short share', type: 'markdown', content: '# Short share', visibility: 'public' }),
     })
-    const { artifact } = await created.json()
-    return `/share/${artifact.slug}`
+    const { rangka } = await created.json()
+    return `/share/${rangka.slug}`
   })
 
   await page.goto(`${base}${sharePath}`)
@@ -937,8 +937,8 @@ test('the appearance theme applies instantly and persists across reloads', async
 
     // TanStack Charts reads its categorical palette from --ts-chart-*; the
     // rendered SVG must pick up Rosé Pine's iris instead of the fallback blue.
-    const chartArtifactId = await themePage.evaluate(async () => {
-      const res = await fetch('/api/artifacts', {
+    const chartRangkaId = await themePage.evaluate(async () => {
+      const res = await fetch('/api/rangka', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -947,9 +947,9 @@ test('the appearance theme applies instantly and persists across reloads', async
           content: '```chart\n{"type":"bar","data":[{"label":"A","value":1}]}\n```',
         }),
       })
-      return (await res.json()).artifact.id
+      return (await res.json()).rangka.id
     })
-    await themePage.goto(`${base}/artifacts/${chartArtifactId}`, { waitUntil: 'networkidle' })
+    await themePage.goto(`${base}/rangka/${chartRangkaId}`, { waitUntil: 'networkidle' })
     await themePage.locator('.ts-chart-host svg').first().waitFor()
     const chartFills = await themePage.locator('.ts-chart-host svg rect').evaluateAll(rects => rects.map(rect => getComputedStyle(rect).fill))
     assert.ok(
@@ -978,16 +978,16 @@ test('workspace stays usable on narrow screens with long names and pagination', 
     const name = 'A-very-long-folder-name-without-any-spaces-to-break-the-layout'
     const folders = Array.from({ length: 12 }, (_, i) => ({ id: `folder-${i}`, name: i === 11 ? name : `Folder ${i}`, parentId: i ? `folder-${i - 1}` : null, path: `/${i === 11 ? name : `Folder ${i}`}` }))
     await mobile.route(url => url.pathname === '/api/workspace', route => route.fulfill({
-      json: { folders, counts: [{ folderId: 'folder-11', value: 26 }], total: 26, page: Number(new URL(route.request().url()).searchParams.get('page') || 1), pageSize: 25, artifacts: [{ id: 'mobile-test', title: 'A very long artifact title that should stay readable alongside its visibility badge and preview', type: 'markdown', visibility: 'unlisted', folderId: 'folder-11', updatedAt: new Date().toISOString(), shareUrl: '/share/example' }] },
+      json: { folders, counts: [{ folderId: 'folder-11', value: 26 }], total: 26, page: Number(new URL(route.request().url()).searchParams.get('page') || 1), pageSize: 25, rangka: [{ id: 'mobile-test', title: 'A very long rangka title that should stay readable alongside its visibility badge and preview', type: 'markdown', visibility: 'unlisted', folderId: 'folder-11', updatedAt: new Date().toISOString(), shareUrl: '/share/example' }] },
     }))
     await mobile.reload()
-    await mobile.getByRole('link', { name: /^A very long artifact title/ }).waitFor()
+    await mobile.getByRole('link', { name: /^A very long rangka title/ }).waitFor()
     for (const width of [320, 375, 768]) {
       await mobile.setViewportSize({ width, height: 720 })
       const sizes = await mobile.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
       assert.ok(sizes.content <= sizes.viewport, `horizontal overflow at ${width}px: ${JSON.stringify(sizes)}`)
       assert.equal(await mobile.getByRole('button', { name: 'Next', exact: true }).isVisible(), true)
-      assert.equal(await mobile.getByRole('link', { name: /Preview A very long artifact/ }).isVisible(), true)
+      assert.equal(await mobile.getByRole('link', { name: /Preview A very long rangka/ }).isVisible(), true)
       assert.equal(await mobile.getByRole('button', { name: 'Browse folders' }).isVisible(), true)
     }
     await mobile.setViewportSize({ width: 320, height: 720 })
@@ -1076,7 +1076,7 @@ test('agent connection reference fits narrow viewports and keeps copy controls a
   } finally { await context.close() }
 })
 
-test('artifact history pages and actions work on a narrow screen', async () => {
+test('rangka history pages and actions work on a narrow screen', async () => {
   const context = await browser.newContext({ viewport: { width: 320, height: 720 } })
   const mobile = await context.newPage()
   try {
@@ -1087,22 +1087,22 @@ test('artifact history pages and actions work on a narrow screen', async () => {
     await mobile.waitForURL(/\/(?:workspace)?$/)
     const id = await mobile.evaluate(async () => {
       const headers = { 'content-type': 'application/json' }
-      const created = await fetch('/api/artifacts', { method: 'POST', headers, body: JSON.stringify({ title: 'Long history on mobile', type: 'markdown', content: '# Version 1' }) })
-      const id = (await created.json()).artifact.id
+      const created = await fetch('/api/rangka', { method: 'POST', headers, body: JSON.stringify({ title: 'Long history on mobile', type: 'markdown', content: '# Version 1' }) })
+      const id = (await created.json()).rangka.id
       for (let i = 2; i <= 10; i++) {
-        const response = await fetch(`/api/artifacts/${id}`, { method: 'PUT', headers, body: JSON.stringify({ content: `# Version ${i}`, baseVersion: i - 1 }) })
+        const response = await fetch(`/api/rangka/${id}`, { method: 'PUT', headers, body: JSON.stringify({ content: `# Version ${i}`, baseVersion: i - 1 }) })
         if (!response.ok) throw new Error(`Failed to create version ${i}`)
       }
       return id
     })
-    await mobile.goto(`${base}/artifacts/${id}`)
-    await mobile.getByRole('region', { name: 'Artifact content' }).waitFor()
+    await mobile.goto(`${base}/rangka/${id}`)
+    await mobile.getByRole('region', { name: 'Rangka content' }).waitFor()
     await mobile.screenshot({ path: '/tmp/serangkai-reader-mobile.png' })
     await mobile.getByRole('button', { name: 'History', exact: true }).click()
     await mobile.getByText('10 versions', { exact: true }).waitFor()
     assert.equal(await mobile.getByText('Page 1 of 2').isVisible(), true)
     const sizes = await mobile.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
-    assert.ok(sizes.content <= sizes.viewport, `artifact page overflows: ${JSON.stringify(sizes)}`)
+    assert.ok(sizes.content <= sizes.viewport, `rangka page overflows: ${JSON.stringify(sizes)}`)
     await mobile.getByRole('navigation', { name: 'History pages' }).getByRole('button', { name: 'Next' }).click()
     await mobile.getByText('Page 2 of 2').waitFor()
     await mobile.getByRole('button', { name: 'View' }).last().click()
@@ -1120,7 +1120,7 @@ test('artifact history pages and actions work on a narrow screen', async () => {
     await mobile.getByRole('button', { name: 'History', exact: true }).click()
     await mobile.getByText('11 versions', { exact: true }).waitFor()
     await mobile.keyboard.press('Escape')
-    await mobile.getByRole('button', { name: 'Artifact actions' }).click()
+    await mobile.getByRole('button', { name: 'Rangka actions' }).click()
     await mobile.getByRole('button', { name: 'Duplicate', exact: true }).waitFor()
   } finally { await context.close() }
 })
@@ -1135,10 +1135,10 @@ test('Markdown code blocks have space after headings and before following text',
     await reader.getByRole('button', { name: 'Log in' }).click()
     await reader.waitForURL(/\/(?:workspace)?$/)
     const id = await reader.evaluate(async () => {
-      const result = await fetch('/api/artifacts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Code spacing', type: 'markdown', content: '## Data Model\n\n```typescript\nconst value = 1\n```\n\nFollowing paragraph.' }) })
-      return (await result.json()).artifact.id
+      const result = await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Code spacing', type: 'markdown', content: '## Data Model\n\n```typescript\nconst value = 1\n```\n\nFollowing paragraph.' }) })
+      return (await result.json()).rangka.id
     })
-    await reader.goto(`${base}/artifacts/${id}`)
+    await reader.goto(`${base}/rangka/${id}`)
     const heading = reader.getByRole('heading', { name: 'Data Model' })
     const block = reader.locator('.markdown-code-block')
     const paragraph = reader.getByText('Following paragraph.')

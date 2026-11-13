@@ -4,7 +4,7 @@
   "compatibility_date": "2025-07-15",
   "main": "./.output/server/index.mjs",
   "compatibility_flags": ["nodejs_compat"],
-  // Static client assets (JS, CSS, fonts, icons, artifact runtimes). Without
+  // Static client assets (JS, CSS, fonts, icons, rangka runtimes). Without
   // this block `wrangler deploy` uploads the Worker alone and every /_nuxt
   // request 404s. Nitro's own preset generates an equivalent binding, but this
   // checked-in file wins, so it has to declare it too.
@@ -26,7 +26,7 @@
   ],
   "r2_buckets": [
     {
-      "binding": "ARTIFACTS"
+      "binding": "RANGKA"
     }
   ]
 }

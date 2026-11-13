@@ -283,7 +283,7 @@ test('a full code exchange issues working tokens, and the code cannot be replaye
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
   })
   assert.equal(mcp.status, 200)
-  assert.match(await mcp.text(), /list_artifacts|search/)
+  assert.match(await mcp.text(), /list_rangka|search/)
 
   // Replaying the same code must fail: it was consumed by the exchange above.
   const replay = await exchangeCode({ clientId: client.client_id, code, redirectUri, verifier })
@@ -502,7 +502,7 @@ test('unchecking a scope on the consent page narrows the grant', async () => {
       jsonrpc: '2.0',
       id: 1,
       method: 'tools/call',
-      params: { name: 'create_artifact', arguments: { title: 'Nope', type: 'markdown', content: '# Nope' } },
+      params: { name: 'create_rangka', arguments: { title: 'Nope', type: 'markdown', content: '# Nope' } },
     }),
   })
   assert.equal(write.status, 200)

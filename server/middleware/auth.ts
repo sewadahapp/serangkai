@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm'
 
 // Static assets and the auth module's own session route do not need the owner
 // bootstrap or a database round-trip on every request.
-const staticPrefixes = ['/_nuxt', '/__nuxt', '/fonts/', '/runtime/', '/artifact-themes/']
+const staticPrefixes = ['/_nuxt', '/__nuxt', '/fonts/', '/runtime/', '/rangka-themes/']
 const SESSION_ROUTE = '/api/_auth/session'
 
 function isStatic(path: string) {

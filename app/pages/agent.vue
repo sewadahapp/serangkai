@@ -20,7 +20,7 @@
       <div class="agent-steps">
         <div><span>01</span><p><strong>Choose a connection</strong><small>Use MCP or the REST API.</small></p></div>
         <div><span>02</span><p><strong>Authorize your agent</strong><small>Use a scoped token or browser sign-in for supported MCP clients.</small></p></div>
-        <div><span>03</span><p><strong>Start making</strong><small>Create and organize artifacts in your workspace.</small></p></div>
+        <div><span>03</span><p><strong>Start making</strong><small>Create and organize rangka in your workspace.</small></p></div>
       </div>
     </section>
 
@@ -100,7 +100,7 @@
           <ul class="mt-3 space-y-2 text-sm text-[var(--selaras-resolved-text-muted)]">
             <li>
               <strong class="text-[var(--selaras-resolved-text-default)]">Read before you write.</strong>
-              Call <code>get_artifact</code>, keep the content, then publish with
+              Call <code>get_rangka</code>, keep the content, then publish with
               <code>baseVersion</code> set to the version you read.
             </li>
             <li>
@@ -123,14 +123,14 @@
           <div class="p-5">
             <SerangkaiCode :code="restExample" language="bash" />
             <p class="mt-3 text-sm text-[var(--selaras-resolved-text-muted)]">
-              Artifacts are private by default. Set <code class="rounded bg-[var(--selaras-resolved-surface-elevated)] px-1 py-0.5 font-mono text-xs">visibility</code> deliberately — unlisted links also require the signed key.
+              Rangka are private by default. Set <code class="rounded bg-[var(--selaras-resolved-surface-elevated)] px-1 py-0.5 font-mono text-xs">visibility</code> deliberately — unlisted links also require the signed key.
             </p>
           </div>
         </section>
         <section class="serangkai-panel p-5" aria-labelledby="color-mode">
           <h2 id="color-mode" class="text-sm font-semibold">Color mode</h2>
           <p class="mt-2 text-sm text-[var(--selaras-resolved-text-muted)]">
-            HTML artifacts follow the viewer's light or dark preference automatically.
+            HTML rangka follow the viewer's light or dark preference automatically.
             Write standard CSS — the host injects a small bridge.
           </p>
           <SerangkaiCode class="mt-2" :code="colorModeExample" language="css" :show-header="false" />
@@ -143,7 +143,7 @@
           <h2 id="html-diagrams" class="text-sm font-semibold">HTML diagrams &amp; charts</h2>
           <p class="mt-2 text-sm text-[var(--selaras-resolved-text-muted)]">
             Add a <code>.mermaid</code> block or a JSON chart marker. Serangkai
-            injects only the runtime the artifact needs — no CDN, and no
+            injects only the runtime the rangka needs — no CDN, and no
             author JavaScript is evaluated.
           </p>
           <SerangkaiCode class="mt-2" :code="htmlDiagramExample" language="html" :show-header="false" />
@@ -182,20 +182,20 @@ const { loggedIn } = useUserSession()
 
 const origin = computed(() => (import.meta.client ? window.location.origin : ''))
 const mcpUrl = computed(() => `${origin.value}/api/mcp`)
-const restUrl = computed(() => `${origin.value}/api/artifacts`)
+const restUrl = computed(() => `${origin.value}/api/rangka`)
 
 const toolList = [
   { name: 'list_folders', hint: 'Folder tree' },
-  { name: 'search', hint: 'Artifacts and folders' },
+  { name: 'search', hint: 'Rangka and folders' },
   { name: 'create_folder', hint: 'Nested folders' },
-  { name: 'list_artifacts', hint: 'Owned artifacts' },
-  { name: 'get_artifact', hint: 'Read source' },
-  { name: 'create_artifact', hint: 'Private by default' },
-  { name: 'update_artifact', hint: 'Publish a version — needs baseVersion for content' },
+  { name: 'list_rangka', hint: 'Owned rangka' },
+  { name: 'get_rangka', hint: 'Read source' },
+  { name: 'create_rangka', hint: 'Private by default' },
+  { name: 'update_rangka', hint: 'Publish a version — needs baseVersion for content' },
 ]
 
 const scopeList = [
-  { name: 'read', hint: 'List and read artifacts, folders, and versions.' },
+  { name: 'read', hint: 'List and read rangka, folders, and versions.' },
   { name: 'write', hint: 'Create, update, move, restore, and delete.' },
   { name: 'full', hint: 'Everything, plus minting and revoking tokens.' },
 ]
@@ -211,10 +211,10 @@ const mcpConfig = computed(() => JSON.stringify({
 }, null, 2))
 
 const publishExample = `# 1. read
-get_artifact({ id: "abc" })          → { content: "...", version: 3 }
+get_rangka({ id: "abc" })          → { content: "...", version: 3 }
 
 # 2. publish what you read
-update_artifact({ id: "abc", content: "...", baseVersion: 3 })
+update_rangka({ id: "abc", content: "...", baseVersion: 3 })
   → { version: 4, versionCreated: true }
 
 # stale baseVersion comes back as an error naming the current version`

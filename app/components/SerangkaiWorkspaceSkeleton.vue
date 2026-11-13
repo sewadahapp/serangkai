@@ -41,7 +41,7 @@
 
       <div class="space-y-2">
         <div
-          v-for="(width, index) in artifactWidths"
+          v-for="(width, index) in rangkaWidths"
           :key="index"
           class="flex items-center gap-3 rounded-lg border border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-default)] p-3.5"
         >
@@ -62,5 +62,5 @@
 
 <script setup lang="ts">
 const folderWidths = ['6.5rem', '5rem', '7.5rem', '4.5rem', '6rem']
-const artifactWidths = ['58%', '76%', '64%', '48%']
+const rangkaWidths = ['58%', '76%', '64%', '48%']
 </script>

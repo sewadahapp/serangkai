@@ -9,7 +9,7 @@
           <span class="text-base font-semibold tracking-tight">Serangkai</span>
         </NuxtLink>
         <div class="flex items-center gap-3">
-          <span v-if="artifact" class="hidden text-xs text-[var(--selaras-resolved-text-muted)] sm:inline">
+          <span v-if="rangka" class="hidden text-xs text-[var(--selaras-resolved-text-muted)] sm:inline">
             {{ visibilityLabel }} · updated {{ updatedLabel }}
           </span>
           <SColorModeToggle />
@@ -37,30 +37,30 @@
       </SerangkaiErrorHero>
     </main>
 
-    <!-- Framed, PDF, and source artifacts are the document itself rather than a
+    <!-- Framed, PDF, and source rangka are the document itself rather than a
          preview inside the page: they use the full width, and the frame or
          viewer fills the first screen. The footer follows in normal flow, so
          only the header is pinned. -->
     <main v-else-if="isFill" class="flex-1">
-      <template v-if="artifact">
+      <template v-if="rangka">
         <SerangkaiHtmlPreview
-          v-if="isFramed && artifact.rawUrl"
+          v-if="isFramed && rangka.rawUrl"
           flush
-          :src="artifact.rawUrl"
-          :title="`${artifact.title} preview`"
+          :src="rangka.rawUrl"
+          :title="`${rangka.title} preview`"
           height="calc(100dvh - 4rem)"
         />
         <iframe
-          v-else-if="artifact.type === 'pdf' && artifact.rawUrl"
-          :src="artifact.rawUrl"
-          :title="`${artifact.title} PDF`"
+          v-else-if="rangka.type === 'pdf' && rangka.rawUrl"
+          :src="rangka.rawUrl"
+          :title="`${rangka.title} PDF`"
           class="block h-[calc(100dvh-4rem)] w-full border-0 bg-[var(--selaras-resolved-surface-default)]"
         />
         <div v-else-if="isSource" class="p-4 sm:p-6">
           <SerangkaiCode
-            :code="artifact.content"
-            :language="artifact.type === 'json' ? 'json' : 'javascript'"
-            :filename="artifact.filename"
+            :code="rangka.content"
+            :language="rangka.type === 'json' ? 'json' : 'javascript'"
+            :filename="rangka.filename"
           />
         </div>
       </template>
@@ -72,7 +72,7 @@
         aria-live="polite"
         aria-busy="true"
       >
-        <span class="sr-only">Loading shared artifact…</span>
+        <span class="sr-only">Loading shared rangka…</span>
         <div aria-hidden="true" class="flex h-full flex-col gap-4">
           <SSkeleton animation="shimmer" class="h-4 w-40" />
           <SSkeleton animation="shimmer" class="flex-1 rounded-lg" />
@@ -82,17 +82,17 @@
 
     <!-- Markdown and images scroll like a document. -->
     <main v-else class="serangkai-shell flex-1 py-10">
-      <template v-if="artifact">
+      <template v-if="rangka">
         <!-- Markdown keeps its prose measure and contents rail. -->
-        <div v-if="artifact.type === 'markdown'" class="share-markdown-layout">
+        <div v-if="rangka.type === 'markdown'" class="share-markdown-layout">
           <article class="share-markdown-article">
             <SAccordion v-if="toc.length" :items="[{ value: 'contents', label: 'On this page' }]" class="share-toc-compact" color="neutral">
               <template #contents><SContentToc :links="toc" /></template>
             </SAccordion>
             <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
-            <h1 v-if="!startsWithHeading" class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
+            <h1 v-if="!startsWithHeading" class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ rangka.title }}</h1>
             <div :class="startsWithHeading ? 'mt-4' : 'mt-8'">
-              <MarkdownDocument :body="artifact.body" />
+              <MarkdownDocument :body="rangka.body" />
             </div>
           </article>
 
@@ -103,19 +103,19 @@
           </aside>
         </div>
 
-        <div v-else-if="artifact.type === 'image'" class="mx-auto max-w-5xl">
+        <div v-else-if="rangka.type === 'image'" class="mx-auto max-w-5xl">
           <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
-          <h1 class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
+          <h1 class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ rangka.title }}</h1>
           <img
-            :src="artifact.rawUrl"
-            :alt="artifact.title"
+            :src="rangka.rawUrl"
+            :alt="rangka.title"
             class="mt-8 max-h-[80vh] w-auto rounded-lg border border-[var(--selaras-resolved-border-default)]"
           >
         </div>
       </template>
 
       <div v-else class="mx-auto max-w-5xl" role="status" aria-live="polite" aria-busy="true">
-        <span class="sr-only">Loading shared artifact…</span>
+        <span class="sr-only">Loading shared rangka…</span>
         <div aria-hidden="true">
           <SSkeleton animation="shimmer" class="h-3 w-24" />
           <SSkeleton animation="shimmer" class="mt-3 h-9 w-3/4" />
@@ -137,7 +137,7 @@
          pushed to the viewport bottom when the content is short. -->
     <footer class="border-t border-[var(--selaras-resolved-border-muted)] py-6">
       <div class="serangkai-shell flex flex-col gap-2 text-sm text-[var(--selaras-resolved-text-muted)] sm:flex-row sm:items-center sm:justify-between">
-        <p>Shared from Serangkai — a private-by-default artifact workspace.</p>
+        <p>Shared from Serangkai — a private-by-default rangka workspace.</p>
         <NuxtLink to="/" class="underline-offset-4 hover:underline">Open Serangkai</NuxtLink>
       </div>
     </footer>
@@ -146,7 +146,7 @@
 
 <script setup lang="ts">
 /**
- * Reader for a shared artifact.
+ * Reader for a shared rangka.
  *
  * Every type gets the same sticky header, color-mode toggle, and footer.
  * Markdown renders as prose with a contents rail, images sit in a document
@@ -162,7 +162,7 @@ const route = useRoute()
 // otherwise appear above and below the page's own header and footer.
 definePageMeta({ layout: false })
 
-interface SharedArtifact {
+interface SharedRangka {
   slug: string
   title: string
   type: string
@@ -181,39 +181,39 @@ const key = typeof route.query.k === 'string' ? route.query.k : ''
 const requestFetch = useRequestFetch()
 const loadingLines = ['100%', '92%', '96%', '78%', '100%', '88%', '64%']
 
-const { data: artifact, error: fetchError, refresh } = await useAsyncData(
-  `shared-artifact:${slug}`,
-  () => requestFetch<SharedArtifact>(`/api/share/${slug}`, {
+const { data: rangka, error: fetchError, refresh } = await useAsyncData(
+  `shared-rangka:${slug}`,
+  () => requestFetch<SharedRangka>(`/api/share/${slug}`, {
     query: { ...(key ? { k: key } : {}), format: 'json' },
   }),
 )
 
-const isFramed = computed(() => artifact.value?.type === 'html' || artifact.value?.type === 'bundle')
-const isSource = computed(() => artifact.value?.type === 'json' || artifact.value?.type === 'javascript')
+const isFramed = computed(() => rangka.value?.type === 'html' || rangka.value?.type === 'bundle')
+const isSource = computed(() => rangka.value?.type === 'json' || rangka.value?.type === 'javascript')
 
 // Types that fill the viewport between the header and footer instead of
 // scrolling as a document with a title above the content.
-const isFill = computed(() => isFramed.value || isSource.value || artifact.value?.type === 'pdf')
+const isFill = computed(() => isFramed.value || isSource.value || rangka.value?.type === 'pdf')
 
-// Most Markdown artifacts open with their own `# Title`. Rendering the page
+// Most Markdown rangka open with their own `# Title`. Rendering the page
 // heading too would show the title twice, so defer to the document when it
 // already starts with one.
-const startsWithHeading = computed(() => artifact.value?.startsWithHeading === true)
+const startsWithHeading = computed(() => rangka.value?.startsWithHeading === true)
 
 const toc = computed(() => {
-  const links = artifact.value?.toc || []
+  const links = rangka.value?.toc || []
   return links.length >= 2 ? links : []
 })
 
 const visibilityLabel = computed(() => (
-  artifact.value?.visibility === 'public' ? 'Public artifact'
-    : artifact.value?.visibility === 'unlisted' ? 'Shared via signed link'
-      : 'Private artifact'
+  rangka.value?.visibility === 'public' ? 'Public rangka'
+    : rangka.value?.visibility === 'unlisted' ? 'Shared via signed link'
+      : 'Private rangka'
 ))
 
 const updatedLabel = computed(() => (
-  artifact.value?.updatedAt
-    ? new Date(artifact.value.updatedAt).toLocaleDateString(undefined, { dateStyle: 'medium' })
+  rangka.value?.updatedAt
+    ? new Date(rangka.value.updatedAt).toLocaleDateString(undefined, { dateStyle: 'medium' })
     : ''
 ))
 
@@ -233,17 +233,17 @@ const errorInfo = computed<SharedError | null>(() => {
       statusCode,
       variant: 'lost',
       eyebrow: 'Error 404 · Not found',
-      title: 'This shared artifact is off the map.',
-      description: 'This link is invalid or the artifact is no longer shared. Ask the owner for a fresh link, or open Serangkai.',
+      title: 'This shared rangka is off the map.',
+      description: 'This link is invalid or the rangka is no longer shared. Ask the owner for a fresh link, or open Serangkai.',
     }
   }
   if (statusCode === 403) {
     return {
       statusCode,
       variant: 'torn',
-      eyebrow: 'Error 403 · Private artifact',
-      title: 'This shared artifact is private.',
-      description: 'This artifact is private. Sign in as its owner to view it, or open Serangkai to continue.',
+      eyebrow: 'Error 403 · Private rangka',
+      title: 'This shared rangka is private.',
+      description: 'This rangka is private. Sign in as its owner to view it, or open Serangkai to continue.',
     }
   }
   return {
@@ -251,7 +251,7 @@ const errorInfo = computed<SharedError | null>(() => {
     variant: 'torn',
     eyebrow: 'Error 500 · Server error',
     title: 'Something snapped.',
-    description: 'The shared artifact could not be loaded, but nothing was lost. Try again, or open Serangkai.',
+    description: 'The shared rangka could not be loaded, but nothing was lost. Try again, or open Serangkai.',
   }
 })
 
@@ -264,9 +264,9 @@ if (import.meta.server && fetchError.value) {
 }
 
 useHead(() => ({
-  title: artifact.value
-    ? (artifact.value.title || 'Shared artifact')
-    : errorInfo.value ? errorInfo.value.title : 'Shared artifact',
+  title: rangka.value
+    ? (rangka.value.title || 'Shared rangka')
+    : errorInfo.value ? errorInfo.value.title : 'Shared rangka',
   meta: [{ name: 'robots', content: 'noindex, nofollow' }],
 }))
 </script>

@@ -1,16 +1,72 @@
 import { sql } from 'drizzle-orm'
 
 /**
+ * An interrupted development reload can bootstrap the new SQLite tables before
+ * the rename runs. Recheck their emptiness under a write lock before removing
+ * these unused duplicates. Populated tables always remain for manual recovery.
+ * Both local SQLite drivers expose this synchronous transaction interface.
+ */
+export function recoverEmptyRangkaTables(sqlite: {
+  prepare: (query: string) => { all: () => any[]; get: () => any }
+  exec: (query: string) => unknown
+  transaction: (callback: () => void) => { immediate: () => void }
+}) {
+  sqlite.transaction(() => {
+    const names = new Set(sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(row => row.name))
+    const parentConflict = names.has('artifacts') && names.has('rangka')
+    const versionConflict = names.has('artifact_versions') && names.has('rangka_versions')
+    if (!parentConflict && !versionConflict) return
+
+    // Check both tables before touching either: dropping an empty parent could
+    // otherwise cascade into version rows in an inconsistent legacy database.
+    for (const name of ['rangka', 'rangka_versions']) {
+      if (names.has(name) && sqlite.prepare(`SELECT 1 FROM ${name} LIMIT 1`).get()) return
+    }
+    if (names.has('rangka_versions')) sqlite.exec('DROP TABLE rangka_versions')
+    if (parentConflict) sqlite.exec('DROP TABLE rangka')
+  }).immediate()
+}
+
+/** Rename the pre-Rangka schema in place, retaining IDs, slugs and file keys. */
+export async function ensureRangkaSchema(db: any) {
+  const tables = async () => new Set((await db.all(sql`SELECT name FROM sqlite_master WHERE type = 'table'`)).map((row: any) => row.name))
+  const rename = async (oldName: string, newName: string) => {
+    const names = await tables()
+    if (!names.has(oldName)) return
+    if (names.has(newName)) throw new Error(`Cannot migrate ${oldName}: ${newName} already exists. Preserve both tables and resolve the conflicting database before starting.`)
+    try { await db.run(sql.raw(`ALTER TABLE ${oldName} RENAME TO ${newName}`)) }
+    catch (error) {
+      // Another D1 isolate may have completed exactly this step.
+      const current = await tables()
+      if (current.has(oldName) || !current.has(newName)) throw error
+    }
+  }
+  await rename('artifacts', 'rangka')
+  await rename('artifact_versions', 'rangka_versions')
+  if ((await tables()).has('rangka_versions')) {
+    const columns = await db.all(sql`PRAGMA table_info(rangka_versions)`)
+    if (columns.some((column: any) => column.name === 'artifact_id')) {
+      try { await db.run(sql`ALTER TABLE rangka_versions RENAME COLUMN artifact_id TO rangka_id`) }
+      catch (error) {
+        const current = await db.all(sql`PRAGMA table_info(rangka_versions)`)
+        if (!current.some((column: any) => column.name === 'rangka_id')) throw error
+      }
+    }
+  }
+  await db.run(sql`DROP INDEX IF EXISTS artifacts_slug_unique`)
+}
+
+/**
  * Global uniqueness for public share identifiers.
  *
- * Artifacts are resolved by slug alone (`/api/share/:slug`), but the original
+ * Rangka are resolved by slug alone (`/api/share/:slug`), but the original
  * schema only enforced `UNIQUE(user_id, slug)`. Two users could therefore own
  * the same slug, and the share route would resolve whichever row the database
- * happened to return first: one user's link could open another user's artifact
+ * happened to return first: one user's link could open another user's rangka
  * (or a private 403) instead of their own.
  *
  * This migration makes the invariant global. Existing duplicates are
- * disambiguated deterministically: the oldest artifact keeps its slug (so the
+ * disambiguated deterministically: the oldest rangka keeps its slug (so the
  * longest-lived share URL keeps working), and later ones get a short suffix.
  */
 export async function ensureGlobalSlugUniqueness(db: any) {
@@ -20,7 +76,7 @@ export async function ensureGlobalSlugUniqueness(db: any) {
     // Two Cloudflare isolates can run this migration at the same time. One may
     // lose the race while the other is still rewriting duplicate slugs; retry
     // once so the winner's work is visible and the index can be created.
-    if (!/SQLITE_BUSY|database is locked|unique constraint failed.*artifacts_slug_unique|artifacts_slug_unique/i.test(errorText(error))) {
+    if (!/SQLITE_BUSY|database is locked|unique constraint failed.*rangka_slug_unique|rangka_slug_unique/i.test(errorText(error))) {
       throw error
     }
     await ensureGlobalSlugUniquenessOnce(db)
@@ -29,43 +85,43 @@ export async function ensureGlobalSlugUniqueness(db: any) {
 
 async function ensureGlobalSlugUniquenessOnce(db: any) {
   const existingIndex = await db.all<{ name: string }>(sql`
-    SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'artifacts_slug_unique'
+    SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'rangka_slug_unique'
   `)
   if (existingIndex.length) return
 
   const duplicates = await db.all<{ slug: string }>(sql`
-    SELECT slug FROM artifacts GROUP BY slug HAVING COUNT(*) > 1
+    SELECT slug FROM rangka GROUP BY slug HAVING COUNT(*) > 1
   `)
 
   for (const row of duplicates) {
     const slug = row?.slug
     if (!slug) continue
     const owners = await db.all<{ id: string; userId: string }>(sql`
-      SELECT id, user_id AS userId FROM artifacts
+      SELECT id, user_id AS userId FROM rangka
       WHERE slug = ${slug}
       ORDER BY created_at ASC, id ASC
     `)
-    for (const artifact of owners.slice(1)) {
-      const base = `${slug}-${String(artifact.id).slice(0, 6)}`
+    for (const rangka of owners.slice(1)) {
+      const base = `${slug}-${String(rangka.id).slice(0, 6)}`
       let candidate = base
       let attempt = 0
       // The suffix is derived from the id, so a collision is unlikely but the
       // loop keeps the invariant absolute rather than probabilistic.
       while (true) {
         const taken = await db.all<{ id: string }>(sql`
-          SELECT id FROM artifacts WHERE slug = ${candidate} LIMIT 1
+          SELECT id FROM rangka WHERE slug = ${candidate} LIMIT 1
         `)
         if (!taken.length) break
         candidate = `${base}-${++attempt}`
       }
-      await db.run(sql`UPDATE artifacts SET slug = ${candidate} WHERE id = ${artifact.id}`)
-      console.warn(`[serangkai] Reassigned duplicate artifact slug "${slug}" -> "${candidate}" (artifact ${artifact.id}).`)
+      await db.run(sql`UPDATE rangka SET slug = ${candidate} WHERE id = ${rangka.id}`)
+      console.warn(`[serangkai] Reassigned duplicate rangka slug "${slug}" -> "${candidate}" (rangka ${rangka.id}).`)
     }
   }
 
   // A partial index would let duplicates slip back in; this is the durable
-  // guarantee that two artifacts can never share a public identifier.
-  await db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS artifacts_slug_unique ON artifacts (slug)`)
+  // guarantee that two rangka can never share a public identifier.
+  await db.run(sql`CREATE UNIQUE INDEX IF NOT EXISTS rangka_slug_unique ON rangka (slug)`)
 }
 
 /** Flattens a Drizzle error and its causes into one searchable string. */
@@ -82,14 +138,14 @@ function errorText(error: any) {
 /** True when a unique-constraint error came from the slug index. */
 export function isSlugConflict(error: any) {
   const message = errorText(error)
-  return /unique constraint failed.*artifacts\.slug/i.test(message)
-    || /UNIQUE constraint failed: artifacts\.slug/i.test(message)
-    || /artifacts_slug_unique/i.test(message)
+  return /unique constraint failed.*rangka\.slug/i.test(message)
+    || /UNIQUE constraint failed: rangka\.slug/i.test(message)
+    || /rangka_slug_unique/i.test(message)
 }
 
-/** True when a unique-constraint error came from `UNIQUE(artifact_id, version)`. */
+/** True when a unique-constraint error came from `UNIQUE(rangka_id, version)`. */
 export function isVersionConflict(error: any) {
-  return /unique constraint failed.*artifact_versions\.(artifact_id|version)/i.test(errorText(error))
+  return /unique constraint failed.*rangka_versions\.(rangka_id|version)/i.test(errorText(error))
 }
 
 /**

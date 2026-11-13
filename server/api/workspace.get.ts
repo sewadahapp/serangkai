@@ -1,8 +1,8 @@
 import { and, count, desc, eq, inArray, like, or } from 'drizzle-orm'
-import { artifacts, folders } from '../db/schema'
+import { rangkaItems, folders } from '../db/schema'
 import { getRequestDatabase } from '../db/adapter'
 import { requireUser } from '../utils/require-auth'
-import { artifactShareUrlForCaller } from '../utils/share'
+import { rangkaShareUrlForCaller } from '../utils/share'
 
 // This endpoint is tailored to the workspace UI. Existing list and search API
 // contracts remain unchanged for integrations that consume the full result.
@@ -35,21 +35,21 @@ export default defineEventHandler(async (event) => {
     ids = [...scope]
   }
   const where = and(
-    eq(artifacts.userId, user.id),
-    ...(ids ? [inArray(artifacts.folderId, ids)] : []),
-    ...(query ? [or(like(artifacts.title, `%${query}%`), like(artifacts.slug, `%${query}%`))] : []),
+    eq(rangkaItems.userId, user.id),
+    ...(ids ? [inArray(rangkaItems.folderId, ids)] : []),
+    ...(query ? [or(like(rangkaItems.title, `%${query}%`), like(rangkaItems.slug, `%${query}%`))] : []),
   )
   const [totalRows, counts] = await Promise.all([
-    db.select({ value: count() }).from(artifacts).where(where),
-    db.select({ folderId: artifacts.folderId, value: count() }).from(artifacts).where(eq(artifacts.userId, user.id)).groupBy(artifacts.folderId),
+    db.select({ value: count() }).from(rangkaItems).where(where),
+    db.select({ folderId: rangkaItems.folderId, value: count() }).from(rangkaItems).where(eq(rangkaItems.userId, user.id)).groupBy(rangkaItems.folderId),
   ])
   const total = totalRows[0]?.value || 0
   const page = Math.min(requestedPage, Math.max(1, Math.ceil(total / pageSize)))
-  const rows = await db.select().from(artifacts).where(where)
-    .orderBy(desc(artifacts.updatedAt), desc(artifacts.id)).limit(pageSize).offset((page - 1) * pageSize)
+  const rows = await db.select().from(rangkaItems).where(where)
+    .orderBy(desc(rangkaItems.updatedAt), desc(rangkaItems.id)).limit(pageSize).offset((page - 1) * pageSize)
   return {
     folders: userFolders,
-    artifacts: rows.map(artifact => ({ ...artifact, shareUrl: artifactShareUrlForCaller(event, artifact) })),
+    rangka: rows.map(rangka => ({ ...rangka, shareUrl: rangkaShareUrlForCaller(event, rangka) })),
     counts,
     total,
     page,

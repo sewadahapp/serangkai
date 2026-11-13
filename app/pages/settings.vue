@@ -240,8 +240,8 @@ const loadingTokens = ref(true)
 const loadingClients = ref(true)
 
 const scopeOptions = [
-  { value: 'read', label: 'Read', hint: 'List and read artifacts, folders, and versions. Read-only.' },
-  { value: 'write', label: 'Write', hint: 'Create, update, move, restore, and delete artifacts and folders.' },
+  { value: 'read', label: 'Read', hint: 'List and read rangka, folders, and versions. Read-only.' },
+  { value: 'write', label: 'Write', hint: 'Create, update, move, restore, and delete rangka and folders.' },
   { value: 'full', label: 'Full', hint: 'Everything, including creating and revoking API tokens. Treat as admin.' },
 ]
 
@@ -254,7 +254,7 @@ const scopeSummary = computed(() => {
   const parts: string[] = []
   if (includes('read')) parts.push('read')
   if (includes('write')) parts.push('write')
-  if (!parts.length) return 'Token management only. A token without read or write cannot call the artifact API.'
+  if (!parts.length) return 'Token management only. A token without read or write cannot call the rangka API.'
   return `Grants ${parts.join(' and ')} access. Cannot create or revoke tokens.`
 })
 

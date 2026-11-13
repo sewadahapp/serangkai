@@ -59,7 +59,7 @@ test('unknown routes render the custom 404 page with a real 404 status', async (
 
 test('the 404 page offers the workspace to a signed-in owner', async () => {
   const { cookie } = await login(base)
-  const response = await htmlPage('/missing/artifact', { cookie })
+  const response = await htmlPage('/missing/rangka', { cookie })
   assert.equal(response.status, 404)
 
   const body = await response.text()
@@ -84,8 +84,8 @@ test('missing share links render the custom error design', async () => {
   assert.equal(response.status, 404)
 
   const body = await response.text()
-  assert.match(body, /This shared artifact is off the map\./)
-  assert.match(body, /This link is invalid or the artifact is no longer shared\./)
+  assert.match(body, /This shared rangka is off the map\./)
+  assert.match(body, /This link is invalid or the rangka is no longer shared\./)
   assert.match(body, /Error code/)
   assert.match(body, /serangkai-error-doodle/)
   assert.match(body, /Back to Serangkai/)
@@ -95,19 +95,19 @@ test('missing share links render the custom error design', async () => {
 
 test('private share links render the forbidden error design', async () => {
   const { cookie } = await login(base)
-  const created = await fetch(`${base}/api/artifacts`, {
+  const created = await fetch(`${base}/api/rangka`, {
     method: 'POST',
     headers: { cookie, 'content-type': 'application/json' },
     body: JSON.stringify({ title: 'Private share', type: 'markdown', content: '# Private', visibility: 'private' }),
   })
-  const { artifact } = await created.json()
+  const { rangka } = await created.json()
 
-  const response = await htmlPage(`/share/${artifact.slug}`)
+  const response = await htmlPage(`/share/${rangka.slug}`)
   assert.equal(response.status, 403)
 
   const body = await response.text()
-  assert.match(body, /This shared artifact is private\./)
-  assert.match(body, /Error 403 · Private artifact/)
+  assert.match(body, /This shared rangka is private\./)
+  assert.match(body, /Error 403 · Private rangka/)
   assert.match(body, /serangkai-error-doodle/)
   assert.match(body, /Back to Serangkai/)
   assert.doesNotMatch(body, /at Object\.|node_modules\/|__NUXT_ERROR/)

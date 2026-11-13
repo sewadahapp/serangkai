@@ -6,7 +6,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # SQLite, uploaded artifacts, and versions all live here.
+      # SQLite, uploaded rangka, and versions all live here.
       - serangkai-data:/data
     environment:
       NODE_ENV: production

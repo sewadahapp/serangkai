@@ -11,7 +11,7 @@ test('Cloudflare and Vercel deployment configuration declares supported Nitro pr
   assert.match(nitro, /cloudflare_module/)
   assert.match(nitro, /vercel/)
   assert.match(wrangler, /nodejs_compat/)
-  assert.match(wrangler, /"binding": "ARTIFACTS"/)
+  assert.match(wrangler, /"binding": "RANGKA"/)
   assert.equal(vercel.buildCommand, 'bun run build:vercel')
   assert.equal(vercel.installCommand, 'bun install --frozen-lockfile --ignore-scripts')
   assert.equal(vercel.functions['api/**/*.mjs'].runtime, 'nodejs24.x')

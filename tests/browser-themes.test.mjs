@@ -97,8 +97,8 @@ test('public readers follow the viewer theme preference', async () => {
   const { context, page } = await loggedInPage('light')
   try {
     const slug = await page.evaluate(async () => {
-      const res = await fetch('/api/artifacts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Reader theme', type: 'markdown', content: '# Reader', visibility: 'public' }) })
-      return (await res.json()).artifact.slug
+      const res = await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Reader theme', type: 'markdown', content: '# Reader', visibility: 'public' }) })
+      return (await res.json()).rangka.slug
     })
     const viewer = await browser.newContext({ colorScheme: 'light' })
     await viewer.addCookies([{ name: 'serangkai-theme', value: 'catppuccin', domain: '127.0.0.1', path: '/' }])
@@ -110,17 +110,17 @@ test('public readers follow the viewer theme preference', async () => {
   } finally { await context.close() }
 })
 
-test('HTML artifacts opting into the document theme receive resolved tokens', async () => {
+test('HTML rangka opting into the document theme receive resolved tokens', async () => {
   const { context, page } = await loggedInPage('light')
   try {
     await page.getByRole('radio', { name: /Flexoki/ }).click()
     await page.waitForFunction(() => document.documentElement.dataset.serangkaiTheme === 'flexoki')
     const id = await page.evaluate(async () => {
       const content = '<!doctype html><html><head><meta name="serangkai-theme" content="selaras-document"><style>.card{background:var(--selaras-resolved-surface-default);color:var(--selaras-resolved-text-default);border:1px solid var(--selaras-resolved-border-default)}</style></head><body><div class="card">Token card</div></body></html>'
-      const res = await fetch('/api/artifacts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Token doc', type: 'html', content }) })
-      return (await res.json()).artifact.id
+      const res = await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Token doc', type: 'html', content }) })
+      return (await res.json()).rangka.id
     })
-    await page.goto(`${base}/artifacts/${id}`, { waitUntil: 'networkidle' })
+    await page.goto(`${base}/rangka/${id}`, { waitUntil: 'networkidle' })
     const frame = page.frameLocator('iframe')
     await frame.locator('.card').waitFor()
     assert.equal(await frame.locator('.card').evaluate(el => getComputedStyle(el).backgroundColor), rgb(themes.find(t => t.id === 'flexoki').preview.light.surface))
@@ -132,8 +132,8 @@ test('mobile viewports do not overflow on workspace, settings, and reader', asyn
   try {
     await page.setViewportSize({ width: 390, height: 844 })
     const slug = await page.evaluate(async () => {
-      const res = await fetch('/api/artifacts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Mobile reader', type: 'markdown', content: '# Mobile\n\n| A | B |\n| --- | --- |\n| 1 | 2 |', visibility: 'public' }) })
-      return (await res.json()).artifact.slug
+      const res = await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Mobile reader', type: 'markdown', content: '# Mobile\n\n| A | B |\n| --- | --- |\n| 1 | 2 |', visibility: 'public' }) })
+      return (await res.json()).rangka.slug
     })
     for (const path of ['/workspace', '/settings', `/share/${slug}`]) {
       await page.goto(`${base}${path}`, { waitUntil: 'networkidle' })

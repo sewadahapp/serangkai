@@ -1,4 +1,4 @@
-# Authoring artifacts with Serangkai
+# Authoring rangka with Serangkai
 
 This guide is for agents connected only to the Serangkai MCP server. It does
 not assume access to the Serangkai repository, Selaras MCP, or any additional
@@ -9,7 +9,7 @@ skill.
 Call:
 
 ```text
-get_artifact_capabilities
+get_rangka_capabilities
 ```
 
 Then read:
@@ -26,7 +26,7 @@ Then read:
 Prompts `create_report`, `create_dashboard`, `create_html_document`, and
 `create_custom_dashboard` provide starting instructions.
 
-## Choose the right artifact type
+## Choose the right rangka type
 
 | Need | Use |
 | --- | --- |
@@ -78,7 +78,7 @@ component catalog resource for exact props.
 ### Charts
 
 ```chart
-{"type":"bar","title":"Artifacts per week","data":[{"week":"W1","value":6},{"week":"W2","value":12}],"x":"week","y":"value"}
+{"type":"bar","title":"Rangka per week","data":[{"week":"W1","value":6},{"week":"W2","value":12}],"x":"week","y":"value"}
 ```
 
 Supported: bar, line, area, and horizontal bar (`"horizontal": true`). This is
@@ -104,7 +104,7 @@ flowchart LR
 
 ## HTML
 
-HTML artifacts are self-styled by default. Serangkai does not inject Selaras or
+HTML rangka are self-styled by default. Serangkai does not inject Selaras or
 Tailwind into them.
 
 ### Optional Selaras document theme
@@ -155,4 +155,4 @@ A prebuilt Vue application can import and bundle Selaras independently.
 The automated MCP authoring test exercises the MCP-only discovery and authoring
 flow. A fully independent blind-agent run was not possible in this environment;
 the reproducible harness is `tests/mcp-authoring.test.mjs`. Manual visual
-verification of the generated artifacts remains recommended.
+verification of the generated rangka remains recommended.

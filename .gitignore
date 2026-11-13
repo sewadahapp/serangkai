@@ -6,8 +6,10 @@
 .cache
 dist
 
-# Generated trusted runtime and opt-in document theme for HTML artifacts
+# Generated trusted runtime and opt-in document theme for HTML rangka
 public/runtime
+public/rangka-themes
+# Legacy generated assets are served by a compatibility redirect on clean installs.
 public/artifact-themes
 
 # Node dependencies

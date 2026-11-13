@@ -7,7 +7,7 @@ export default defineNuxtRouteMiddleware((to) => {
     return
   }
   const privatePage = ['/', '/workspace', '/dashboard', '/settings', '/agent'].includes(to.path)
-    || to.path.startsWith('/workspace/') || to.path.startsWith('/artifacts/')
+    || to.path.startsWith('/workspace/') || to.path.startsWith('/rangka/')
   if (privatePage && !loggedIn.value) {
     return navigateTo({ path: '/auth/login', query: to.fullPath === '/' ? {} : { redirect: to.fullPath } })
   }

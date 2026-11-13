@@ -1,7 +1,7 @@
 # Serangkai Architecture
 
 ## Overview
-Serangkai is a Nuxt 4 application providing artifact storage, organization, and sharing for AI agents and humans.
+Serangkai is a Nuxt 4 application providing rangka storage, organization, and sharing for AI agents and humans.
 
 ## Technology Stack
 - **Frontend/Framework**: Nuxt 4, Vue 3, TypeScript
@@ -32,7 +32,7 @@ Serangkai is a Nuxt 4 application providing artifact storage, organization, and 
   wired through `selaras.theme.colors` in `nuxt.config.ts`.
 - **Content**: Comark (`comark` + `@comark/vue`) for Markdown parsing and component-driven rendering
 - **Charts/Diagrams**: Mermaid, rendered theme-aware, and TanStack Charts through
-  a JSON bar/line/area schema in Markdown and sandboxed HTML artifacts.
+  a JSON bar/line/area schema in Markdown and sandboxed HTML rangka.
   Author-supplied JavaScript is never evaluated.
 - **Backend**: Nuxt Nitro server routes (Nitro 2 / H3 v1 via Nuxt 4)
 - **Database**: Drizzle ORM with Bun's built-in SQLite under Bun, better-sqlite3
@@ -79,7 +79,7 @@ Folder {
   updatedAt: Date
 }
 
-Artifact {
+Rangka {
   id: string
   userId: string
   folderId: string | null
@@ -93,9 +93,9 @@ Artifact {
   updatedAt: Date
 }
 
-ArtifactVersion {
+RangkaVersion {
   id: string
-  artifactId: string
+  rangkaId: string
   version: number
   contentPath: string
   metadata: JSON
@@ -104,22 +104,22 @@ ArtifactVersion {
 ```
 
 ### Storage Layer
-Artifact bytes use Nitro's built-in storage abstraction (`useStorage()` over
-unstorage). Keys are the existing `userId/artifactId/...` paths, so the local
-filesystem layout and all existing artifacts remain compatible.
+Rangka bytes use Nitro's built-in storage abstraction (`useStorage()` over
+unstorage). Keys are the existing `userId/rangkaId/...` paths, so the local
+filesystem layout and all existing rangka remain compatible.
 
 - Local/Docker: `fs` driver mounted at `STORAGE_PATH` (default `./data/files`)
 - Cloudflare: `cloudflare-r2-binding` driver mounted at `R2_BINDING`
-  (default `ARTIFACTS`), or the `serangkai-s3` driver when `STORAGE_DRIVER=s3`
+  (default `RANGKA`), or the `serangkai-s3` driver when `STORAGE_DRIVER=s3`
 - Vercel/portable: `serangkai-s3` driver when `STORAGE_DRIVER=s3`
 - Static bundles are extracted into the same store under
-  `userId/artifactId/bundle/...`; no route reads the filesystem directly.
+  `userId/rangkaId/bundle/...`; no route reads the filesystem directly.
   Storage keys treat `:` like `/`, so bundle entry names and asset paths may
   not contain `:`, and the S3 driver refuses `.`/`..` key segments (the fs
   driver already does) so a key can never resolve to another object.
 
 `server/plugins/storage.ts` mounts the driver once at startup, and
-`server/utils/artifact-storage.ts` is the single read/write surface. The S3
+`server/utils/rangka-storage.ts` is the single read/write surface. The S3
 driver (`server/utils/s3-driver.ts`) is a small unstorage adapter over
 `aws4fetch` (SigV4 with a signed payload hash): Workers-compatible, prefix-aware
 listing, loud write failures, configuration validated when the driver mounts
@@ -150,32 +150,32 @@ per day and does not remove the current version.
 - `POST /api/folders` - Create folder
 - `PUT /api/folders/:id` - Rename or move a folder, rejecting cycles and rewriting descendant paths
 - `DELETE /api/folders/:id` - Delete an empty folder
-- `GET /api/artifacts` - List artifacts (with filters)
-- `POST /api/artifacts` - Create artifact from text content. `bundle` and `pdf`
+- `GET /api/rangka` - List rangka (with filters)
+- `POST /api/rangka` - Create rangka from text content. `bundle` and `pdf`
   are refused (use the upload); `image` must be SVG markup and is stored as
-  `image/svg+xml`. MCP `create_artifact` and content updates follow the same rule.
-- `POST /api/artifacts/upload` - Multipart upload (Markdown, HTML, JSON, PDF, images, ZIP bundles)
-- `GET /api/artifacts/:id` - Get artifact
-- `PUT /api/artifacts/:id` - Update artifact, including visibility and folder.
+  `image/svg+xml`. MCP `create_rangka` and content updates follow the same rule.
+- `POST /api/rangka/upload` - Multipart upload (Markdown, HTML, JSON, PDF, images, ZIP bundles)
+- `GET /api/rangka/:id` - Get rangka
+- `PUT /api/rangka/:id` - Update rangka, including visibility and folder.
   Content changes require `baseVersion`; a missing value is `400` and a stale
   one is `409` with `data.currentVersion`. The web editor sends the loaded
   version and reloads on conflict. The version row is inserted before its
-  bytes are stored, so `UNIQUE(artifact_id, version)` picks one winner when
+  bytes are stored, so `UNIQUE(rangka_id, version)` picks one winner when
   writers race on the same `baseVersion`; the others get `409` and never
   overwrite the winner's file.
-- `DELETE /api/artifacts/:id` - Delete artifact
-- `GET /api/artifacts/:id/versions` - Version history
-- `GET /api/artifacts/:id/versions/:version` - Read a historical version
-- `POST /api/artifacts/:id/versions/:version/restore` - Restore a version as a new version
-- `GET /api/artifacts/:id/download` - Download the original source
-- `GET /api/artifacts/:id/preview` - Owner-only inline image/PDF preview
-- `POST /api/artifacts/:id/duplicate` - Copy an artifact as a new private artifact
-- `POST /api/artifacts/:id/share` - Build a public or signed unlisted share URL
-- `GET /api/share/:slug` - Public/unlisted artifact delivery. Markdown redirects
+- `DELETE /api/rangka/:id` - Delete rangka
+- `GET /api/rangka/:id/versions` - Version history
+- `GET /api/rangka/:id/versions/:version` - Read a historical version
+- `POST /api/rangka/:id/versions/:version/restore` - Restore a version as a new version
+- `GET /api/rangka/:id/download` - Download the original source
+- `GET /api/rangka/:id/preview` - Owner-only inline image/PDF preview
+- `POST /api/rangka/:id/duplicate` - Copy an rangka as a new private rangka
+- `POST /api/rangka/:id/share` - Build a public or signed unlisted share URL
+- `GET /api/share/:slug` - Public/unlisted rangka delivery. Markdown redirects
   to the `/share/:slug` reader; `?format=json` returns its rendered data.
 - `GET /api/share/:slug/*` - Scoped static bundle asset delivery
-- `GET /api/search` - Search artifacts/folders, optionally scoped to a folder subtree
-- `GET /api/overview` - Workspace summary: counts, visibility, storage total, recent artifacts
+- `GET /api/search` - Search rangka/folders, optionally scoped to a folder subtree
+- `GET /api/overview` - Workspace summary: counts, visibility, storage total, recent rangka
 - `GET /api/oauth/clients` - List approved OAuth grants (browser session only)
 - `DELETE /api/oauth/clients/:id` - Disconnect a grant and delete its access token
 - `GET /api/health` - Health check
@@ -192,30 +192,30 @@ per day and does not remove the current version.
 ### MCP Integration
 MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `list_folders` - List folders
-- `search` - Search artifacts and folders, optionally scoped to a folder subtree
+- `search` - Search rangka and folders, optionally scoped to a folder subtree
 - `create_folder` - Create a folder, optionally nested
-- `list_artifacts` - List user's artifacts
-- `get_artifact` - Read artifact content
-- `create_artifact` - Create new artifact, optionally inside a folder
-- `update_artifact` - Publish content, visibility, or folder changes.
-  `baseVersion` (the version read with `get_artifact`) is **required whenever
+- `list_rangka` - List user's rangka
+- `get_rangka` - Read rangka content
+- `create_rangka` - Create new rangka, optionally inside a folder
+- `update_rangka` - Publish content, visibility, or folder changes.
+  `baseVersion` (the version read with `get_rangka`) is **required whenever
   content changes**; a mismatch is refused with the current version so the agent
   can re-read and merge, the same stale-write guard Claude Code applies.
   Metadata-only updates are exempt, and unchanged content creates no version.
   Mutating tools declare `destructiveHint`.
 
 ### Frontend Routes
-- `/` - Private artifact workspace with paginated search, folder navigation, and
-  list/grid views. Both views offer per-artifact menus for rename, duplicate,
+- `/` - Private rangka workspace with paginated search, folder navigation, and
+  list/grid views. Both views offer per-rangka menus for rename, duplicate,
   move, sharing, download, and delete. The selected view is stored in a first-party
   preference cookie.
   Signed-out visitors are redirected to owner login. The desktop app uses a
   persistent sidebar; mobile navigation and folder lists open in slideovers.
 - `/auth/login` - Owner login with labeled `SFormField` inputs; registration does not exist
 - `/dashboard` - Compatibility redirect to `/`
-- `/workspace` - Alias for `/`; `/workspace/new` opens the artifact editor
-- `/artifacts/[id]` - Artifact preview/edit. The artifact is fetched during SSR so
-  the title renders on a direct load and a missing artifact answers 404; history,
+- `/workspace` - Alias for `/`; `/workspace/new` opens the rangka editor
+- `/rangka/[id]` - Rangka preview/edit. The rangka is fetched during SSR so
+  the title renders on a direct load and a missing rangka answers 404; history,
   folders, and the share link load after the document. Markdown, HTML, JSON, and
   JavaScript open a full-viewport source workspace with an inline title, type and
   version, dirty state, and Save/Cancel. Preview mode puts content beneath a
@@ -231,7 +231,7 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `/agent` - MCP/REST connection guide with endpoint, client config, scope reference,
   publishing workflow (`baseVersion`), the HTML color-mode contract, and the
   Mermaid/chart marker syntax
-- `/share/[slug]` - Public reader for every shared artifact type. Only the
+- `/share/[slug]` - Public reader for every shared rangka type. Only the
   Serangkai header is sticky; the footer is shared by every type but follows
   the content in normal flow. Markdown gets the workspace prose styles, Shiki,
   Mermaid, charts, and a contents rail; images sit in a document page. HTML,
@@ -244,7 +244,7 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   always redirects Markdown to the reader, and redirects other types only for
   top-level browser navigations (`Sec-Fetch-Dest: document`). Frames, images,
   and direct fetches still receive raw bytes, so the reader can embed them
-  without redirecting to itself. HTML artifacts allow `frame-ancestors 'self'`
+  without redirecting to itself. HTML rangka allow `frame-ancestors 'self'`
   for that frame; the sandbox still denies same-origin access.
 
 ### Design system notes
@@ -295,12 +295,12 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   `height`. `DataChart.client.vue` maps that onto fixed TanStack Charts marks and
   compact scales. The schema exists because chart definitions need functions,
   which JSON cannot carry; evaluating author JavaScript instead would break the
-  artifact security model. Invalid or empty definitions fall back to the raw
+  rangka security model. Invalid or empty definitions fall back to the raw
   JSON rather than a blank panel.
 - Charts consume TanStack's `--ts-chart-1` … `--ts-chart-6` categorical tokens,
   bound to each theme in `app/assets/css/main.css`; switching Serangkai/Rosé
   Pine repaints the SVG without rebuilding the chart definition. Charts inside
-  sandboxed HTML artifacts remain self-styled and receive only light/dark mode,
+  sandboxed HTML rangka remain self-styled and receive only light/dark mode,
   because the iframe does not inherit application CSS variables.
 - Mermaid diagrams re-render when the color mode changes: `MermaidDiagram` uses
   `theme: 'neutral'` in light mode and `'dark'` in dark mode, observing the
@@ -308,19 +308,19 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   `ClientOnly`, so SSR sends readable fallback text and the browser hydrates the
   interactive diagram.
 - Approved declarative and restricted-local-state Selaras components are
-  defined in `shared/artifact-components.ts`, which is the single source of
+  defined in `shared/rangka-components.ts`, which is the single source of
   truth for renderer mappings, prop validation, MCP discovery, and authoring
   documentation. Forms, overlays, dashboard shells, and other application-state
-  components are explicitly application-only. `get_artifact_capabilities`,
+  components are explicitly application-only. `get_rangka_capabilities`,
   resources, and prompts derive from this registry.
-- HTML artifacts remain self-styled by default. `<meta name="serangkai-theme"
+- HTML rangka remain self-styled by default. `<meta name="serangkai-theme"
   content="selaras-document">` opts into a locally served stylesheet generated
   from Selaras prose CSS; the link is injected only when that meta tag is
   present. The theme provides typography and colors, not Vue components.
 - App-owned snippets (MCP config, curl examples, shell workflows) use
   `SerangkaiCode`, which wraps the real `SProsePre` so the header and copy
   button are the component's, and fetches only the highlighted body from
-  `POST /api/highlight`. JSON and JavaScript artifact previews use it too, so
+  `POST /api/highlight`. JSON and JavaScript rangka previews use it too, so
   uploaded source files read like code rather than plain text. That endpoint returns Shiki spans sanitized down to
   `pre`/`code`/`span`, or escaped text for unknown languages, and rejects
   snippets above 50,000 characters so the public route cannot be used to burn
@@ -329,28 +329,28 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `#selaras/tailwind.css` is imported in the Tailwind entry as the installation
   guide requires; it defines `--selaras-adaptive-breakpoint`, without which
   adaptive presentation warns and silently disables.
-- HTML artifacts follow the viewer's color mode. `server/utils/artifact-color-mode.ts`
+- HTML rangka follow the viewer's color mode. `server/utils/rangka-color-mode.ts`
   injects a small `color-scheme` + postMessage bridge; the in-app preview posts the
-  live mode so artifacts re-theme without a reload, while public share links bake the
+  live mode so rangka re-theme without a reload, while public share links bake the
   mode in from `Sec-CH-Prefers-Color-Scheme` and then follow `prefers-color-scheme`.
-  Artifacts can opt out with `<meta name="color-scheme" content="only light">`.
+  Rangka can opt out with `<meta name="color-scheme" content="only light">`.
   `sandbox allow-scripts` still denies same-origin access, forms, popups, framing,
   and network calls.
 - The authenticated HTML preview also injects a height reporter
-  (`server/utils/artifact-preview-height.ts`). Because the sandboxed frame is
+  (`server/utils/rangka-preview-height.ts`). Because the sandboxed frame is
   opaque-origin, the parent listens for a source-checked `serangkai:height`
   message and resizes the frame to the document height, so document-style
-  artifacts scroll with the page. Reports that equal the current frame height
-  are ignored, which keeps `100vh` artifacts from growing in a feedback loop.
+  rangka scroll with the page. Reports that equal the current frame height
+  are ignored, which keeps `100vh` rangka from growing in a feedback loop.
   Public share delivery does not inject the reporter.
-- Sandboxed HTML artifacts can render Mermaid and TanStack charts without a CDN
-  by opting into a same-origin runtime. `server/utils/artifact-runtime.ts` scans
+- Sandboxed HTML rangka can render Mermaid and TanStack charts without a CDN
+  by opting into a same-origin runtime. `server/utils/rangka-runtime.ts` scans
   the delivered HTML and injects only the bundles it needs:
   `/runtime/charts.js` for `[data-serangkai-chart]` and `/runtime/mermaid.js`
   for `.mermaid` / `[data-serangkai-mermaid]`. Chart definitions are JSON
   (`<script type="application/json" data-serangkai-chart>` or a data attribute),
-  and Mermaid source stays declarative, so the runtime never evaluates artifact
-  JavaScript. Both bundles are built by `scripts/build-artifact-runtime.mjs`
+  and Mermaid source stays declarative, so the runtime never evaluates rangka
+  JavaScript. Both bundles are built by `scripts/build-rangka-runtime.mjs`
   into gitignored `public/runtime/` before dev/build. They are classic IIFEs,
   not modules: a sandboxed frame has an opaque origin, and module imports would
   require CORS. `charts.js` is ~186 KB raw / 67 KB gzip; `mermaid.js` is
@@ -384,14 +384,14 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 
 ### Error handling and recovery
 - `app/error.vue` is the full-page fallback for fatal and SSR errors and for
-  artifact 401/403/404 responses. Because it replaces `app.vue`, it includes its
+  rangka 401/403/404 responses. Because it replaces `app.vue`, it includes its
   own `SApp`, header, footer, and color-mode toggle. Its illustration is an
   inline, themable SVG, so the page has no external asset dependency.
 - Recoverable page-load failures stay inside the app shell through
-  `SerangkaiErrorState`, with a retry action: workspace folders/artifacts, the
-  overview, API-token loading, and artifact loading all use it. Secondary
-  artifact requests (history and folder names) use `Promise.allSettled`, so
-  their failure cannot blank an artifact that already loaded.
+  `SerangkaiErrorState`, with a retry action: workspace folders/rangka, the
+  overview, API-token loading, and rangka loading all use it. Secondary
+  rangka requests (history and folder names) use `Promise.allSettled`, so
+  their failure cannot blank an rangka that already loaded.
 - `SerangkaiErrorHero` is shared by the full-page error screen and the public
   share reader, so a missing or private share uses the same illustration,
   typography, status code, and recovery actions while keeping the reader's own
@@ -402,7 +402,7 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `NuxtErrorBoundary` wraps `NuxtPage`. A component failure keeps the layout and
   navigation available, and `router.afterEach` clears the boundary when the
   route changes so the fallback cannot cover the next page. The fallback's retry
-  remounts the page; 404/401/403 from artifact loading use `showError` instead.
+  remounts the page; 404/401/403 from rangka loading use `showError` instead.
 - Non-HTML clients still receive Nuxt's JSON error response. Production pages
   never render a stack trace; development only shows details behind a collapsed
   section on the error page.
@@ -551,11 +551,11 @@ convenience path for clients that support it. Both resolve to the same scoped
 - **API Tokens**: SHA-256 hashed, scoped (`read`/`write`/`full`), optional expiry; OAuth tokens are audience-bound to `/api/mcp`
 - **Authorization**: All private resources check ownership; API tokens checked for scopes; unlisted downloads require the share key; read-only tokens cannot mint share links
 - **XSS/Sanitization**: Sanitize user input; careful with HTML rendering
-- **Sandboxing**: HTML/JS artifacts rendered in sandboxed iframes with restrictive CSP; the opt-in Mermaid/chart runtime is same-origin, declarative, and network-denied
+- **Sandboxing**: HTML/JS rangka rendered in sandboxed iframes with restrictive CSP; the opt-in Mermaid/chart runtime is same-origin, declarative, and network-denied
 - **File Uploads**: Validate file types, size limits, scan if needed
 - **Rate Limiting**: On auth endpoints and API
 - **CSP**: Content Security Policy headers
-- **Private Content**: Never leak private artifacts in public endpoints
+- **Private Content**: Never leak private rangka in public endpoints
 
 ## Deployment
 - **Docker**: Single container with a persistent volume at `/data`
@@ -568,7 +568,7 @@ convenience path for clients that support it. Both resolve to the same scoped
 - **Ports**: Expose 3000 by default
 - **Healthcheck**: /api/health endpoint
 - **Persistence**: `bun run test:docker` replaces a container on the same volume
-  and checks the owner, artifacts, uploads, tokens, and share links.
+  and checks the owner, rangka, uploads, tokens, and share links.
 - **Edge**: Cloudflare uses D1/R2 by default, or D1 + S3-compatible storage
   (Backblaze B2) with `STORAGE_DRIVER=s3`; Vercel uses Node + S3 for durable
   data. Edge entry points set `NUXT_APP_SECRET` explicitly because they cannot

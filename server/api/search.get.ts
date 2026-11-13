@@ -1,7 +1,7 @@
-import { artifacts, folders } from '../db/schema'
+import { rangkaItems, folders } from '../db/schema'
 import { getRequestDatabase } from '../db/adapter'
 import { requireUser } from '../utils/require-auth'
-import { artifactShareUrlForCaller } from '../utils/share'
+import { rangkaShareUrlForCaller } from '../utils/share'
 import { and, eq, inArray, like, or } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   const user = requireUser(event)
   const query = String(getQuery(event).q || '').trim()
   const folderId = String(getQuery(event).folderId || '') || null
-  if (!query) return { artifacts: [], folders: [] }
+  if (!query) return { rangka: [], folders: [] }
 
   const pattern = `%${query}%`
   let scope: Set<string> | null = null
@@ -31,25 +31,25 @@ export default defineEventHandler(async (event) => {
       }
     }
     // Keep the whole subtree so the sidebar and selected folder stay intact
-    // while artifacts are filtered by the query.
+    // while rangka are filtered by the query.
     scopedFolders = userFolders.filter(folder => scope!.has(folder.id))
   }
 
   const ids = scope ? [...scope] : null
-  const [foundArtifacts, foundFolders] = await Promise.all([
-    db.select().from(artifacts).where(and(
-      eq(artifacts.userId, user.id),
-      ...(ids ? [inArray(artifacts.folderId, ids)] : []),
-      or(like(artifacts.title, pattern), like(artifacts.slug, pattern)),
+  const [foundRangka, foundFolders] = await Promise.all([
+    db.select().from(rangkaItems).where(and(
+      eq(rangkaItems.userId, user.id),
+      ...(ids ? [inArray(rangkaItems.folderId, ids)] : []),
+      or(like(rangkaItems.title, pattern), like(rangkaItems.slug, pattern)),
     )),
     ids
       ? Promise.resolve(scopedFolders)
       : db.select().from(folders).where(and(eq(folders.userId, user.id), like(folders.name, pattern))),
   ])
   return {
-    artifacts: foundArtifacts.map(artifact => ({
-      ...artifact,
-      shareUrl: artifactShareUrlForCaller(event, artifact),
+    rangka: foundRangka.map(rangka => ({
+      ...rangka,
+      shareUrl: rangkaShareUrlForCaller(event, rangka),
     })),
     folders: foundFolders,
   }
