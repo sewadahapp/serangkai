@@ -5,7 +5,7 @@
         <h1>Connect an agent</h1>
         <p>Let your agent create, find, and update rangka in Serangkai.</p>
       </div>
-      <SButton v-if="loggedIn" to="/settings" variant="ghost" color="neutral" icon="lucide:key-round">Manage tokens</SButton>
+      <SButton v-if="loggedIn" to="/settings?tab=tokens" variant="ghost" color="neutral" icon="lucide:key-round">Manage tokens</SButton>
     </header>
 
     <SCard :ui="{ body: 'p-5 sm:p-6' }" aria-labelledby="endpoints">
@@ -37,7 +37,7 @@
               <li><span class="agent-step" aria-hidden="true">1</span><div><h3>Add Serangkai to your client</h3><p>Choose a remote MCP connection and paste your MCP endpoint above.</p></div></li>
               <li><span class="agent-step" aria-hidden="true">2</span><div><h3>Sign in and approve access</h3><p>Your client opens Serangkai in a browser. Choose the read and write permissions your agent needs.</p></div></li>
             </ol>
-            <p class="agent-description">You can disconnect an agent in <SButton to="/settings" variant="link" color="neutral" size="sm" :ui="{ base: 'h-auto p-0 text-sm underline underline-offset-4' }">Settings → Connected agents</SButton>.</p>
+            <p class="agent-description">You can disconnect an agent in <SButton to="/settings?tab=agents" variant="link" color="neutral" size="sm" :ui="{ base: 'h-auto p-0 text-sm underline underline-offset-4' }">Settings → Connected agents</SButton>.</p>
             <p class="agent-caption">Remote MCP connections require HTTPS. Localhost also supports HTTP.</p>
           </section>
         </template>

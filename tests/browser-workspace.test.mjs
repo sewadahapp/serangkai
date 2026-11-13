@@ -113,11 +113,15 @@ test('human browser workflow logs in and creates a rangka', async () => {
 
   await page.getByRole('link', { name: 'Settings' }).click()
   await page.waitForURL('**/settings')
+  await page.getByRole('tab', { name: 'Tokens', exact: true }).click()
+  await page.getByRole('button', { name: 'Create token', exact: true }).click()
   await page.getByLabel('Name').fill('Browser token')
-  await page.getByRole('button', { name: 'Create token' }).click()
+  await page.getByRole('dialog', { name: 'Create token', exact: true }).getByRole('button', { name: 'Create token', exact: true }).click()
   const tokenField = page.getByLabel('New API token')
   await assert.doesNotReject(() => tokenField.waitFor())
   assert.match(await tokenField.inputValue(), /^[A-Za-z0-9_-]{32}$/)
+  await page.getByRole('dialog', { name: 'Token created', exact: true }).getByRole('button', { name: 'Done', exact: true }).click()
+  await tokenField.waitFor({ state: 'hidden' })
   await assert.doesNotReject(() => page.getByText('Browser token').first().waitFor())
 
   await page.getByRole('link', { name: 'Agents' }).first().click()

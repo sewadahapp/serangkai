@@ -232,7 +232,10 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   with `70vh` as the floor; Markdown already renders in-page. PDFs keep the
   browser's viewer and fill the content column.
 - `/settings` - Appearance themes, light/dark mode, API token creation, listing,
-  and revocation. Desktop sidebar account identity is static with a direct logout
+  and revocation, plus connected-agent management in separate Selaras tabs.
+  Token creation and its one-time secret display use a modal. Agent-guide links
+  select the Tokens or Agents tab through the `tab` query parameter.
+  Desktop sidebar account identity is static with a direct logout
   action; mobile account navigation opens in a slideover.
 - `/agent` - MCP/REST connection guide with endpoint, client config, scope reference,
   publishing workflow (`baseVersion`), the HTML color-mode contract, and the

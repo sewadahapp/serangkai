@@ -436,6 +436,105 @@ test('integrated add and edit screens retain navigation and protect unsaved draf
   } finally { await context.close() }
 })
 
+test('Settings tabs keep token permissions, one-time copy, and agent revocation usable on mobile', async () => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  const tokenName = `Settings token ${'x'.repeat(85)}`
+  const clientName = `Coding agent ${'y'.repeat(85)}`
+  let clientsError = true
+  let clients = [{ id: 'settings-client', name: clientName, scopes: ['read', 'write'], connectedAt: new Date().toISOString(), refreshExpiresAt: new Date(Date.now() + 86400000).toISOString() }]
+  let disconnected = 0
+  try {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base })
+    await context.request.post(`${base}/api/auth/login`, { data: { username: adminUsername, password: adminPassword } })
+    await page.route(url => url.pathname === '/api/oauth/clients', route => route.fulfill(clientsError ? { status: 503, json: { message: 'Temporary connection-list failure.' } } : { json: { clients } }))
+    await page.route(url => url.pathname === '/api/oauth/clients/settings-client', async route => {
+      assert.equal(route.request().method(), 'DELETE')
+      disconnected++
+      clients = []
+      await route.fulfill({ json: { success: true } })
+    })
+    await page.goto(`${base}/settings?tab=tokens`)
+    assert.equal(await page.getByRole('tab', { name: 'Tokens', exact: true }).getAttribute('aria-selected'), 'true')
+    await page.getByRole('button', { name: 'Create token', exact: true }).click()
+    const modal = page.getByRole('dialog', { name: 'Create token', exact: true })
+    const read = modal.getByRole('checkbox', { name: /^Read/ })
+    const write = modal.getByRole('checkbox', { name: /^Write/ })
+    const full = modal.getByRole('checkbox', { name: /^Full/ })
+    assert.equal(await read.getAttribute('aria-checked'), 'true')
+    assert.equal(await write.getAttribute('aria-checked'), 'true')
+    await full.click()
+    assert.equal(await full.getAttribute('aria-checked'), 'true')
+    assert.equal(await read.getAttribute('aria-checked'), 'true')
+    assert.equal(await write.getAttribute('aria-checked'), 'true')
+    await read.click()
+    assert.equal(await full.getAttribute('aria-checked'), 'false')
+    await write.click()
+    assert.equal(await modal.getByRole('button', { name: 'Create token', exact: true }).isDisabled(), true)
+    await read.click()
+    await modal.getByLabel('Name').fill(tokenName)
+    await modal.getByLabel('Expires').click()
+    await page.getByRole('application').first().waitFor()
+    await page.keyboard.press('Escape')
+    await page.locator('[role="application"]').waitFor({ state: 'hidden' })
+    assert.equal(await modal.isVisible(), true, 'closing the date picker keeps the token dialog open')
+    await page.setViewportSize({ width: 320, height: 720 })
+    await page.screenshot({ path: '/tmp/serangkai-settings-create-token-mobile.png' })
+    await modal.getByRole('button', { name: 'Create token', exact: true }).click()
+    const created = page.getByRole('dialog', { name: 'Token created', exact: true })
+    const secret = await created.getByRole('textbox', { name: 'New API token', exact: true }).inputValue()
+    await created.getByRole('button', { name: 'Copy API token', exact: true }).click()
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), secret)
+    await created.getByRole('button', { name: 'Done', exact: true }).click()
+    await page.reload()
+    assert.equal(await page.getByRole('textbox', { name: 'New API token', exact: true }).count(), 0)
+    const saved = (await (await context.request.get(`${base}/api/tokens`)).json()).tokens.find(token => token.name === tokenName)
+    assert.deepEqual(saved.scopes, ['read'])
+    assert.equal((await context.request.get(`${base}/api/rangka`, { headers: { authorization: `Bearer ${secret}` } })).status(), 200)
+    for (const width of [320, 390, 768, 1440]) {
+      await page.setViewportSize({ width, height: 900 })
+      const [viewport, content] = await page.evaluate(() => [document.documentElement.clientWidth, document.documentElement.scrollWidth])
+      assert.ok(content <= viewport, `token list overflows at ${width}px`)
+      if (width === 320 || width === 1440) await page.screenshot({ path: `/tmp/serangkai-settings-tokens-${width}.png` })
+    }
+    await page.getByRole('tab', { name: 'Agents', exact: true }).click()
+    await page.getByRole('heading', { name: 'Could not load connected agents', exact: true }).waitFor()
+    clientsError = false
+    await page.getByRole('button', { name: 'Try again', exact: true }).click()
+    await page.getByText(clientName, { exact: true }).waitFor()
+    for (const width of [1440, 768, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 })
+      const [viewport, content] = await page.evaluate(() => [document.documentElement.clientWidth, document.documentElement.scrollWidth])
+      assert.ok(content <= viewport, `agent list overflows at ${width}px`)
+      if (width === 320 || width === 1440) await page.screenshot({ path: `/tmp/serangkai-settings-agents-${width}.png` })
+    }
+    await page.getByRole('button', { name: `Disconnect ${clientName}`, exact: true }).click()
+    await page.getByRole('heading', { name: 'No agents connected', exact: true }).waitFor()
+    assert.equal(disconnected, 1)
+    await page.getByRole('tab', { name: 'Tokens', exact: true }).click()
+    await page.getByRole('button', { name: `Revoke ${tokenName}`, exact: true }).click()
+    await page.getByRole('button', { name: `Revoke ${tokenName}`, exact: true }).waitFor({ state: 'hidden' })
+    assert.equal((await context.request.get(`${base}/api/rangka`, { headers: { authorization: `Bearer ${secret}` } })).status(), 401)
+    await page.goto(`${base}/agent`)
+    await page.getByRole('link', { name: 'Manage tokens', exact: true }).click()
+    await page.getByRole('heading', { name: 'API tokens', exact: true }).waitFor()
+    assert.equal(new URL(page.url()).searchParams.get('tab'), 'tokens')
+    await page.goto(`${base}/agent`)
+    await page.getByRole('link', { name: 'Settings → Connected agents', exact: true }).click()
+    await page.getByRole('heading', { name: 'Connected agents', exact: true }).waitFor()
+    assert.equal(new URL(page.url()).searchParams.get('tab'), 'agents')
+    await page.getByRole('tab', { name: 'Appearance', exact: true }).click()
+    await page.getByRole('heading', { name: 'Appearance', exact: true }).waitFor()
+    for (const width of [1440, 320]) {
+      await page.setViewportSize({ width, height: 900 })
+      await page.evaluate(() => window.scrollTo(0, 0))
+      const [viewport, content] = await page.evaluate(() => [document.documentElement.clientWidth, document.documentElement.scrollWidth])
+      assert.ok(content <= viewport, `appearance overflows at ${width}px`)
+      await page.screenshot({ path: `/tmp/serangkai-settings-appearance-${width}.png` })
+    }
+  } finally { await context.close() }
+})
+
 test('color mode lives in Settings and the desktop account label has a direct logout', async () => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'light' })
   const page = await context.newPage()
