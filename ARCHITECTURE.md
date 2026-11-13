@@ -236,7 +236,9 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   action; mobile account navigation opens in a slideover.
 - `/agent` - MCP/REST connection guide with endpoint, client config, scope reference,
   publishing workflow (`baseVersion`), the HTML color-mode contract, and the
-  Mermaid/chart marker syntax
+  Mermaid/chart marker syntax. A single-column setup flow uses Selaras tabs for
+  browser sign-in, MCP tokens, and REST examples; advanced reference sections
+  live in an accordion below a copyable starter prompt.
 - `/share/[slug]` - Public reader for every shared rangka type. Only the
   Serangkai header is sticky; the footer is shared by every type but follows
   the content in normal flow. Markdown gets the workspace prose styles, Shiki,

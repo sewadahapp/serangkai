@@ -125,7 +125,9 @@ test('human browser workflow logs in and creates a rangka', async () => {
   await assert.doesNotReject(() => page.getByRole('textbox', { name: 'MCP endpoint', exact: true }).waitFor())
   assert.match(await page.getByRole('textbox', { name: 'MCP endpoint', exact: true }).inputValue(), /\/api\/mcp$/)
   assert.match(await page.getByRole('textbox', { name: 'REST endpoint', exact: true }).inputValue(), /\/api\/rangka$/)
+  await page.getByRole('button', { name: 'MCP tools', exact: true }).click()
   await assert.doesNotReject(() => page.getByText('list_folders').first().waitFor())
+  await page.getByRole('tab', { name: 'API token', exact: true }).click()
   await assert.doesNotReject(() => page.getByText(/Bearer YOUR_TOKEN/).waitFor())
 
   await page.getByRole('link', { name: 'Workspace', exact: true }).first().click()
@@ -546,6 +548,8 @@ test('read-only values offer a working copy button', async () => {
   assert.match(await page.evaluate(() => navigator.clipboard.readText()), /\/api\/mcp$/)
   // The control acknowledges the copy instead of staying silent.
   assert.equal(await page.getByRole('button', { name: 'Copied' }).count(), 1)
+  await page.getByRole('button', { name: 'Copy starter prompt', exact: true }).click()
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^Create a Markdown rangka in Serangkai/)
 })
 
 test('shared HTML rangka open in the reader with the app chrome', async () => {
@@ -1070,15 +1074,29 @@ test('agent connection reference fits narrow viewports and keeps copy controls a
       assert.equal(await mobile.getByRole('button', { name: 'Copy MCP endpoint' }).isVisible(), true)
       assert.equal(await mobile.getByRole('button', { name: 'Copy REST endpoint' }).isVisible(), true)
       assert.match(await mobile.getByRole('textbox', { name: 'MCP endpoint' }).inputValue(), /\/api\/mcp$/)
+      if (width === 320 || width === 1280) await mobile.screenshot({ path: `/tmp/serangkai-agent-setup-${width}.png` })
     }
     await mobile.setViewportSize({ width: 320, height: 720 })
-    await mobile.getByRole('navigation', { name: 'Agent page sections' }).getByRole('link', { name: 'MCP setup' }).click()
-    assert.equal(new URL(mobile.url()).hash, '#mcp-config')
+    await mobile.getByRole('tab', { name: 'API token', exact: true }).click()
     await mobile.getByRole('heading', { name: 'MCP client configuration' }).waitFor()
     const intro = mobile.getByText('For clients that support Streamable HTTP MCP servers. Replace the token with one you just created.')
     const snippet = intro.locator('xpath=following-sibling::*[1]')
     const [introBox, snippetBox] = await Promise.all([intro.boundingBox(), snippet.boundingBox()])
     assert.ok(introBox && snippetBox && snippetBox.y > introBox.y + introBox.height + 10, 'MCP snippet should have space below its description')
+    await mobile.getByRole('tab', { name: 'REST API', exact: true }).click()
+    await mobile.getByRole('heading', { name: 'REST examples', exact: true }).waitFor()
+    assert.match(await mobile.getByRole('tabpanel').innerText(), /\/api\/rangka/)
+    await mobile.getByRole('tab', { name: 'Browser sign-in', exact: true }).click()
+    await mobile.getByRole('heading', { name: 'Connect with browser sign-in', exact: true }).waitFor()
+    await mobile.getByRole('button', { name: 'MCP tools', exact: true }).click()
+    await mobile.getByText('get_rangka_capabilities', { exact: true }).waitFor()
+    await mobile.getByRole('button', { name: 'HTML color mode', exact: true }).click()
+    await mobile.getByText(/HTML rangka follow the viewer/).waitFor()
+    await mobile.getByRole('button', { name: 'HTML diagrams & charts', exact: true }).click()
+    await mobile.getByText(/Add a/).filter({ hasText: /\.mermaid/ }).waitFor()
+    const layout = await mobile.evaluate(() => [document.documentElement.clientWidth, document.documentElement.scrollWidth])
+    assert.ok(layout[1] <= layout[0], 'expanded references fit on mobile')
+    await mobile.screenshot({ path: '/tmp/serangkai-agent-reference-mobile.png' })
   } finally { await context.close() }
 })
 

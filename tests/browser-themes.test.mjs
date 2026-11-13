@@ -70,8 +70,8 @@ test('every theme applies instantly, persists, and resolves light and dark surfa
         canvasByTheme[theme.id] = { ...canvasByTheme[theme.id], [scheme]: canvas }
         await page.reload({ waitUntil: 'networkidle' })
         assert.equal(await page.locator('html').getAttribute('data-serangkai-theme'), theme.id)
-        await page.getByRole('link', { name: 'Overview' }).first().click()
-        await page.waitForURL('**/dashboard')
+        await page.getByRole('complementary', { name: 'Workspace sidebar' }).getByRole('link', { name: 'Workspace', exact: true }).click()
+        await page.waitForURL(`${base}/`)
         assert.equal(await page.locator('html').getAttribute('data-serangkai-theme'), theme.id)
         await page.goto(`${base}/settings`, { waitUntil: 'networkidle' })
       }
@@ -79,6 +79,40 @@ test('every theme applies instantly, persists, and resolves light and dark surfa
   }
   for (const theme of themes) {
     assert.notEqual(canvasByTheme[theme.id].light, canvasByTheme[theme.id].dark, `${theme.id} light and dark must differ`)
+  }
+})
+
+test('active app navigation stays distinct from the sidebar in every theme and mode', async () => {
+  for (const scheme of ['light', 'dark']) {
+    const { context, page } = await loggedInPage(scheme)
+    try {
+      const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' })
+      // Check the reported palette first so a token collision is easy to spot.
+      for (const theme of [...themes].sort((a, b) => Number(b.id === 'catppuccin') - Number(a.id === 'catppuccin'))) {
+        await page.getByRole('radio', { name: new RegExp(theme.label) }).click()
+        await page.waitForFunction(id => document.documentElement.dataset.serangkaiTheme === id, theme.id)
+        const active = sidebar.getByRole('link', { name: 'Settings', exact: true })
+        assert.equal(await active.getAttribute('aria-current'), 'page')
+        const activeBg = await active.evaluate(element => getComputedStyle(element).backgroundColor)
+        const sidebarBg = await sidebar.evaluate(element => getComputedStyle(element).backgroundColor)
+        assert.notEqual(activeBg, sidebarBg, `${theme.id} ${scheme}: active navigation must differ from its sidebar`)
+        assert.notEqual(activeBg, 'rgba(0, 0, 0, 0)')
+        if (theme.id === 'catppuccin') await page.screenshot({ path: `/tmp/serangkai-catppuccin-sidebar-${scheme}.png` })
+        await page.setViewportSize({ width: 390, height: 844 })
+        await page.getByRole('button', { name: `Account menu for ${adminUsername}`, exact: true }).click()
+        const navigation = page.getByRole('dialog', { name: 'Navigation', exact: true })
+        await page.waitForFunction(() => {
+          const dialog = document.querySelector('[role="dialog"]')
+          return dialog && dialog.getBoundingClientRect().right <= window.innerWidth + 1
+        })
+        const mobileActive = navigation.getByRole('link', { name: 'Settings', exact: true })
+        assert.equal(await mobileActive.getAttribute('aria-current'), 'page')
+        assert.equal(await mobileActive.evaluate(element => getComputedStyle(element).backgroundColor), activeBg)
+        if (theme.id === 'catppuccin') await page.screenshot({ path: `/tmp/serangkai-catppuccin-navigation-${scheme}.png` })
+        await navigation.getByRole('button', { name: 'Close', exact: true }).click()
+        await page.setViewportSize({ width: 1280, height: 900 })
+      }
+    } finally { await context.close() }
   }
 })
 

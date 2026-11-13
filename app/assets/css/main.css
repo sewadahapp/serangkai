@@ -120,6 +120,14 @@ input[type='search']::-webkit-search-decoration {
    Rosé Pine palette: https://rosepinetheme.com (MIT).
 --------------------------------------------------------------------------- */
 
+/* The compiled dark neutral fill matches the sidebar surface. Lift it using
+   the existing surface/text tokens so active navigation remains visible. */
+:root.dark[data-serangkai-theme='serangkai'] {
+  --selaras-color-neutral-subtle: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 88%, var(--selaras-resolved-text-default));
+  --selaras-color-neutral-subtle-hover: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 84%, var(--selaras-resolved-text-default));
+  --selaras-color-neutral-subtle-pressed: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 80%, var(--selaras-resolved-text-default));
+}
+
 :root[data-serangkai-theme='rose-pine'] {
   --selaras-surface-canvas: #faf4ed;
   --selaras-surface-default: #fffaf3;
@@ -570,9 +578,9 @@ input[type='search']::-webkit-search-decoration {
   --selaras-color-neutral-fill-pressed: #282726;
   --selaras-color-neutral-on-fill: #fffcf0;
   --selaras-color-neutral-indicator: #6f6e69;
-  --selaras-color-neutral-subtle: #f2f0e5;
-  --selaras-color-neutral-subtle-hover: #e6e4d9;
-  --selaras-color-neutral-subtle-pressed: #dad8ce;
+  --selaras-color-neutral-subtle: #e6e4d9;
+  --selaras-color-neutral-subtle-hover: #dad8ce;
+  --selaras-color-neutral-subtle-pressed: #cecdc3;
   --selaras-color-neutral-on-subtle: #403e3c;
   --selaras-color-neutral-text: #403e3c;
   --selaras-color-neutral-text-hover: #343331;
@@ -871,15 +879,15 @@ input[type='search']::-webkit-search-decoration {
   --selaras-color-danger-border: #d20f39;
   --selaras-color-danger-focus: #d20f39;
 
-  /* Neutral: subtext */
+  /* Neutral: subtext. Selected fills must stand out on the mantle sidebar. */
   --selaras-color-neutral-fill: #5c5f77;
   --selaras-color-neutral-fill-hover: #4c4f69;
   --selaras-color-neutral-fill-pressed: #40425a;
   --selaras-color-neutral-on-fill: #eff1f5;
   --selaras-color-neutral-indicator: #7c7f93;
-  --selaras-color-neutral-subtle: #e6e9ef;
-  --selaras-color-neutral-subtle-hover: #dce0e8;
-  --selaras-color-neutral-subtle-pressed: #ccd0da;
+  --selaras-color-neutral-subtle: #ccd0da;
+  --selaras-color-neutral-subtle-hover: #c4c8d3;
+  --selaras-color-neutral-subtle-pressed: #bcc0cc;
   --selaras-color-neutral-on-subtle: #4c4f69;
   --selaras-color-neutral-text: #5c5f77;
   --selaras-color-neutral-text-hover: #4c4f69;
@@ -1024,15 +1032,15 @@ input[type='search']::-webkit-search-decoration {
   --selaras-color-danger-border: #f38ba8;
   --selaras-color-danger-focus: #f38ba8;
 
-  /* Neutral: text */
+  /* Neutral: text. Use surface1 above the sidebar's surface0. */
   --selaras-color-neutral-fill: #cdd6f4;
   --selaras-color-neutral-fill-hover: #d8def6;
   --selaras-color-neutral-fill-pressed: #e3e6f8;
   --selaras-color-neutral-on-fill: #11111b;
   --selaras-color-neutral-indicator: #a6adc8;
-  --selaras-color-neutral-subtle: #313244;
-  --selaras-color-neutral-subtle-hover: #3a3b4f;
-  --selaras-color-neutral-subtle-pressed: #43445a;
+  --selaras-color-neutral-subtle: #45475a;
+  --selaras-color-neutral-subtle-hover: #505267;
+  --selaras-color-neutral-subtle-pressed: #585b70;
   --selaras-color-neutral-on-subtle: #cdd6f4;
   --selaras-color-neutral-text: #cdd6f4;
   --selaras-color-neutral-text-hover: #d8def6;

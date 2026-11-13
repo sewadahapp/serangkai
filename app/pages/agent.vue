@@ -1,177 +1,113 @@
 <template>
-  <div class="agent-page space-y-6">
+  <div class="agent-page">
     <header class="agent-heading">
-      <div>
-        <p class="agent-eyebrow"><SIcon name="lucide:bot" class="size-4" aria-hidden="true" /> AGENT CONNECTION</p>
+      <div class="min-w-0">
         <h1>Connect an agent</h1>
-        <p>Give your agent a way to create, find, and update work in your workspace.</p>
+        <p>Let your agent create, find, and update rangka in Serangkai.</p>
       </div>
-      <SButton v-if="loggedIn" to="/settings" variant="outline" icon="lucide:key-round">Manage tokens</SButton>
+      <SButton v-if="loggedIn" to="/settings" variant="ghost" color="neutral" icon="lucide:key-round">Manage tokens</SButton>
     </header>
 
-    <SAlert v-if="!loggedIn" color="info" variant="subtle" title="Sign in to generate tokens" description="You can read the reference now; token creation requires an account." />
+    <SCard :ui="{ body: 'p-5 sm:p-6' }" aria-labelledby="endpoints">
+      <h2 id="endpoints" class="agent-section-title">Your workspace endpoints</h2>
+      <p class="agent-description mt-1">Use MCP with a compatible agent, or the REST API from your own scripts.</p>
+      <div class="mt-5 grid min-w-0 gap-4 sm:grid-cols-2">
+        <SFormField label="MCP" class="min-w-0">
+          <SInput :model-value="mcpUrl" readonly aria-label="MCP endpoint" icon="lucide:plug" class="w-full font-mono text-xs">
+            <template #trailing="{ buttonSize }"><SerangkaiCopyButton :value="mcpUrl" label="MCP endpoint" :size="buttonSize" /></template>
+          </SInput>
+        </SFormField>
+        <SFormField label="REST API" class="min-w-0">
+          <SInput :model-value="restUrl" readonly aria-label="REST endpoint" icon="lucide:code" class="w-full font-mono text-xs">
+            <template #trailing="{ buttonSize }"><SerangkaiCopyButton :value="restUrl" label="REST endpoint" :size="buttonSize" /></template>
+          </SInput>
+        </SFormField>
+      </div>
+    </SCard>
 
-    <section class="agent-start" aria-labelledby="start-title">
-      <div class="agent-start-intro">
-        <p class="agent-eyebrow">GET CONNECTED</p>
-        <h2 id="start-title">A simple place to start.</h2>
-        <p>Choose how your client connects, then give it only the access it needs.</p>
-      </div>
-      <div class="agent-steps">
-        <div><span>01</span><p><strong>Choose a connection</strong><small>Use MCP or the REST API.</small></p></div>
-        <div><span>02</span><p><strong>Authorize your agent</strong><small>Use a scoped token or browser sign-in for supported MCP clients.</small></p></div>
-        <div><span>03</span><p><strong>Start making</strong><small>Create and organize rangka in your workspace.</small></p></div>
-      </div>
+    <section aria-label="Connection setup" class="agent-setup">
+      <STabs :items="connectionOptions" default-value="browser" variant="underline" :ui="{ list: { 'aria-label': 'Connection method' }, content: 'pt-6' }">
+        <template #browser>
+          <section aria-labelledby="oauth-connection" class="agent-tab-content">
+            <div>
+              <h2 id="oauth-connection" class="agent-section-title">Connect with browser sign-in</h2>
+              <p class="agent-description mt-2">For MCP clients that support OAuth. Connect your workspace without copying a token.</p>
+            </div>
+            <ol class="agent-instructions">
+              <li><span class="agent-step" aria-hidden="true">1</span><div><h3>Add Serangkai to your client</h3><p>Choose a remote MCP connection and paste your MCP endpoint above.</p></div></li>
+              <li><span class="agent-step" aria-hidden="true">2</span><div><h3>Sign in and approve access</h3><p>Your client opens Serangkai in a browser. Choose the read and write permissions your agent needs.</p></div></li>
+            </ol>
+            <p class="agent-description">You can disconnect an agent in <SButton to="/settings" variant="link" color="neutral" size="sm" :ui="{ base: 'h-auto p-0 text-sm underline underline-offset-4' }">Settings → Connected agents</SButton>.</p>
+            <p class="agent-caption">Remote MCP connections require HTTPS. Localhost also supports HTTP.</p>
+          </section>
+        </template>
+        <template #token>
+          <section aria-labelledby="mcp-config" class="agent-tab-content">
+            <div>
+              <h2 id="mcp-config" class="agent-section-title">MCP client configuration</h2>
+              <p class="agent-description mt-2">For clients that support Streamable HTTP MCP servers. Replace the token with one you just created.</p>
+              <SerangkaiCode class="mt-4" :code="mcpConfig" language="json" filename="mcp.json" />
+            </div>
+            <p class="agent-description">Create a token in Settings with <code>read</code> and <code>write</code> for editing, or just <code>read</code> for browsing. Keep tokens out of source control.</p>
+          </section>
+        </template>
+        <template #rest>
+          <section aria-labelledby="rest-examples" class="agent-tab-content">
+            <div>
+              <h2 id="rest-examples" class="agent-section-title">REST examples</h2>
+              <p class="agent-description mt-2">Use a scoped API token as a bearer credential to list or create rangka.</p>
+              <SerangkaiCode class="mt-4" :code="restExample" language="bash" />
+            </div>
+            <p class="agent-description">Rangka are private by default. Set <code>visibility</code> deliberately; unlisted links also require the signed key.</p>
+          </section>
+        </template>
+      </STabs>
     </section>
 
-    <nav class="agent-jump" aria-label="Agent page sections">
-      <span>ON THIS PAGE</span>
-      <a href="#endpoints">Endpoints</a><a href="#mcp-config">MCP setup</a><a href="#oauth-connection">Browser sign-in</a><a href="#publishing">Publishing</a><a href="#tools">Tools &amp; scopes</a>
-    </nav>
-
-    <div class="agent-layout grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <div class="min-w-0 space-y-6">
-        <section class="agent-section serangkai-panel p-5 sm:p-6" aria-labelledby="endpoints">
-          <p class="agent-section-label">01 / CONNECTION</p>
-          <h2 id="endpoints" class="agent-section-title">Your endpoints</h2>
-          <p class="mt-2 text-sm leading-relaxed text-[var(--selaras-resolved-text-muted)]">Send the token as a bearer credential. Never commit tokens to a repository.</p>
-          <div class="mt-3 space-y-2">
-            <SFormField label="MCP">
-              <SInput :model-value="mcpUrl" readonly aria-label="MCP endpoint" icon="lucide:plug" class="w-full font-mono text-xs">
-                <template #trailing="{ buttonSize }">
-                  <SerangkaiCopyButton :value="mcpUrl" label="MCP endpoint" :size="buttonSize" />
-                </template>
-              </SInput>
-            </SFormField>
-            <SFormField label="REST">
-              <SInput :model-value="restUrl" readonly aria-label="REST endpoint" icon="lucide:code" class="w-full font-mono text-xs">
-                <template #trailing="{ buttonSize }">
-                  <SerangkaiCopyButton :value="restUrl" label="REST endpoint" :size="buttonSize" />
-                </template>
-              </SInput>
-            </SFormField>
-          </div>
-        </section>
-
-        <section class="serangkai-panel overflow-hidden" aria-labelledby="mcp-config">
-          <div class="border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
-            <p class="agent-section-label">02 / MCP</p><h2 id="mcp-config" class="agent-section-title">MCP client configuration</h2>
-          </div>
-          <div class="p-5">
-            <p class="text-sm text-[var(--selaras-resolved-text-muted)]">For clients that support Streamable HTTP MCP servers. Replace the token with one you just created.</p>
-            <SerangkaiCode class="mt-3" :code="mcpConfig" language="json" filename="mcp.json" />
-          </div>
-        </section>
-
-        <section class="serangkai-panel p-5" aria-labelledby="oauth-connection">
-          <p class="agent-section-label">03 / AUTHORIZATION</p><h2 id="oauth-connection" class="agent-section-title">Browser sign-in (OAuth)</h2>
-          <p class="mt-1 text-sm text-[var(--selaras-resolved-text-muted)]">
-            Hosted MCP clients can connect without a pasted token. Point the client at the MCP URL
-            and it discovers this installation's authorization server from the endpoint's
-            <code class="rounded bg-[var(--selaras-resolved-surface-elevated)] px-1 py-0.5 font-mono text-xs">401</code>
-            response, opens a browser, and asks you to approve it.
-          </p>
-          <ul class="mt-3 space-y-2 text-sm text-[var(--selaras-resolved-text-muted)]">
-            <li>
-              <strong class="text-[var(--selaras-resolved-text-default)]">No URL to configure.</strong>
-              Every endpoint is derived from the MCP URL the client used, so a self-hosted
-              instance works at whatever address it is served from.
-            </li>
-            <li>
-              <strong class="text-[var(--selaras-resolved-text-default)]">Scopes stay limited.</strong>
-              A browser-approved client can only receive <code>read</code> and <code>write</code>.
-              It can never mint or revoke API tokens.
-            </li>
-            <li>
-              <strong class="text-[var(--selaras-resolved-text-default)]">Revocable.</strong>
-              Approved clients appear under Settings → Connected agents, and disconnecting one
-              cuts off its access immediately.
-            </li>
-            <li>
-              <strong class="text-[var(--selaras-resolved-text-default)]">HTTPS required.</strong>
-              MCP clients reject plain-HTTP servers except on loopback, so put a deployed
-              instance behind TLS.
-            </li>
-          </ul>
-        </section>
-
-        <section class="serangkai-panel p-5" aria-labelledby="publishing">
-          <p class="agent-section-label">04 / WORKFLOW</p><h2 id="publishing" class="agent-section-title">Publishing safely</h2>
-          <ul class="mt-3 space-y-2 text-sm text-[var(--selaras-resolved-text-muted)]">
-            <li>
-              <strong class="text-[var(--selaras-resolved-text-default)]">Read before you write.</strong>
-              Call <code>get_rangka</code>, keep the content, then publish with
-              <code>baseVersion</code> set to the version you read.
-            </li>
-            <li>
-              <strong class="text-[var(--selaras-resolved-text-default)]">Stale writes are refused.</strong>
-              If someone else published in the meantime, the call fails and names the
-              current version. Re-read, merge, and publish again — nothing is overwritten.
-            </li>
-            <li>
-              <strong class="text-[var(--selaras-resolved-text-default)]">No-op writes create nothing.</strong>
-              Publishing identical content reports <code>versionCreated: false</code>.
-            </li>
-          </ul>
-          <SerangkaiCode class="mt-3" :code="publishExample" language="bash" />
-        </section>
-
-        <section class="serangkai-panel overflow-hidden" aria-labelledby="rest-examples">
-          <div class="border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
-            <p class="agent-section-label">05 / REST</p><h2 id="rest-examples" class="agent-section-title">REST examples</h2>
-          </div>
-          <div class="p-5">
-            <SerangkaiCode :code="restExample" language="bash" />
-            <p class="mt-3 text-sm text-[var(--selaras-resolved-text-muted)]">
-              Rangka are private by default. Set <code class="rounded bg-[var(--selaras-resolved-surface-elevated)] px-1 py-0.5 font-mono text-xs">visibility</code> deliberately — unlisted links also require the signed key.
-            </p>
-          </div>
-        </section>
-        <section class="serangkai-panel p-5" aria-labelledby="color-mode">
-          <h2 id="color-mode" class="text-sm font-semibold">Color mode</h2>
-          <p class="mt-2 text-sm text-[var(--selaras-resolved-text-muted)]">
-            HTML rangka follow the viewer's light or dark preference automatically.
-            Write standard CSS — the host injects a small bridge.
-          </p>
-          <SerangkaiCode class="mt-2" :code="colorModeExample" language="css" :show-header="false" />
-          <p class="mt-2 text-sm text-[var(--selaras-resolved-text-muted)]">
-            To pin one scheme, declare
-            <code>&lt;meta name="color-scheme" content="only light"&gt;</code>.
-          </p>
-        </section>
-        <section class="serangkai-panel p-5" aria-labelledby="html-diagrams">
-          <h2 id="html-diagrams" class="text-sm font-semibold">HTML diagrams &amp; charts</h2>
-          <p class="mt-2 text-sm text-[var(--selaras-resolved-text-muted)]">
-            Add a <code>.mermaid</code> block or a JSON chart marker. Serangkai
-            injects only the runtime the rangka needs — no CDN, and no
-            author JavaScript is evaluated.
-          </p>
-          <SerangkaiCode class="mt-2" :code="htmlDiagramExample" language="html" :show-header="false" />
-        </section>
+    <SCard variant="soft" :ui="{ body: 'p-4 sm:p-5' }" aria-labelledby="try-connection">
+      <div class="flex items-center justify-between gap-3">
+        <h2 id="try-connection" class="text-sm font-semibold">Try it with your agent</h2>
+        <SerangkaiCopyButton :value="starterPrompt" label="starter prompt" />
       </div>
+      <p class="agent-prompt">{{ starterPrompt }}</p>
+    </SCard>
 
-      <aside class="min-w-0 space-y-4">
-        <section class="serangkai-panel p-5" aria-labelledby="tools">
-          <p class="agent-section-label">REFERENCE</p><h2 id="tools" class="agent-section-title">MCP tools</h2>
-          <ul class="mt-3 space-y-1.5">
-            <li v-for="tool in toolList" :key="tool.name" class="text-sm">
-              <code class="rounded bg-[var(--selaras-resolved-surface-elevated)] px-1.5 py-0.5 font-mono text-xs">{{ tool.name }}</code>
-              <span class="ms-1.5 text-[var(--selaras-resolved-text-muted)]">{{ tool.hint }}</span>
-            </li>
-          </ul>
-        </section>
-
-        <section class="serangkai-panel p-5" aria-labelledby="scopes">
-          <p class="agent-section-label">PERMISSIONS</p><h2 id="scopes" class="agent-section-title">Scopes</h2>
-          <dl class="mt-3 space-y-3 text-sm">
-            <div v-for="scope in scopeList" :key="scope.name">
-              <dt><code class="rounded bg-[var(--selaras-resolved-surface-elevated)] px-1.5 py-0.5 font-mono text-xs">{{ scope.name }}</code></dt>
-              <dd class="mt-1 text-[var(--selaras-resolved-text-muted)]">{{ scope.hint }}</dd>
-            </div>
+    <section class="agent-reference" aria-labelledby="reference-title">
+      <h2 id="reference-title" class="agent-section-title">Reference</h2>
+      <SAccordion :items="referenceSections" type="multiple" color="neutral" class="mt-3" :ui="{ contentInner: 'pb-5', trigger: 'py-4' }">
+        <template #tools>
+          <dl class="agent-reference-list">
+            <div v-for="tool in toolList" :key="tool.name"><dt><code>{{ tool.name }}</code></dt><dd>{{ tool.hint }}</dd></div>
           </dl>
-        </section>
-      </aside>
-    </div>
+        </template>
+        <template #scopes>
+          <dl class="agent-reference-list">
+            <div v-for="scope in scopeList" :key="scope.name"><dt><code>{{ scope.name }}</code></dt><dd>{{ scope.hint }}</dd></div>
+          </dl>
+          <p class="agent-description mt-4">Browser-approved clients can receive <code>read</code> and <code>write</code>, never <code>full</code>. Use Settings to revoke access.</p>
+        </template>
+        <template #publishing>
+          <section id="publishing" class="agent-tab-content">
+            <p class="agent-description">Read with <code>get_rangka</code>, then publish with <code>baseVersion</code> set to the version you read. If another writer saved first, re-read, merge, and publish again.</p>
+            <SerangkaiCode :code="publishExample" language="bash" />
+            <p class="agent-description">Publishing identical content reports <code>versionCreated: false</code> and keeps the existing history.</p>
+          </section>
+        </template>
+        <template #color-mode>
+          <section id="color-mode" class="agent-tab-content">
+            <p class="agent-description">HTML rangka follow the viewer's light or dark preference automatically. Use standard CSS; Serangkai supplies the color-mode bridge.</p>
+            <SerangkaiCode :code="colorModeExample" language="css" :show-header="false" />
+            <p class="agent-description">To pin one scheme, declare <code>&lt;meta name="color-scheme" content="only light"&gt;</code>.</p>
+          </section>
+        </template>
+        <template #html-diagrams>
+          <section id="html-diagrams" class="agent-tab-content">
+            <p class="agent-description">Add a <code>.mermaid</code> block or a JSON chart marker. Serangkai loads the matching runtime locally; no CDN or author JavaScript is needed for these diagrams and charts.</p>
+            <SerangkaiCode :code="htmlDiagramExample" language="html" :show-header="false" />
+          </section>
+        </template>
+      </SAccordion>
+    </section>
   </div>
 </template>
 
@@ -180,11 +116,26 @@ useHead({ title: 'Connect an agent' })
 
 const { loggedIn } = useUserSession()
 
-const origin = computed(() => (import.meta.client ? window.location.origin : ''))
-const mcpUrl = computed(() => `${origin.value}/api/mcp`)
-const restUrl = computed(() => `${origin.value}/api/rangka`)
+const origin = useRequestURL().origin
+const mcpUrl = computed(() => `${origin}/api/mcp`)
+const restUrl = computed(() => `${origin}/api/rangka`)
+
+const connectionOptions = [
+  { label: 'Browser sign-in', value: 'browser' },
+  { label: 'API token', value: 'token' },
+  { label: 'REST API', value: 'rest' },
+]
+const referenceSections = [
+  { label: 'MCP tools', value: 'tools' },
+  { label: 'Permissions', value: 'scopes' },
+  { label: 'Publishing & version history', value: 'publishing' },
+  { label: 'HTML color mode', value: 'color-mode' },
+  { label: 'HTML diagrams & charts', value: 'html-diagrams' },
+]
+const starterPrompt = 'Create a Markdown rangka in Serangkai called Project notes, and save a short project outline.'
 
 const toolList = [
+  { name: 'get_rangka_capabilities', hint: 'Discover supported formats and components' },
   { name: 'list_folders', hint: 'Folder tree' },
   { name: 'search', hint: 'Rangka and folders' },
   { name: 'create_folder', hint: 'Nested folders' },
@@ -248,18 +199,25 @@ curl -X POST -H "Authorization: Bearer $SERANGKAI_TOKEN" \\
 </script>
 
 <style scoped>
-.agent-heading { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 1.25rem; padding: .25rem 0 1rem; }
-.agent-heading h1 { margin-top: .75rem; font-size: 1.875rem; font-weight: 700; line-height: 1.2; letter-spacing: -.035em; }
-.agent-heading > div > p:last-child, .agent-start-intro > p:last-child { margin-top: .65rem; max-width: 38rem; color: var(--selaras-resolved-text-muted); font-size: .9rem; line-height: 1.7; }
-.agent-eyebrow, .agent-section-label { display: flex; align-items: center; gap: .5rem; color: var(--selaras-resolved-color-primary-text); font-size: .65rem; font-weight: 700; letter-spacing: .12em; }
-.agent-start { display: grid; gap: 1.75rem; padding: clamp(1.25rem, 3vw, 2rem); border-radius: var(--selaras-resolved-radius-lg); background: var(--selaras-resolved-color-primary-subtle); }
-.agent-start h2 { margin-top: .7rem; font-size: clamp(1.45rem, 2.6vw, 2rem); font-weight: 700; letter-spacing: -.04em; }
-.agent-steps { display: grid; gap: .75rem; }
-.agent-steps > div { display: flex; align-items: start; gap: .8rem; padding-top: .75rem; border-top: 1px solid var(--selaras-resolved-border-default); }
-.agent-steps > div > span { color: var(--selaras-resolved-color-primary-text); font-size: .7rem; font-weight: 700; padding-top: .15rem; }
-.agent-steps strong, .agent-steps small { display: block; }.agent-steps strong { font-size: .85rem; }.agent-steps small { margin-top: .2rem; color: var(--selaras-resolved-text-muted); font-size: .75rem; line-height: 1.5; }
-.agent-jump { display: flex; align-items: center; gap: .75rem 1.25rem; flex-wrap: wrap; padding: .4rem 0 1rem; border-bottom: 1px solid var(--selaras-resolved-border-default); font-size: .8rem; }
-.agent-jump span { color: var(--selaras-resolved-text-muted); font-size: .62rem; font-weight: 700; letter-spacing: .1em; }.agent-jump a { color: var(--selaras-resolved-text-muted); }.agent-jump a:hover { color: var(--selaras-resolved-color-primary-text); text-decoration: underline; }
-.agent-layout section { min-width: 0; }.agent-layout h2[id] { scroll-margin-top: 6rem; }.agent-section-title { margin-top: .4rem; font-size: 1.05rem; font-weight: 700; letter-spacing: -.02em; }.agent-page code { overflow-wrap: anywhere; }
-@media (min-width: 768px) { .agent-start { grid-template-columns: minmax(0, .8fr) minmax(0, 1fr); align-items: center; } .agent-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } .agent-steps > div { flex-direction: column; } }
+.agent-page { display: flex; flex-direction: column; gap: 2rem; max-width: 60rem; margin-inline: auto; }
+.agent-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+.agent-heading h1 { font-size: 1.875rem; font-weight: 700; line-height: 1.2; letter-spacing: -.035em; }
+.agent-heading p { margin-top: .65rem; color: var(--selaras-resolved-text-muted); font-size: .9rem; line-height: 1.65; }
+.agent-section-title { font-size: 1rem; font-weight: 650; line-height: 1.5; letter-spacing: -.02em; }
+.agent-description { color: var(--selaras-resolved-text-muted); font-size: .875rem; line-height: 1.75; }
+.agent-caption { color: var(--selaras-resolved-text-muted); font-size: .75rem; line-height: 1.6; }
+.agent-tab-content { display: flex; min-width: 0; flex-direction: column; gap: 1.25rem; }
+.agent-setup { min-width: 0; }
+.agent-instructions { display: flex; flex-direction: column; gap: 1.25rem; }
+.agent-instructions li { display: flex; gap: .875rem; align-items: start; }
+.agent-step { display: grid; width: 1.75rem; height: 1.75rem; flex-shrink: 0; place-items: center; border: 1px solid var(--selaras-resolved-border-default); border-radius: 50%; color: var(--selaras-resolved-text-muted); font-size: .75rem; }
+.agent-instructions h3 { padding-top: .125rem; font-size: .875rem; font-weight: 600; }
+.agent-instructions p { margin-top: .25rem; color: var(--selaras-resolved-text-muted); font-size: .875rem; line-height: 1.7; }
+.agent-prompt { margin-top: .5rem; font-size: .875rem; line-height: 1.75; }
+.agent-reference { min-width: 0; padding-top: .5rem; }
+.agent-reference-list { display: grid; gap: .875rem; font-size: .875rem; }
+.agent-reference-list > div { display: grid; min-width: 0; gap: .375rem; }
+.agent-reference-list dd { color: var(--selaras-resolved-text-muted); line-height: 1.6; }
+.agent-page :not(pre) > code { overflow-wrap: anywhere; border-radius: .25rem; background: var(--selaras-resolved-surface-elevated); padding: .125rem .3rem; font-family: var(--font-mono); font-size: .8em; color: var(--selaras-resolved-text-default); }
+@media (min-width: 640px) { .agent-reference-list > div { grid-template-columns: minmax(0, 14rem) minmax(0, 1fr); gap: 1.5rem; } }
 </style>
