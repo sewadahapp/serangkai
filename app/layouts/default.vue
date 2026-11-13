@@ -1,103 +1,59 @@
 <template>
-  <div class="flex min-h-dvh flex-col bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]">
+  <div class="app-frame serangkai-canvas-pattern" :class="{ 'app-frame-signed-in': appShell }">
     <a class="serangkai-skip" href="#main">Skip to content</a>
-
-    <header class="sticky top-0 z-30 border-b border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-canvas)]/85 backdrop-blur-md">
-      <div class="serangkai-shell flex h-16 items-center justify-between gap-4">
-        <div class="flex min-w-0 items-center gap-6">
-          <NuxtLink to="/" class="flex items-center gap-2 rounded-md focus-visible:outline-offset-4" aria-label="Serangkai home">
-            <span class="grid size-8 shrink-0 place-items-center rounded-md bg-[var(--selaras-resolved-color-primary-fill)] text-sm font-bold text-[var(--selaras-resolved-color-primary-on-fill)]">S</span>
-            <span class="truncate text-base font-semibold tracking-tight">Serangkai</span>
-          </NuxtLink>
-
-          <div v-if="loggedIn" class="hidden lg:block">
-            <SNavigationMenu :items="workspaceLinks" variant="link" />
-          </div>
-        </div>
-
-        <div class="flex items-center gap-1.5">
-          <SColorModeToggle />
-
-          <template v-if="!ready">
-            <SSkeleton animation="shimmer" class="h-8 w-24" />
-          </template>
-
-          <template v-else-if="!loggedIn">
-            <SButton to="/agent" variant="ghost" size="sm" icon="lucide:bot" class="hidden sm:inline-flex">Agents</SButton>
-            <SButton to="/auth/login" size="sm">Log in</SButton>
-          </template>
-
-          <template v-else>
-            <div class="hidden lg:block">
-              <SDropdown :items="accountItems">
-                <template #default>
-                  <SerangkaiAccountButton :username="user?.username" />
-                </template>
-              </SDropdown>
-            </div>
-            <SSlideover v-model:open="mobileMenuOpen" side="right" title="Navigation" :description="user?.username ? `Signed in as ${user.username}` : undefined">
-              <template #default>
-                <SerangkaiAccountButton :username="user?.username" class="lg:hidden" />
-              </template>
-              <template #body>
-                <nav aria-label="Workspace sections" class="space-y-1">
-                  <NuxtLink
-                    v-for="link in workspaceLinks"
-                    :key="link.to"
-                    :to="link.to"
-                    class="flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium text-[var(--selaras-resolved-text-muted)] hover:bg-[var(--selaras-resolved-surface-elevated)]"
-                    active-class="!text-[var(--selaras-resolved-color-primary-text)] !bg-[var(--selaras-resolved-color-primary-subtle)]"
-                    @click="mobileMenuOpen = false"
-                  >
-                    <SIcon :name="link.icon" class="size-4 shrink-0" aria-hidden="true" />
-                    {{ link.label }}
-                  </NuxtLink>
-                </nav>
-              </template>
-              <template #footer>
-                <SButton variant="ghost" icon="lucide:log-out" @click="logout">Log out</SButton>
-              </template>
-            </SSlideover>
-          </template>
-        </div>
+    <aside v-if="appShell" class="app-sidebar hidden lg:flex" aria-label="Workspace sidebar">
+      <NuxtLink to="/" class="app-brand" aria-label="Serangkai home"><span class="app-logo">S</span>Serangkai</NuxtLink>
+      <SNavigationMenu :items="navigationItems" orientation="vertical" color="neutral" aria-label="Workspace sections" />
+      <div v-if="isWorkspace" class="app-sidebar-folders"><p class="app-sidebar-label">FOLDERS</p><div id="workspace-folder-navigation" /></div>
+      <div class="app-sidebar-bottom">
+        <div class="app-account-label"><SAvatar :text="accountInitial" color="neutral" size="md" aria-hidden="true" /><span class="truncate">{{ user?.username }}</span></div>
+        <STooltip text="Log out"><SButton variant="ghost" color="neutral" icon="lucide:log-out" aria-label="Log out" @click="logout" /></STooltip>
       </div>
-
+    </aside>
+    <header class="app-topbar" :class="{ 'app-topbar-private': appShell }">
+      <NuxtLink to="/" class="app-brand" :class="{ 'lg:hidden': appShell }" aria-label="Serangkai home"><span class="app-logo">S</span>Serangkai</NuxtLink>
+      <div class="flex min-w-0 items-center gap-1.5" :class="{ 'lg:hidden': appShell }">
+        <template v-if="!ready"><SSkeleton class="h-8 w-24" /></template>
+        <SSlideover v-else-if="loggedIn" v-model:open="mobileMenuOpen" side="right" title="Navigation" :description="user?.username ? `Signed in as ${user.username}` : undefined">
+          <SerangkaiAccountButton :username="user?.username" />
+          <template #body><SNavigationMenu :items="navigationItems" orientation="vertical" color="neutral" aria-label="Workspace sections" /></template>
+          <template #footer><SButton variant="ghost" icon="lucide:log-out" @click="logout">Log out</SButton></template>
+        </SSlideover>
+        <SButton v-else-if="route.path !== '/auth/login'" to="/auth/login" size="sm">Log in</SButton>
+      </div>
     </header>
-
-    <main id="main" class="flex-1 py-8 md:py-10">
-      <div class="serangkai-shell">
-        <slot />
-      </div>
-    </main>
-
-    <footer class="border-t border-[var(--selaras-resolved-border-muted)] py-6">
-      <div class="serangkai-shell flex flex-col gap-2 text-sm text-[var(--selaras-resolved-text-muted)] sm:flex-row sm:items-center sm:justify-between">
-        <p>Serangkai — artifact and knowledge workspace.</p>
-        <p>Private by default.</p>
-      </div>
-    </footer>
+    <main id="main" class="app-main" :class="{ 'app-main-login': route.path === '/auth/login', 'app-main-document': route.path.startsWith('/artifacts/') }"><slot /></main>
+    <footer v-if="!appShell" class="app-public-footer">Serangkai · Private by default</footer>
   </div>
 </template>
 
 <script setup lang="ts">
 const { loggedIn, user, ready, clear } = useUserSession()
+const route = useRoute()
 const mobileMenuOpen = ref(false)
-
+const appShell = computed(() => loggedIn.value && !route.path.startsWith('/share/'))
+const isWorkspace = computed(() => route.path === '/' || route.path === '/workspace')
 const workspaceLinks = [
-  { to: '/dashboard', label: 'Overview', icon: 'lucide:layout-dashboard' },
-  { to: '/workspace', label: 'Workspace', icon: 'lucide:folder-tree' },
+  { to: '/', label: 'Workspace', icon: 'lucide:layers' },
   { to: '/agent', label: 'Agents', icon: 'lucide:bot' },
   { to: '/settings', label: 'Settings', icon: 'lucide:settings' },
 ]
-
-const accountItems = computed(() => [
-  workspaceLinks.map(link => ({ label: link.label, to: link.to, icon: link.icon })),
-  [{ label: 'Log out', icon: 'lucide:log-out', onSelect: logout }],
-])
-
-const logout = async () => {
-  mobileMenuOpen.value = false
-  await clear()
-  await navigateTo('/')
-}
+const navigationItems = computed(() => workspaceLinks.map(link => ({ ...link, active: link.to === '/' ? isWorkspace.value : route.path.startsWith(link.to), onSelect: () => { mobileMenuOpen.value = false } })))
+const accountInitial = computed(() => Array.from(user.value?.username?.trim() || '?')[0]?.toLocaleUpperCase() || '?')
+const logout = async () => { mobileMenuOpen.value = false; await clear(); await navigateTo('/auth/login') }
 </script>
+
+<style scoped>
+.app-frame { min-height: 100dvh; background-color: var(--selaras-resolved-surface-canvas); color: var(--selaras-resolved-text-default); }
+.app-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 30; width: 16rem; flex-direction: column; padding: 1.25rem .75rem .75rem; background: var(--selaras-resolved-surface-elevated); border-right: 1px solid var(--selaras-resolved-border-muted); }
+.app-brand { display: flex; align-items: center; gap: .6rem; min-width: 0; font-size: .95rem; font-weight: 700; letter-spacing: -.025em; }
+.app-sidebar > .app-brand { margin: .25rem .6rem 2rem; }
+.app-logo { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; flex-shrink: 0; border-radius: .5rem; background: var(--selaras-resolved-color-primary-fill); color: var(--selaras-resolved-color-primary-on-fill); font-size: .85rem; }
+.app-sidebar-folders { flex: 1; min-height: 0; overflow-y: auto; margin-top: 2rem; padding-inline: .25rem; }.app-sidebar-label { margin: 0 .5rem .75rem; font-size: .6rem; font-weight: 700; letter-spacing: .12em; color: var(--selaras-resolved-text-muted); }.app-sidebar-bottom { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: auto; padding-top: 1rem; }
+.app-account-label { display: flex; min-width: 0; align-items: center; gap: .5rem; padding-left: .25rem; font-size: .875rem; font-weight: 600; }
+.app-topbar { position: sticky; top: 0; z-index: 20; display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: .5rem; height: 4rem; padding-inline: 1rem; background: var(--selaras-resolved-surface-canvas); border-bottom: 1px solid var(--selaras-resolved-border-muted); }
+.app-main { width: 100%; max-width: 88rem; min-width: 0; margin-inline: auto; padding: 2rem 1rem 4rem; }.app-main-login { padding-top: clamp(3rem, 12vh, 8rem); }.app-public-footer { padding: 1.5rem; text-align: center; font-size: .75rem; color: var(--selaras-resolved-text-muted); }
+@media (min-width: 768px) { .app-main { padding-inline: 2.5rem; } }
+@media (min-width: 1024px) { .app-frame-signed-in { padding-left: 16rem; }.app-topbar-private { display: none; }.app-frame-signed-in .app-main { padding-top: 2.5rem; }.app-topbar-private > .app-brand { display: none; } }
+.app-main.app-main-document, .app-frame-signed-in .app-main.app-main-document { max-width: none; padding: 0; }
+</style>

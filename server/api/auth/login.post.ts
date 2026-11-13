@@ -105,7 +105,7 @@ export default defineEventHandler(async (event) => {
     const target = String(result.data.redirect || '')
     const safe = target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/\\')
       ? target
-      : '/workspace'
+      : '/'
     return sendRedirect(event, safe, 303)
   }
 

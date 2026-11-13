@@ -27,12 +27,12 @@ after(async () => { await browser?.close(); child?.kill('SIGTERM'); await rm(dat
 test('human browser workflow logs in and creates an artifact', async () => {
   await page.goto(`${base}/`)
   await assert.doesNotReject(() => page.getByText('Serangkai').first().waitFor())
-  await page.getByRole('banner').getByRole('link', { name: 'Log in' }).click()
+  await page.getByRole('heading', { name: 'Log in to Serangkai' }).waitFor()
   await page.getByLabel('Username').fill(adminUsername)
   await page.getByLabel('Password').fill(adminPassword)
   await page.getByRole('button', { name: 'Log in' }).click()
-  await page.waitForURL('**/workspace')
-  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Workspace' }).waitFor())
+  await page.waitForURL(/\/(?:workspace)?$/)
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor())
   await page.getByRole('button', { name: 'New folder' }).click()
   await page.getByLabel('Folder name').fill('Projects')
   // The folder picker must open real options (Reka rejects an empty-string
@@ -50,7 +50,7 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await page.getByRole('button', { name: 'Create artifact' }).click()
   await page.waitForURL('**/artifacts/**')
   await page.getByRole('link', { name: 'Workspace', exact: true }).first().click()
-  await page.waitForURL('**/workspace')
+  await page.waitForURL(/\/(?:workspace)?$/)
   await assert.doesNotReject(() => page.getByText(/· Projects/).waitFor())
   await page.getByRole('button', { name: 'Actions for Projects' }).click()
   await page.getByRole('menuitem', { name: 'Rename' }).click()
@@ -81,6 +81,10 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await assert.doesNotReject(() => page.getByText('1 artifact', { exact: true }).waitFor())
   await page.getByRole('link', { name: /^Browser-created artifact/ }).click()
   await page.waitForURL('**/artifacts/**')
+  await page.getByRole('region', { name: 'Artifact content' }).waitFor()
+  assert.equal(await page.getByRole('combobox', { name: 'Visibility' }).count(), 0)
+  await page.screenshot({ path: '/tmp/serangkai-reader-desktop.png' })
+  await page.getByRole('button', { name: 'Share', exact: true }).click()
   await page.getByRole('combobox', { name: 'Visibility' }).click()
   await page.getByRole('option', { name: /Unlisted/ }).click()
   await page.getByRole('button', { name: 'Save visibility' }).click()
@@ -92,17 +96,20 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base })
   await page.getByRole('button', { name: 'Copy share link' }).click()
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await shareLink.inputValue())
+  await page.keyboard.press('Escape')
 
   await page.getByRole('button', { name: 'Edit' }).click()
   await page.getByRole('textbox', { name: 'Content' }).fill('# Browser flow revised')
   await page.getByRole('button', { name: 'Save version' }).click()
   await assert.doesNotReject(() => page.getByText('Saved version 2').waitFor())
+  await page.getByRole('button', { name: 'History', exact: true }).click()
   await page.getByRole('button', { name: 'View' }).last().click()
   await assert.doesNotReject(() => page.getByText('# Browser flow', { exact: true }).first().waitFor())
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Restore' }).last().click()
   await assert.doesNotReject(() => page.getByText('Restored version 1 as version 3.').waitFor())
   await assert.doesNotReject(() => page.getByText('v3', { exact: true }).first().waitFor())
+  await page.keyboard.press('Escape')
 
   await page.getByRole('link', { name: 'Settings' }).click()
   await page.waitForURL('**/settings')
@@ -121,14 +128,13 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await assert.doesNotReject(() => page.getByText('list_folders').first().waitFor())
   await assert.doesNotReject(() => page.getByText(/Bearer YOUR_TOKEN/).waitFor())
 
-  await page.getByRole('link', { name: 'Overview' }).first().click()
-  await page.waitForURL('**/dashboard')
-  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Overview' }).waitFor())
-  await assert.doesNotReject(() => page.getByText('Recent activity').waitFor())
+  await page.getByRole('link', { name: 'Workspace', exact: true }).first().click()
+  await page.waitForURL(`${base}/`)
+  await page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor()
   await assert.doesNotReject(() => page.getByText('Browser-created artifact').first().waitFor())
 
   await page.getByRole('link', { name: 'Workspace', exact: true }).first().click()
-  await page.waitForURL('**/workspace')
+  await page.waitForURL(/\/(?:workspace)?$/)
   const preview = page.getByRole('link', { name: 'Preview Browser-created artifact' })
   await assert.doesNotReject(() => preview.waitFor())
   assert.match(await preview.getAttribute('href'), /\/share\/[^?]+\?k=[a-f0-9]{64}$/)
@@ -138,7 +144,7 @@ test('human browser workflow logs in and creates an artifact', async () => {
   await assert.doesNotReject(() => page.getByRole('menuitem', { name: 'Download' }).waitFor())
   await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete artifact' }).click()
-  await page.waitForURL('**/workspace')
+  await page.waitForURL(/\/(?:workspace)?$/)
   await assert.doesNotReject(() => page.getByText('No artifacts yet').waitFor())
 
   await page.getByRole('button', { name: 'Upload' }).click()
@@ -171,8 +177,8 @@ test('the login form works before client hydration', async () => {
     await coldPage.getByLabel('Username').fill(adminUsername)
     await coldPage.getByLabel('Password').fill(adminPassword)
     await coldPage.getByRole('button', { name: 'Log in' }).click()
-    await coldPage.waitForURL('**/workspace')
-    await assert.doesNotReject(() => coldPage.getByRole('heading', { name: 'Workspace' }).waitFor())
+    await coldPage.waitForURL(/\/(?:workspace)?$/)
+    await assert.doesNotReject(() => coldPage.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor())
   } finally {
     await cold.close()
   }
@@ -284,6 +290,7 @@ test('Markdown renders Selaras document components', async () => {
 })
 
 test('the share reader shows a table of contents', async () => {
+  await page.setViewportSize({ width: 1600, height: 900 })
   const shareUrl = await page.evaluate(async () => {
     const content = [
       '# Shared doc',
@@ -313,6 +320,7 @@ test('the share reader shows a table of contents', async () => {
   // The rail links to real headings, so SContentToc can track them.
   const href = await tocLinks.first().getAttribute('href')
   assert.equal(await page.locator(href).count(), 1)
+  await page.setViewportSize({ width: 1280, height: 720 })
 })
 
 test('JSON artifacts are syntax highlighted in the preview', async () => {
@@ -436,10 +444,10 @@ test('long HTML previews size to the document and scroll with the page', async (
   })
 
   await page.goto(`${base}/artifacts/${artifactId}`)
-  await page.locator('section[aria-labelledby="artifact-content"] iframe').waitFor({ timeout: 15000 })
+  await page.locator('section[aria-label="Artifact content"] iframe').waitFor({ timeout: 15000 })
   // The injected bridge reports after layout; wait for the frame to outgrow 70vh.
   await page.waitForFunction(() => {
-    const frame = document.querySelector('section[aria-labelledby="artifact-content"] iframe')
+    const frame = document.querySelector('section[aria-label="Artifact content"] iframe')
     return !!frame && frame.getBoundingClientRect().height > window.innerHeight
   }, undefined, { timeout: 15000 })
 
@@ -459,7 +467,7 @@ test('long HTML previews size to the document and scroll with the page', async (
   assert.ok(inner.scrollHeight <= inner.clientHeight + 1, `the frame must not scroll: ${inner.scrollHeight} > ${inner.clientHeight}`)
 
   const layout = await page.evaluate(() => {
-    const section = document.querySelector('section[aria-labelledby="artifact-content"]')
+    const section = document.querySelector('section[aria-label="Artifact content"]')
     const frame = section?.querySelector('iframe')
     const content = frame?.parentElement
     const rect = (element) => {
@@ -469,7 +477,7 @@ test('long HTML previews size to the document and scroll with the page', async (
     return {
       viewport: window.innerHeight,
       pageHeight: document.documentElement.scrollHeight,
-      section: section ? rect(section) : null,
+      section: section ? { ...rect(section), paddingBottom: parseFloat(getComputedStyle(section).paddingBottom) } : null,
       content: content ? rect(content) : null,
       frame: frame ? rect(frame) : null,
     }
@@ -477,9 +485,8 @@ test('long HTML previews size to the document and scroll with the page', async (
 
   assert.ok(layout.frame, 'the HTML preview iframe must render')
   assert.ok(layout.frame.height > layout.viewport, `frame height ${layout.frame.height}`)
-  // The panel ends with the document; only its 20px padding (and 1px border)
-  // remains below the frame. It must not stretch to a taller sidebar.
-  assert.ok(Math.abs(layout.section.bottom - layout.frame.bottom - 21) <= 2, `section bottom ${layout.section.bottom} vs frame ${layout.frame.bottom}`)
+  // The content ends with the document plus its own bottom padding.
+  assert.ok(Math.abs(layout.section.bottom - layout.frame.bottom - layout.section.paddingBottom) <= 2, `section bottom ${layout.section.bottom} vs frame ${layout.frame.bottom}`)
   assert.ok(layout.section.height < layout.frame.height + 120, `section height ${layout.section.height}`)
   // The main page owns the scroll.
   assert.ok(layout.pageHeight > layout.frame.height, `page ${layout.pageHeight} vs frame ${layout.frame.height}`)
@@ -494,10 +501,10 @@ test('long HTML previews size to the document and scroll with the page', async (
     return (await res.json()).artifact.id
   })
   await page.goto(`${base}/artifacts/${shortId}`)
-  await page.locator('section[aria-labelledby="artifact-content"] iframe').waitFor({ timeout: 15000 })
+  await page.locator('section[aria-label="Artifact content"] iframe').waitFor({ timeout: 15000 })
   await page.waitForTimeout(400)
   const short = await page.evaluate(() => {
-    const frame = document.querySelector('section[aria-labelledby="artifact-content"] iframe')
+    const frame = document.querySelector('section[aria-label="Artifact content"] iframe')
     return { height: Math.round(frame.getBoundingClientRect().height), viewport: window.innerHeight }
   })
   assert.ok(Math.abs(short.height - short.viewport * 0.7) <= 3, `short frame height ${short.height} at ${short.viewport}`)
@@ -515,11 +522,11 @@ test('viewport-sized HTML previews do not grow in a feedback loop', async () => 
   })
 
   await page.goto(`${base}/artifacts/${artifactId}`)
-  await page.locator('section[aria-labelledby="artifact-content"] iframe').waitFor({ timeout: 15000 })
+  await page.locator('section[aria-label="Artifact content"] iframe').waitFor({ timeout: 15000 })
   const heights = []
   for (let attempt = 0; attempt < 4; attempt++) {
     await page.waitForTimeout(350)
-    heights.push(await page.evaluate(() => Math.round(document.querySelector('section[aria-labelledby="artifact-content"] iframe').getBoundingClientRect().height)))
+    heights.push(await page.evaluate(() => Math.round(document.querySelector('section[aria-label="Artifact content"] iframe').getBoundingClientRect().height)))
   }
   assert.ok(heights.every(height => Math.abs(height - heights[0]) <= 2), `heights ${heights.join(', ')}`)
   assert.ok(Math.abs(heights[0] - page.viewportSize().height * 0.7) <= 3, `frame height ${heights[0]}`)
@@ -674,7 +681,7 @@ test('shared source files use the full page, with the footer at the end', async 
   assert.ok(Math.abs(scrolled.footerBottom - scrolled.viewportHeight) < 1, `footer bottom ${scrolled.footerBottom}`)
 })
 
-test('navigating from a public artifact to the homepage keeps the signed-in state', async () => {
+test('navigating from a public artifact to the workspace keeps the signed-in state', async () => {
   const slug = await page.evaluate(async () => {
     const res = await fetch('/api/artifacts', {
       method: 'POST',
@@ -707,8 +714,8 @@ test('anonymous readers still see the login action after leaving a share link', 
   try {
     await anon.goto(`${base}/share/${slug}`)
     await anon.getByRole('link', { name: 'Serangkai home' }).click()
-    await anon.waitForURL(`${base}/`)
-    await assert.doesNotReject(() => anon.getByRole('banner').getByRole('link', { name: 'Log in' }).waitFor())
+    await anon.waitForURL(`${base}/auth/login`)
+    await anon.getByRole('heading', { name: 'Log in to Serangkai' }).waitFor()
     assert.equal(await anon.getByRole('link', { name: 'Workspace', exact: true }).count(), 0)
   } finally {
     await context.close()
@@ -744,22 +751,22 @@ test('unknown pages render the custom 404 page and recover', async () => {
   assert.equal(await page.getByText('Error 404 · Not found').count(), 1)
 
   await page.getByRole('button', { name: 'Back to workspace' }).click()
-  await page.waitForURL('**/workspace')
-  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Workspace' }).waitFor())
+  await page.waitForURL(/\/(?:workspace)?$/)
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor())
   assert.equal(await page.getByRole('heading', { name: 'This page is off the map.' }).count(), 0)
   assert.equal(await page.title(), 'Workspace · Serangkai')
 })
 
-test('anonymous 404 recovery returns to the landing page and its title', async () => {
+test('anonymous 404 recovery returns to owner login and its title', async () => {
   const context = await browser.newContext()
   const anon = await context.newPage()
   try {
     await anon.goto(`${base}/definitely-not-a-page`)
     await anon.getByRole('heading', { name: 'This page is off the map.' }).waitFor()
     await anon.getByRole('button', { name: 'Back to home' }).click()
-    await anon.waitForURL(`${base}/`)
-    await assert.doesNotReject(() => anon.getByRole('heading', { name: /Good work deserves/ }).waitFor())
-    assert.equal(await anon.title(), 'Serangkai — artifact and knowledge workspace')
+    await anon.waitForURL(`${base}/auth/login`)
+    await anon.getByRole('heading', { name: 'Log in to Serangkai' }).waitFor()
+    assert.equal(await anon.title(), 'Log in · Serangkai')
   } finally {
     await context.close()
   }
@@ -771,8 +778,8 @@ test('missing artifacts show the custom error page and recover', async () => {
   assert.match(await page.getByText('Error code').innerText(), /404/)
 
   await page.getByRole('button', { name: 'Back to workspace' }).click()
-  await page.waitForURL('**/workspace')
-  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Workspace' }).waitFor())
+  await page.waitForURL(/\/(?:workspace)?$/)
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor())
   assert.equal(await page.getByRole('heading', { name: 'This page is off the map.' }).count(), 0)
 })
 
@@ -790,11 +797,11 @@ test('workspace load errors are shown inline, recover, and never block navigatio
     await assert.doesNotReject(() => page.getByText('Could not load the workspace').waitFor())
     assert.match(await page.getByRole('alert').innerText(), /Temporarily unavailable/)
     // The app shell stays usable while the page is in its error state.
-    await page.getByRole('link', { name: 'Overview' }).first().click()
-    await page.waitForURL('**/dashboard')
-    await assert.doesNotReject(() => page.getByRole('heading', { name: 'Overview' }).waitFor())
+    await page.getByRole('link', { name: 'Agents', exact: true }).first().click()
+    await page.waitForURL('**/agent')
+    await assert.doesNotReject(() => page.getByRole('heading', { name: 'Connect an agent' }).waitFor())
     await page.getByRole('link', { name: 'Workspace', exact: true }).first().click()
-    await page.waitForURL('**/workspace')
+    await page.waitForURL(/\/(?:workspace)?$/)
     await assert.doesNotReject(() => page.getByText('Could not load the workspace').waitFor())
 
     await page.unroute(artifactsFilter, failArtifacts)
@@ -807,23 +814,23 @@ test('workspace load errors are shown inline, recover, and never block navigatio
 
   // A boundary failure must clear on the next route, not cover every page.
   await page.goto(`${base}/workspace`)
-  await page.getByRole('heading', { name: 'Workspace' }).waitFor()
+  await page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor()
   assert.equal(await triggerPageError(page), true)
   await assert.doesNotReject(() => page.getByText('This page hit an unexpected error').waitFor())
-  await page.getByRole('link', { name: 'Overview' }).first().click()
-  await page.waitForURL('**/dashboard')
-  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Overview' }).waitFor())
+  await page.getByRole('link', { name: 'Agents', exact: true }).first().click()
+  await page.waitForURL('**/agent')
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Connect an agent' }).waitFor())
   assert.equal(await page.getByText('This page hit an unexpected error').count(), 0)
 })
 
 test('a page component error can be retried without losing the app shell', async () => {
   await page.goto(`${base}/workspace`)
-  await page.getByRole('heading', { name: 'Workspace' }).waitFor()
+  await page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor()
   assert.equal(await triggerPageError(page), true)
   await assert.doesNotReject(() => page.getByText('This page hit an unexpected error').waitFor())
 
   await page.getByRole('button', { name: 'Try again' }).click()
-  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Workspace' }).waitFor())
+  await assert.doesNotReject(() => page.getByRole('heading', { name: 'Artifacts', exact: true }).waitFor())
   assert.equal(await page.getByText('This page hit an unexpected error').count(), 0)
 })
 
@@ -967,7 +974,7 @@ test('workspace stays usable on narrow screens with long names and pagination', 
     await mobile.getByLabel('Username').fill(adminUsername)
     await mobile.getByLabel('Password').fill(adminPassword)
     await mobile.getByRole('button', { name: 'Log in' }).click()
-    await mobile.waitForURL('**/workspace')
+    await mobile.waitForURL(/\/(?:workspace)?$/)
     const name = 'A-very-long-folder-name-without-any-spaces-to-break-the-layout'
     const folders = Array.from({ length: 12 }, (_, i) => ({ id: `folder-${i}`, name: i === 11 ? name : `Folder ${i}`, parentId: i ? `folder-${i - 1}` : null, path: `/${i === 11 ? name : `Folder ${i}`}` }))
     await mobile.route(url => url.pathname === '/api/workspace', route => route.fulfill({
@@ -1014,7 +1021,7 @@ test('mobile account navigation opens from the right and closes after navigation
     await mobile.getByLabel('Username').fill(adminUsername)
     await mobile.getByLabel('Password').fill(adminPassword)
     await mobile.getByRole('button', { name: 'Log in' }).click()
-    await mobile.waitForURL('**/workspace')
+    await mobile.waitForURL(/\/(?:workspace)?$/)
     const trigger = mobile.getByRole('button', { name: `Account menu for ${adminUsername}` })
     await trigger.waitFor()
     assert.match(await trigger.innerText(), new RegExp(adminUsername))
@@ -1024,19 +1031,17 @@ test('mobile account navigation opens from the right and closes after navigation
     await dialog.waitFor()
     assert.match(await dialog.innerText(), new RegExp(`Signed in as ${adminUsername}`))
     await mobile.waitForFunction(() => { const panel = document.querySelector('[role=dialog]'); if (!panel) return false; const rect = panel.getBoundingClientRect(); return Math.abs(rect.right - innerWidth) < 2 })
-    await dialog.getByRole('link', { name: 'Overview' }).click()
-    await mobile.waitForURL('**/dashboard')
+    await dialog.getByRole('link', { name: 'Agents', exact: true }).click()
+    await mobile.waitForURL('**/agent')
     await dialog.waitFor({ state: 'hidden' })
     await trigger.click()
     await dialog.waitFor()
     await mobile.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
     await mobile.setViewportSize({ width: 1280, height: 720 })
-    await trigger.waitFor()
-    assert.match(await trigger.innerText(), new RegExp(adminUsername))
-    await trigger.click()
-    await mobile.getByRole('menuitem', { name: 'Log out' }).waitFor()
-    await mobile.keyboard.press('Escape')
+    assert.equal(await trigger.isVisible(), false)
+    await mobile.getByRole('complementary', { name: 'Workspace sidebar' }).getByText(adminUsername, { exact: true }).waitFor()
+    await mobile.getByRole('button', { name: 'Log out', exact: true }).waitFor()
     await mobile.getByRole('link', { name: 'Workspace', exact: true }).first().waitFor()
   } finally {
     await context.close()
@@ -1048,6 +1053,9 @@ test('agent connection reference fits narrow viewports and keeps copy controls a
   const mobile = await context.newPage()
   try {
     await mobile.goto(`${base}/agent`)
+    await mobile.getByLabel('Username').fill(adminUsername)
+    await mobile.getByLabel('Password').fill(adminPassword)
+    await mobile.getByRole('button', { name: 'Log in', exact: true }).click()
     await mobile.getByRole('heading', { name: 'Connect an agent' }).waitFor()
     for (const width of [320, 375, 768, 1280]) {
       await mobile.setViewportSize({ width, height: 720 })
@@ -1076,7 +1084,7 @@ test('artifact history pages and actions work on a narrow screen', async () => {
     await mobile.getByLabel('Username').fill(adminUsername)
     await mobile.getByLabel('Password').fill(adminPassword)
     await mobile.getByRole('button', { name: 'Log in' }).click()
-    await mobile.waitForURL('**/workspace')
+    await mobile.waitForURL(/\/(?:workspace)?$/)
     const id = await mobile.evaluate(async () => {
       const headers = { 'content-type': 'application/json' }
       const created = await fetch('/api/artifacts', { method: 'POST', headers, body: JSON.stringify({ title: 'Long history on mobile', type: 'markdown', content: '# Version 1' }) })
@@ -1088,8 +1096,11 @@ test('artifact history pages and actions work on a narrow screen', async () => {
       return id
     })
     await mobile.goto(`${base}/artifacts/${id}`)
+    await mobile.getByRole('region', { name: 'Artifact content' }).waitFor()
+    await mobile.screenshot({ path: '/tmp/serangkai-reader-mobile.png' })
+    await mobile.getByRole('button', { name: 'History', exact: true }).click()
     await mobile.getByText('10 versions', { exact: true }).waitFor()
-    assert.equal(await mobile.getByRole('navigation', { name: 'History pages' }).getByText('Page 1 of 2').isVisible(), true)
+    assert.equal(await mobile.getByText('Page 1 of 2').isVisible(), true)
     const sizes = await mobile.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
     assert.ok(sizes.content <= sizes.viewport, `artifact page overflows: ${JSON.stringify(sizes)}`)
     await mobile.getByRole('navigation', { name: 'History pages' }).getByRole('button', { name: 'Next' }).click()
@@ -1100,11 +1111,15 @@ test('artifact history pages and actions work on a narrow screen', async () => {
     assert.match(await preview.innerText(), /# Version 1/)
     await mobile.keyboard.press('Escape')
     await preview.waitFor({ state: 'hidden' })
+    await mobile.getByRole('dialog', { name: 'Version history', exact: true }).getByRole('button', { name: 'Close', exact: true }).click()
+    await mobile.getByRole('dialog', { name: 'Version history', exact: true }).waitFor({ state: 'hidden' })
     await mobile.getByRole('button', { name: 'Edit', exact: true }).click()
     await mobile.getByRole('textbox', { name: 'Content' }).fill('# Version 11')
     await mobile.getByRole('button', { name: 'Save version' }).click()
     await mobile.getByText('Saved version 11').waitFor()
+    await mobile.getByRole('button', { name: 'History', exact: true }).click()
     await mobile.getByText('11 versions', { exact: true }).waitFor()
+    await mobile.keyboard.press('Escape')
     await mobile.getByRole('button', { name: 'Artifact actions' }).click()
     await mobile.getByRole('button', { name: 'Duplicate', exact: true }).waitFor()
   } finally { await context.close() }
@@ -1118,7 +1133,7 @@ test('Markdown code blocks have space after headings and before following text',
     await reader.getByLabel('Username').fill(adminUsername)
     await reader.getByLabel('Password').fill(adminPassword)
     await reader.getByRole('button', { name: 'Log in' }).click()
-    await reader.waitForURL('**/workspace')
+    await reader.waitForURL(/\/(?:workspace)?$/)
     const id = await reader.evaluate(async () => {
       const result = await fetch('/api/artifacts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Code spacing', type: 'markdown', content: '## Data Model\n\n```typescript\nconst value = 1\n```\n\nFollowing paragraph.' }) })
       return (await result.json()).artifact.id

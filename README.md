@@ -25,7 +25,8 @@ docker run -d -p 3000:3000 \
   ghcr.io/sewadahapp/serangkai:latest
 ```
 
-Open `http://localhost:3000/auth/login` and sign in with those credentials.
+Open `http://localhost:3000` and sign in with those credentials. The workspace
+opens directly after login; public share links keep their own reader.
 Registration is intentionally disabled: a self-hosted Serangkai instance has a
 single owner account. The image runs the Nitro server output under Bun and
 stores SQLite plus uploaded files under `/data`, so a volume mounted there is

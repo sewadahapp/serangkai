@@ -84,7 +84,7 @@ useHead(() => ({
 
 <template>
   <SApp>
-    <div class="flex min-h-dvh flex-col bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]">
+    <div class="serangkai-canvas-pattern flex min-h-dvh flex-col bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]">
       <header class="border-b border-[var(--selaras-resolved-border-default)]">
         <div class="serangkai-shell flex h-16 items-center justify-between gap-4">
           <NuxtLink to="/" class="flex items-center gap-2 rounded-md focus-visible:outline-offset-4" aria-label="Serangkai home">

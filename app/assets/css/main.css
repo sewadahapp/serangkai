@@ -1227,10 +1227,11 @@ input[type='search']::-webkit-search-decoration {
   color: var(--shiki-light);
 }
 
-/* Comark/Shiki emits the light color inline and the dark palette as a custom property. */
+/* Comark emits light colors inline. Generated dual-theme tokens must override
+   those inline colors when dark mode selects the alternate palette. */
 .dark .serangkai-code-pre span[style*="--shiki-dark"],
 .dark .serangkai-shiki span[style*="--shiki-dark"] {
-  color: var(--shiki-dark);
+  color: var(--shiki-dark) !important;
   background-color: var(--shiki-dark-bg);
 }
 
@@ -1443,4 +1444,10 @@ html.serangkai-editor-fullscreen-open body {
 
 .serangkai-pretty {
   text-wrap: pretty;
+}
+
+/* Shared canvas texture for app pages, public readers, and error screens. */
+.serangkai-canvas-pattern {
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--selaras-resolved-text-muted) 24%, transparent) 1px, transparent 1.1px);
+  background-size: 24px 24px;
 }

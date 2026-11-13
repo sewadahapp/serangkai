@@ -6,10 +6,14 @@
       <div class="border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
         <h2 id="appearance" class="text-sm font-semibold">Appearance</h2>
         <p class="mt-0.5 text-sm text-[var(--selaras-resolved-text-muted)]">
-          Pick a color theme. Light and dark mode stay independent and follow the toggle in the header.
+          Choose a color theme and switch between light and dark mode.
         </p>
       </div>
-      <div class="p-5">
+      <div class="space-y-5 p-5">
+        <div class="flex items-center justify-between gap-4">
+          <div><h3 class="text-sm font-medium">Light / dark mode</h3><p class="mt-1 text-xs text-[var(--selaras-resolved-text-muted)]">Change the appearance for this browser.</p></div>
+          <STooltip text="Switch light / dark mode"><SColorModeToggle /></STooltip>
+        </div>
         <SRadioGroup
           :model-value="theme"
           variant="card"

@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex min-h-dvh flex-col bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]"
+    class="serangkai-canvas-pattern flex min-h-dvh flex-col bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]"
   >
     <header class="sticky top-0 z-40 shrink-0 border-b border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-canvas)]">
       <div class="serangkai-shell flex h-16 items-center justify-between gap-4">
@@ -84,8 +84,11 @@
     <main v-else class="serangkai-shell flex-1 py-10">
       <template v-if="artifact">
         <!-- Markdown keeps its prose measure and contents rail. -->
-        <div v-if="artifact.type === 'markdown'" class="mx-auto grid max-w-5xl grid-cols-1 gap-10 lg:grid-cols-[minmax(0,46rem)_13rem]">
-          <article>
+        <div v-if="artifact.type === 'markdown'" class="share-markdown-layout">
+          <article class="share-markdown-article">
+            <SAccordion v-if="toc.length" :items="[{ value: 'contents', label: 'On this page' }]" class="share-toc-compact" color="neutral">
+              <template #contents><SContentToc :links="toc" /></template>
+            </SAccordion>
             <p class="serangkai-eyebrow">{{ visibilityLabel }}</p>
             <h1 v-if="!startsWithHeading" class="serangkai-balance mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">{{ artifact.title }}</h1>
             <div :class="startsWithHeading ? 'mt-4' : 'mt-8'">
@@ -93,8 +96,8 @@
             </div>
           </article>
 
-          <aside v-if="toc.length" class="hidden lg:block" aria-label="Table of contents">
-            <div class="sticky top-24">
+          <aside v-if="toc.length" class="share-toc" aria-label="Table of contents">
+            <div class="share-toc-sticky">
               <SContentToc :links="toc" />
             </div>
           </aside>
@@ -271,7 +274,18 @@ useHead(() => ({
 <style scoped>
 /* The header is sticky, so anchored headings need to stop below it instead of
    sliding underneath when a contents link is followed. */
-:deep(.serangkai-prose :is(h1, h2, h3, h4)) {
+:deep(.selaras-prose :is(h1, h2, h3, h4)) {
   scroll-margin-top: 5.5rem;
+}
+/* Center the document itself. The independent rail does not offset its axis. */
+.share-markdown-layout { position: relative; min-width: 0; }
+.share-markdown-article { width: 100%; max-width: 54rem; min-width: 0; margin-inline: auto; }
+.share-toc { display: none; }
+.share-toc-compact { margin-bottom: 1.5rem; }
+.share-markdown-article :deep(.selaras-prose :is(h1, h2, h3, h4):first-child) { margin-block-start: 0; }
+@media (min-width: 1536px) {
+  .share-toc-compact { display: none; }
+  .share-toc { display: block; position: absolute; inset-block: 0; inset-inline-start: calc(50% + 27rem + 1.5rem); width: 13rem; }
+  .share-toc-sticky { position: sticky; top: 6rem; max-height: calc(100dvh - 7.5rem); overflow-y: auto; }
 }
 </style>

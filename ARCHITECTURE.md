@@ -205,20 +205,29 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   Mutating tools declare `destructiveHint`.
 
 ### Frontend Routes
-- `/` - Landing page with capability, agent-setup, and CTA sections. The only
-  indexable page (`index, follow` plus canonical and Open Graph tags).
+- `/` - Private artifact workspace with paginated search, folder navigation, and
+  list/grid views. Both views offer per-artifact menus for rename, duplicate,
+  move, sharing, download, and delete. The selected view is stored in a first-party
+  preference cookie.
+  Signed-out visitors are redirected to owner login. The desktop app uses a
+  persistent sidebar; mobile navigation and folder lists open in slideovers.
 - `/auth/login` - Owner login with labeled `SFormField` inputs; registration does not exist
-- `/dashboard` - Workspace overview: counts, storage total, recent activity, types
-- `/workspace` - Artifact workspace with folder tree, scoped search, create/upload panels
+- `/dashboard` - Compatibility redirect to `/`
+- `/workspace` - Alias for `/`; `/workspace/new` opens the artifact editor
 - `/artifacts/[id]` - Artifact preview/edit. The artifact is fetched during SSR so
   the title renders on a direct load and a missing artifact answers 404; history,
   folders, and the share link load after the document. Markdown, HTML, JSON, and
   JavaScript open a full-viewport source workspace with an inline title, type and
-  version, dirty state, and Save/Cancel; preview mode keeps the sharing, folder,
-  and version panels. HTML previews size to the document and scroll with the page,
+  version, dirty state, and Save/Cancel. Preview mode puts content beneath a
+  compact title/action bar; sharing and moving use dialogs, and paginated version
+  history opens in a right-side slideover. Markdown uses a wider centered reader;
+  shared Markdown centers the document independently of its right-hand contents
+  rail, with collapsible contents above the document on smaller screens. HTML previews size to the document and scroll with the page,
   with `70vh` as the floor; Markdown already renders in-page. PDFs keep the
   browser's viewer and fill the content column.
-- `/settings` - API token creation, listing, and revocation
+- `/settings` - Appearance themes, light/dark mode, API token creation, listing,
+  and revocation. Desktop sidebar account identity is static with a direct logout
+  action; mobile account navigation opens in a slideover.
 - `/agent` - MCP/REST connection guide with endpoint, client config, scope reference,
   publishing workflow (`baseVersion`), the HTML color-mode contract, and the
   Mermaid/chart marker syntax
@@ -256,9 +265,8 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   `app.head`: `titleTemplate: '%s · Serangkai'` (a string, because Nuxt
   serializes `app.head` with `JSON.stringify`, which drops functions), the
   description, Open Graph basics, `noindex` by default, and the icon links.
-  Pages set only their short title. The landing page is the sole exception: it
-  sets the full product title with `titleTemplate: null`, opts into indexing,
-  and adds a request-derived canonical URL. The icon set is a rounded mark for
+  Pages set only their short title and retain the default `noindex` policy.
+  The icon set is a rounded mark for
   browser tabs (`favicon.ico` at 16/32/48, `favicon.svg`) and full-bleed
   install icons (`apple-touch-icon.png`, `icon-192/512.png`, plus a maskable
   variant) described by `public/site.webmanifest`.
@@ -316,8 +324,8 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   uploaded source files read like code rather than plain text. That endpoint returns Shiki spans sanitized down to
   `pre`/`code`/`span`, or escaped text for unknown languages, and rejects
   snippets above 50,000 characters so the public route cannot be used to burn
-  unbounded CPU. The landing page's hero request and MCP config use it too,
-  with `language="http"` and `language="json"` respectively.
+  unbounded CPU. The agent connection guide uses it for client configuration
+  and REST examples.
 - `#selaras/tailwind.css` is imported in the Tailwind entry as the installation
   guide requires; it defines `--selaras-adaptive-breakpoint`, without which
   adaptive presentation warns and silently disables.

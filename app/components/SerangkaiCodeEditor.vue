@@ -5,28 +5,21 @@
     :style="{ '--serangkai-editor-height': height }"
   >
     <div class="serangkai-editor-toolbar">
-      <div class="serangkai-editor-tab" :title="fileName">
+      <STooltip :text="fileName"><div class="serangkai-editor-tab">
         <SIcon :name="fileMeta.icon" class="size-3.5 shrink-0" aria-hidden="true" />
         <span class="truncate">{{ fileName }}</span>
         <span v-if="dirty" class="serangkai-editor-dirty" role="status">
           <span class="sr-only">Unsaved changes</span>
         </span>
-      </div>
+      </div></STooltip>
 
       <div class="ms-auto flex shrink-0 items-center gap-2">
         <span class="hidden text-[0.6875rem] font-medium tracking-wide text-[var(--selaras-resolved-text-muted)] sm:inline">
           {{ fileMeta.label }}
         </span>
-        <button
-          v-if="!fill"
-          type="button"
-          class="serangkai-editor-action"
-          :aria-label="fullscreen ? 'Exit fullscreen editor' : 'Fullscreen editor'"
-          :aria-pressed="fullscreen"
-          @click="toggleFullscreen"
-        >
-          <SIcon :name="fullscreen ? 'lucide:minimize-2' : 'lucide:maximize-2'" class="size-3.5" aria-hidden="true" />
-        </button>
+        <STooltip v-if="!fill" :text="fullscreen ? 'Exit fullscreen editor' : 'Fullscreen editor'">
+          <SButton variant="ghost" color="neutral" size="sm" :icon="fullscreen ? 'lucide:minimize-2' : 'lucide:maximize-2'" :aria-label="fullscreen ? 'Exit fullscreen editor' : 'Fullscreen editor'" :aria-pressed="fullscreen" @click="toggleFullscreen" />
+        </STooltip>
       </div>
     </div>
 

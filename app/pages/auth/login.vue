@@ -58,8 +58,8 @@ const loading = ref(false)
  */
 const returnTo = computed(() => {
   const value = route.query.redirect
-  if (typeof value !== 'string') return '/workspace'
-  if (!value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return '/workspace'
+  if (typeof value !== 'string') return '/'
+  if (!value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return '/'
   return value
 })
 

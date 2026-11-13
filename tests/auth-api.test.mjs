@@ -82,7 +82,7 @@ test('the login form works as a native POST before hydration', async () => {
     redirect: 'manual',
   })
   assert.equal(native.status, 303)
-  assert.match(native.headers.get('location') || '', /\/workspace$/)
+  assert.match(native.headers.get('location') || '', /\/$/)
   const cookie = native.headers.get('set-cookie')
   assert.ok(cookie, 'native login must set a session cookie')
   assert.match(cookie, /HttpOnly/i)

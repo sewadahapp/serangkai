@@ -28,45 +28,23 @@
       </div>
     </section>
 
-    <div v-else class="space-y-6">
-      <div class="flex flex-wrap items-start justify-between gap-4">
-        <div class="min-w-0">
-          <NuxtLink to="/workspace" class="text-sm text-[var(--selaras-resolved-text-muted)] underline-offset-4 hover:underline">← Workspace</NuxtLink>
-          <h1 class="serangkai-balance mt-2 break-words text-2xl font-semibold tracking-tight sm:text-3xl">{{ artifact.title }}</h1>
-          <div class="mt-2 flex flex-wrap items-center gap-1.5">
-            <SBadge :label="artifact.type" variant="subtle" color="neutral" size="sm" />
-            <SBadge
-              :label="artifact.visibility"
-              variant="subtle"
-              :color="artifact.visibility === 'private' ? 'neutral' : artifact.visibility === 'public' ? 'success' : 'accent'"
-              size="sm"
-            />
-            <span v-if="artifact.folderId" class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ folderPath }}</span>
-          </div>
+    <div v-else class="artifact-reader">
+      <header class="artifact-toolbar">
+        <div class="min-w-0 flex-1">
+          <h1 class="min-w-0" :aria-label="artifact.title">
+            <STooltip :text="artifact.title"><span class="inline-flex min-w-0"><SDropdown :positioning="{ collisionPadding: 12 }" :items="artifactActions" :adaptive="true"><SButton variant="ghost" color="neutral" trailing-icon="lucide:chevron-down" aria-label="Artifact actions" class="max-w-full"><span class="truncate">{{ artifact.title }}</span></SButton></SDropdown></span></STooltip>
+          </h1>
         </div>
-
-        <div class="flex shrink-0 items-center gap-2">
-          <SButton v-if="isTextArtifact" icon="lucide:pencil" :disabled="historyLoading || latestVersion === null" @click="openEditor">Edit</SButton>
-          <SDropdown :items="artifactActions" :adaptive="true">
-            <SButton variant="outline" icon="lucide:ellipsis" aria-label="Artifact actions" title="Artifact actions" />
-          </SDropdown>
+        <div class="flex shrink-0 items-center gap-1">
+          <STooltip v-if="isTextArtifact" text="Edit"><SButton variant="ghost" color="neutral" icon="lucide:pencil" :disabled="historyLoading || latestVersion === null" aria-label="Edit" @click="openEditor"><span class="hidden sm:inline">Edit</span></SButton></STooltip>
+          <STooltip text="History"><SButton variant="ghost" color="neutral" icon="lucide:history" aria-label="History" @click="historyOpen = true" /></STooltip>
+          <STooltip text="Share"><SButton variant="outline" color="neutral" icon="lucide:share-2" aria-label="Share" @click="sharingOpen = true"><span class="hidden sm:inline">Share</span></SButton></STooltip>
         </div>
-      </div>
-
+      </header>
+      <p v-if="message" class="artifact-notice" role="status">{{ message }}</p>
       <SAlert v-if="deleteMessage" color="danger" variant="subtle" :title="deleteMessage" />
 
-      <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <section
-          aria-labelledby="artifact-content"
-          class="serangkai-panel flex flex-col overflow-hidden"
-          :class="artifact.type === 'html' ? 'self-start' : ''"
-        >
-          <div class="flex items-center justify-between gap-3 border-b border-[var(--selaras-resolved-border-muted)] px-5 py-3">
-            <h2 id="artifact-content" class="text-sm font-semibold">Content</h2>
-            <span v-if="message" class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ message }}</span>
-          </div>
-
-          <div class="flex flex-1 flex-col p-5">
+      <section class="artifact-document" aria-label="Artifact content" :class="{ 'artifact-document-markdown': artifact.type === 'markdown' }">
             <img
               v-if="artifact.type === 'image'"
               :src="`/api/artifacts/${artifact.id}/preview`"
@@ -86,7 +64,7 @@
               auto-height
               class="min-h-[70vh]"
             />
-            <div v-else-if="artifact.type === 'markdown'" class="selaras-prose mx-auto">
+            <div v-else-if="artifact.type === 'markdown'" class="min-w-0 w-full">
               <MarkdownDocument :body="contentBody" />
             </div>
             <SerangkaiCode
@@ -96,12 +74,11 @@
               :filename="artifact.metadata?.filename"
             />
             <pre v-else class="overflow-auto whitespace-pre-wrap rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-4 font-mono text-sm">{{ content }}</pre>
-          </div>
-        </section>
+      </section>
 
-        <div class="min-w-0 space-y-4">
-          <section class="serangkai-panel p-4" aria-labelledby="sharing-heading">
-            <h2 id="sharing-heading" class="text-sm font-semibold">Sharing</h2>
+
+      <SModal v-model:open="sharingOpen" title="Share artifact" description="Choose who can open this artifact.">
+        <template #body>
 
             <div class="mt-3 space-y-3">
               <SFormField v-slot="{ id }" label="Visibility">
@@ -128,10 +105,11 @@
               </template>
               <p v-if="shareMessage" class="text-sm text-[var(--selaras-resolved-text-muted)]">{{ shareMessage }}</p>
             </div>
-          </section>
+        </template>
+      </SModal>
 
-          <section class="serangkai-panel p-4" aria-labelledby="folder-heading">
-            <h2 id="folder-heading" class="text-sm font-semibold">Folder</h2>
+      <SModal v-model:open="movingOpen" title="Move artifact" :description="folderPath ? `Currently in ${folderPath}` : 'Choose a folder for this artifact.'">
+        <template #body>
             <div class="mt-3 space-y-2">
               <SFormField v-slot="{ id }" label="Move to">
                 <SSelect :id="id" v-model="draftFolderId" :items="folderOptions" placeholder="No folder" clearable class="w-full" />
@@ -139,9 +117,11 @@
               <SButton icon="lucide:folder-input" :loading="savingFolder" :disabled="savingFolder" @click="saveFolder">Move artifact</SButton>
               <p v-if="folderMessage" class="text-sm text-[var(--selaras-resolved-text-muted)]">{{ folderMessage }}</p>
             </div>
-          </section>
+        </template>
+      </SModal>
 
-          <section class="serangkai-panel p-4" aria-labelledby="versions-heading">
+      <SSlideover v-model:open="historyOpen" side="right" title="Version history" description="Browse and restore saved versions.">
+        <template #body>
             <div class="flex items-start justify-between gap-2">
               <div><h2 id="versions-heading" class="text-sm font-semibold">History</h2><p class="mt-1 text-xs text-[var(--selaras-resolved-text-muted)]">{{ versionTotal }} {{ versionTotal === 1 ? 'version' : 'versions' }}</p></div>
               <SIcon name="lucide:history" class="size-4 text-[var(--selaras-resolved-text-muted)]" aria-hidden="true" />
@@ -161,19 +141,18 @@
                 </li>
               </ul>
               <p v-else-if="!historyError" class="mt-3 text-sm text-[var(--selaras-resolved-text-muted)]">No versions yet.</p>
-              <nav v-if="versionPages > 1" aria-label="History pages" class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--selaras-resolved-border-muted)] pt-3">
+              <div v-if="versionPages > 1" class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--selaras-resolved-border-muted)] pt-3">
                 <span class="text-xs text-[var(--selaras-resolved-text-muted)]">Page {{ versionPage }} of {{ versionPages }}</span>
-                <div class="flex gap-1"><SButton variant="outline" size="sm" :disabled="versionPage <= 1" @click="loadVersions(versionPage - 1)">Previous</SButton><SButton variant="outline" size="sm" :disabled="versionPage >= versionPages" @click="loadVersions(versionPage + 1)">Next</SButton></div>
-              </nav>
+                <SPagination :page="versionPage" :total="versionTotal" :items-per-page="versionPageSize" :sibling-count="0" :show-edges="false" :show-first-last="false" size="sm" color="neutral" active-color="neutral" aria-label="History pages" @update:page="loadVersions" />
+              </div>
             </template>
             <div v-if="historyError" class="mt-3"><p role="alert" class="text-sm text-[var(--selaras-resolved-color-danger-text)]">{{ historyError }}</p><SButton variant="ghost" size="sm" @click="loadVersions(versionPage)">Retry history</SButton></div>
             <p v-if="versionMessage" class="mt-3 text-xs text-[var(--selaras-resolved-text-muted)]" role="status">{{ versionMessage }}</p>
-          </section>
-          <SModal :open="!!viewing" :title="`Version ${viewing?.version || ''}`" description="Saved content from this version." :ui="{ content: 'max-w-2xl' }" @update:open="value => { if (!value) closeViewing() }">
+        </template>
+      </SSlideover>
+      <SModal :open="!!viewing" :title="`Version ${viewing?.version || ''}`" description="Saved content from this version." :ui="{ content: 'max-w-2xl' }" @update:open="value => { if (!value) closeViewing() }">
             <template #body><pre class="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-md bg-[var(--selaras-resolved-surface-elevated)] p-3 font-mono text-xs">{{ viewing?.content }}</pre></template>
-          </SModal>
-        </div>
-      </div>
+      </SModal>
     </div>
   </div>
 
@@ -205,6 +184,9 @@ const artifact = ref<any>(null)
 const content = ref('')
 const contentBody = ref<Record<string, unknown> | null>(null)
 const editing = ref(false)
+const sharingOpen = ref(false)
+const movingOpen = ref(false)
+const historyOpen = ref(false)
 const draftTitle = ref('')
 const draftContent = ref('')
 const versions = ref<any[]>([])
@@ -464,6 +446,9 @@ const removeArtifact = async () => {
 
 const artifactActions = computed(() => [
   [
+    { label: 'Share', icon: 'lucide:share-2', onSelect: () => { sharingOpen.value = true } },
+    { label: 'Move to folder', icon: 'lucide:folder-input', onSelect: () => { movingOpen.value = true } },
+    { label: 'Version history', icon: 'lucide:history', onSelect: () => { historyOpen.value = true } },
     { label: 'Download', icon: 'lucide:download', to: `/api/artifacts/${route.params.id}/download` },
     { label: 'Duplicate', icon: 'lucide:copy', disabled: duplicating.value, onSelect: () => { void duplicateArtifact() } },
     ...(artifact.value?.type === 'bundle' ? [{ label: 'Open bundle', icon: 'lucide:external-link', to: `/share/${artifact.value.slug}`, target: '_blank', rel: 'noopener' }] : []),
@@ -621,3 +606,14 @@ const save = async () => {
   finally { saving.value = false }
 }
 </script>
+
+<style scoped>
+.artifact-reader { min-width: 0; }
+.artifact-toolbar { position: sticky; top: 4rem; z-index: 10; display: flex; align-items: center; gap: .5rem; min-height: 3.5rem; padding: .5rem 1rem; border-bottom: 1px solid var(--selaras-resolved-border-muted); background: var(--selaras-resolved-surface-canvas); }
+.artifact-document { min-width: 0; padding: 1.5rem 1rem 4rem; }
+.artifact-document-markdown { max-width: 58rem; margin-inline: auto; padding-top: 2.5rem; }
+.artifact-document-markdown :deep(.selaras-prose :is(h1, h2, h3, h4):first-child) { margin-block-start: 0; }
+.artifact-notice { padding: .75rem 1.5rem; font-size: .75rem; color: var(--selaras-resolved-text-muted); }
+@media (min-width: 768px) { .artifact-document { padding-inline: 2.5rem; }.artifact-toolbar { padding-inline: 1.5rem; } }
+@media (min-width: 1024px) { .artifact-toolbar { top: 0; }.artifact-document-markdown { padding-top: 3.5rem; } }
+</style>

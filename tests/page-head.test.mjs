@@ -48,7 +48,7 @@ after(async () => {
 })
 
 const htmlPage = (path, headers = {}) => fetch(`${base}${path}`, {
-  headers: { accept: 'text/html', ...headers },
+  headers: { accept: 'text/html', cookie, ...headers },
 })
 
 const headOf = (body) => body.slice(body.indexOf('<head'), body.indexOf('</head>'))
@@ -57,10 +57,10 @@ const tag = (head, pattern) => head.match(pattern)?.[0]
 test('every page carries the same title suffix and icon set', async () => {
   for (const [path, expected] of [
     ['/workspace', 'Workspace · Serangkai'],
-    ['/dashboard', 'Overview · Serangkai'],
+    ['/dashboard', 'Workspace · Serangkai'],
     ['/settings', 'Settings · Serangkai'],
     ['/agent', 'Connect an agent · Serangkai'],
-    ['/auth/login', 'Log in · Serangkai'],
+    ['/', 'Workspace · Serangkai'],
   ]) {
     const response = await htmlPage(path)
     assert.equal(response.status, 200, path)
@@ -74,14 +74,8 @@ test('every page carries the same title suffix and icon set', async () => {
   }
 })
 
-test('app pages are private; only the landing page opts into indexing', async () => {
-  const landing = headOf(await (await htmlPage('/')).text())
-  assert.match(landing, /<meta name="robots" content="index, follow">/)
-  assert.match(landing, /<title>Serangkai — artifact and knowledge workspace<\/title>/)
-  // The product title opts out of the shared suffix instead of repeating it.
-  assert.doesNotMatch(landing, /workspace · Serangkai/)
-
-  for (const path of ['/workspace', '/settings', '/auth/login']) {
+test('workspace and app pages keep the private indexing policy', async () => {
+  for (const path of ['/', '/workspace', '/settings', '/auth/login']) {
     const head = headOf(await (await htmlPage(path)).text())
     assert.match(head, /<meta name="robots" content="noindex, nofollow">/, path)
   }
