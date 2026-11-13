@@ -1015,7 +1015,7 @@ test('mobile account navigation opens from the right and closes after navigation
     await mobile.getByLabel('Password').fill(adminPassword)
     await mobile.getByRole('button', { name: 'Log in' }).click()
     await mobile.waitForURL('**/workspace')
-    const trigger = mobile.getByRole('button', { name: `Open navigation for ${adminUsername}` })
+    const trigger = mobile.getByRole('button', { name: `Account menu for ${adminUsername}` })
     await trigger.waitFor()
     assert.match(await trigger.innerText(), new RegExp(adminUsername))
     assert.equal(await mobile.getByRole('navigation', { name: 'Workspace sections' }).count(), 0)
@@ -1032,7 +1032,11 @@ test('mobile account navigation opens from the right and closes after navigation
     await mobile.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
     await mobile.setViewportSize({ width: 1280, height: 720 })
-    assert.equal(await trigger.isVisible(), false)
+    await trigger.waitFor()
+    assert.match(await trigger.innerText(), new RegExp(adminUsername))
+    await trigger.click()
+    await mobile.getByRole('menuitem', { name: 'Log out' }).waitFor()
+    await mobile.keyboard.press('Escape')
     await mobile.getByRole('link', { name: 'Workspace', exact: true }).first().waitFor()
   } finally {
     await context.close()
@@ -1057,6 +1061,10 @@ test('agent connection reference fits narrow viewports and keeps copy controls a
     await mobile.getByRole('navigation', { name: 'Agent page sections' }).getByRole('link', { name: 'MCP setup' }).click()
     assert.equal(new URL(mobile.url()).hash, '#mcp-config')
     await mobile.getByRole('heading', { name: 'MCP client configuration' }).waitFor()
+    const intro = mobile.getByText('For clients that support Streamable HTTP MCP servers. Replace the token with one you just created.')
+    const snippet = intro.locator('xpath=following-sibling::*[1]')
+    const [introBox, snippetBox] = await Promise.all([intro.boundingBox(), snippet.boundingBox()])
+    assert.ok(introBox && snippetBox && snippetBox.y > introBox.y + introBox.height + 10, 'MCP snippet should have space below its description')
   } finally { await context.close() }
 })
 
@@ -1099,5 +1107,31 @@ test('artifact history pages and actions work on a narrow screen', async () => {
     await mobile.getByText('11 versions', { exact: true }).waitFor()
     await mobile.getByRole('button', { name: 'Artifact actions' }).click()
     await mobile.getByRole('button', { name: 'Duplicate', exact: true }).waitFor()
+  } finally { await context.close() }
+})
+
+test('Markdown code blocks have space after headings and before following text', async () => {
+  const context = await browser.newContext()
+  const reader = await context.newPage()
+  try {
+    await reader.goto(`${base}/auth/login`)
+    await reader.getByLabel('Username').fill(adminUsername)
+    await reader.getByLabel('Password').fill(adminPassword)
+    await reader.getByRole('button', { name: 'Log in' }).click()
+    await reader.waitForURL('**/workspace')
+    const id = await reader.evaluate(async () => {
+      const result = await fetch('/api/artifacts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Code spacing', type: 'markdown', content: '## Data Model\n\n```typescript\nconst value = 1\n```\n\nFollowing paragraph.' }) })
+      return (await result.json()).artifact.id
+    })
+    await reader.goto(`${base}/artifacts/${id}`)
+    const heading = reader.getByRole('heading', { name: 'Data Model' })
+    const block = reader.locator('.markdown-code-block')
+    const paragraph = reader.getByText('Following paragraph.')
+    await block.waitFor()
+    const positions = await Promise.all([heading.boundingBox(), block.boundingBox(), paragraph.boundingBox()])
+    assert.ok(positions.every(Boolean))
+    assert.ok(positions[1].y - (positions[0].y + positions[0].height) >= 12, 'code block should have a visible gap after the heading')
+    assert.ok(positions[2].y - (positions[1].y + positions[1].height) >= 12, 'following paragraph should have a visible gap after the code block')
+    await block.getByRole('button', { name: 'Copy code' }).waitFor()
   } finally { await context.close() }
 })

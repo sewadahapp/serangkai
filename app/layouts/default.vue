@@ -31,17 +31,13 @@
             <div class="hidden lg:block">
               <SDropdown :items="accountItems">
                 <template #default>
-                  <SButton variant="ghost" size="sm" icon="lucide:user-round" aria-haspopup="menu" class="gap-1.5">
-                    <span class="max-w-40 truncate">{{ user?.username }}</span>
-                  </SButton>
+                  <SerangkaiAccountButton :username="user?.username" />
                 </template>
               </SDropdown>
             </div>
             <SSlideover v-model:open="mobileMenuOpen" side="right" title="Navigation" :description="user?.username ? `Signed in as ${user.username}` : undefined">
               <template #default>
-                <SButton variant="ghost" size="sm" icon="lucide:menu" class="lg:hidden" :aria-label="`Open navigation for ${user?.username || 'account'}`">
-                  <span class="max-w-24 truncate">{{ user?.username }}</span>
-                </SButton>
+                <SerangkaiAccountButton :username="user?.username" class="lg:hidden" />
               </template>
               <template #body>
                 <nav aria-label="Workspace sections" class="space-y-1">

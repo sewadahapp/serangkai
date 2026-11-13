@@ -1,16 +1,18 @@
 <template>
-  <SProsePre
-    :code="code"
-    :language="language"
-    :filename="filename"
-    :show-header="showHeader"
-  >
-    <!-- eslint-disable-next-line vue/no-v-html -- Shiki output is sanitized
-         server-side by /api/highlight, which strips everything but
-         pre/code/span and their class/style attributes. -->
-    <span v-if="html" class="serangkai-shiki" v-html="html" />
-    <code v-else>{{ code }}</code>
-  </SProsePre>
+  <div class="min-w-0">
+    <SProsePre
+      :code="code"
+      :language="language"
+      :filename="filename"
+      :show-header="showHeader"
+    >
+      <!-- eslint-disable-next-line vue/no-v-html -- Shiki output is sanitized
+           server-side by /api/highlight, which strips everything but
+           pre/code/span and their class/style attributes. -->
+      <span v-if="html" class="serangkai-shiki" v-html="html" />
+      <code v-else>{{ code }}</code>
+    </SProsePre>
+  </div>
 </template>
 
 <script setup lang="ts">
