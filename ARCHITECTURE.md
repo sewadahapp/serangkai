@@ -208,9 +208,15 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
 - `/` - Private rangka workspace with paginated search, folder navigation, and
   list/grid views. Both views offer per-rangka menus for rename, duplicate,
   move, sharing, download, and delete. The selected view is stored in a first-party
-  preference cookie.
+  preference cookie; grid is the default without a saved preference.
   Signed-out visitors are redirected to owner login. The desktop app uses a
   persistent sidebar; mobile navigation and folder lists open in slideovers.
+  Folder navigation uses Selaras `STree` with counts, connecting lines, and
+  per-folder action menus. Chevron expansion is separate from folder selection,
+  and expansion state is shared between the sidebar and mobile folder drawer.
+  Expanded folder IDs are saved in browser `localStorage` across reloads and
+  navigation. Without a saved preference, branches start collapsed. Successful
+  folder fetches prune stale IDs; storage failures fall back to in-memory state.
 - `/auth/login` - Owner login with labeled `SFormField` inputs; registration does not exist
 - `/dashboard` - Compatibility redirect to `/`
 - `/workspace` - Alias for `/`; `/workspace/new` opens the rangka editor

@@ -48,7 +48,7 @@
     <div v-else class="workspace-shell">
       <ClientOnly>
         <Teleport to="#workspace-folder-navigation">
-          <SerangkaiFolderList :rows="folderRows" :selected-id="selectedFolderId" :total="workspaceTotal" :count="folderRangkaCount" :actions="folderActions" @select="selectFolder" />
+          <SerangkaiFolderList v-model:expanded="expandedFolderIds" :rows="folderRows" :selected-id="selectedFolderId" :total="workspaceTotal" :count="folderRangkaCount" :actions="folderActions" @select="selectFolder" />
         </Teleport>
       </ClientOnly>
 
@@ -58,7 +58,7 @@
             <SButton variant="outline" icon="lucide:panel-left" class="mb-4 lg:hidden">Browse folders</SButton>
           </template>
           <template #body>
-            <SerangkaiFolderList :rows="folderRows" :selected-id="selectedFolderId" :total="workspaceTotal" :count="folderRangkaCount" :actions="folderActions" @select="selectFolder" />
+            <SerangkaiFolderList v-model:expanded="expandedFolderIds" :rows="folderRows" :selected-id="selectedFolderId" :total="workspaceTotal" :count="folderRangkaCount" :actions="folderActions" @select="selectFolder" />
           </template>
         </SSlideover>
         <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -244,9 +244,9 @@ const viewOptions = [
 const setRangkaView = (value: string | string[]) => {
   if (value === 'list' || value === 'grid') rangkaView.value = value
 }
-const savedRangkaView = useCookie<string>('serangkai-rangka-view', { default: () => 'list', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' })
+const savedRangkaView = useCookie<string>('serangkai-rangka-view', { default: () => 'grid', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' })
 const rangkaView = computed<'list' | 'grid'>({
-  get: () => savedRangkaView.value === 'grid' ? 'grid' : 'list',
+  get: () => savedRangkaView.value === 'list' ? 'list' : 'grid',
   set: value => { savedRangkaView.value = value },
 })
 const folderCounts = ref<Array<{ folderId: string | null; value: number }>>([])
@@ -314,6 +314,27 @@ const folderRows = computed(() => {
   }
   walk(null, 0)
   return rows
+})
+
+const expandedFolderIds = ref<string[]>([])
+const folderExpansionKey = 'serangkai-expanded-folders'
+const restoreFolderExpansion = () => {
+  try {
+    const stored: unknown = JSON.parse(window.localStorage.getItem(folderExpansionKey) || '[]')
+    if (Array.isArray(stored)) expandedFolderIds.value = [...new Set(stored.filter((id): id is string => typeof id === 'string' && !!id))]
+  } catch {
+    // Storage can be unavailable or contain an old/invalid preference.
+  }
+}
+watch(expandedFolderIds, (ids) => {
+  if (!import.meta.client) return
+  try { window.localStorage.setItem(folderExpansionKey, JSON.stringify(ids)) } catch { /* Keep the tree usable without storage. */ }
+})
+watch(folderRows, (rows) => {
+  const parents = new Set(rows.flatMap(row => row.parentId ? [row.parentId] : []))
+  // Reconcile only after a successful fetch; the initial empty list must not
+  // erase saved state before folders arrive. Refreshes never open branches.
+  expandedFolderIds.value = expandedFolderIds.value.filter(id => parents.has(id))
 })
 
 const visibilityOptions = [
@@ -427,6 +448,15 @@ watch(uploadFiles, (files) => {
 
 const selectFolder = (folderId: string | null) => {
   folderPanelOpen.value = false
+  // Reveal the path when selecting a newly created or moved folder, while
+  // preserving manual collapses through searches and list refreshes.
+  const expanded = new Set(expandedFolderIds.value)
+  let parent = folderId ? folderMap.value.get(folderId)?.parentId : null
+  while (parent && folderMap.value.has(parent)) {
+    expanded.add(parent)
+    parent = folderMap.value.get(parent)?.parentId
+  }
+  expandedFolderIds.value = [...expanded]
   selectedFolderId.value = folderId
   renameValue.value = folderId ? folderMap.value.get(folderId)?.name || '' : ''
   moveParentId.value = folderSelection(folderId ? folderMap.value.get(folderId)?.parentId : null)
@@ -483,6 +513,7 @@ onMounted(async () => {
     await navigateTo('/auth/login')
     return
   }
+  restoreFolderExpansion()
   await retryWorkspace()
 })
 
