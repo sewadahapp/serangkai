@@ -1,8 +1,8 @@
 <template>
   <nav aria-label="Folders" class="space-y-0.5">
     <SButton variant="ghost" color="neutral" class="folder-select w-full justify-between text-left" :class="{ 'folder-active': selectedId === null }" @click="$emit('select', null)">
-      <span class="flex items-center gap-1.5"><SIcon name="lucide:layers" class="size-4 shrink-0" aria-hidden="true" /> All rangka</span>
-      <span class="serangkai-tabular text-xs text-[var(--selaras-resolved-text-muted)]">{{ total }}</span>
+      <span class="flex items-center gap-2"><SIcon name="lucide:layers" class="size-4 shrink-0" aria-hidden="true" /> All rangka</span>
+      <span class="flex items-center gap-1.5"><span class="serangkai-tabular text-xs text-[var(--selaras-resolved-text-muted)]">{{ total }}</span><span class="size-8 shrink-0" aria-hidden="true" /></span>
     </SButton>
     <STree
       v-if="rows.length"
@@ -27,7 +27,7 @@
         </span>
       </template>
     </STree>
-    <p v-if="!rows.length" class="px-2 py-2 text-sm text-[var(--selaras-resolved-text-muted)]">No folders yet.</p>
+    <p v-if="!rows.length" class="px-2.5 py-2 text-sm text-[var(--selaras-resolved-text-muted)]">No folders yet.</p>
   </nav>
 </template>
 
@@ -80,7 +80,7 @@ type TreeEvent = CustomEvent<{ value: FolderNode; originalEvent: Event }>
 const isChevronClick = (event: Event) => event.target instanceof Element && !!event.target.closest('[data-folder-toggle]')
 const treeUi = {
   item: {
-    class: 'folder-tree-row min-w-0 gap-1 py-0.5',
+    class: 'folder-tree-row min-w-0 gap-1 py-0',
     onSelect: (event: TreeEvent) => {
       // Keep selection controlled by the workspace, including clearing it via
       // All rangka. Expanding a branch must leave the mobile drawer open.
@@ -98,18 +98,18 @@ const treeUi = {
 </script>
 
 <style scoped>
-.folder-select { height: auto; min-height: 2.25rem; padding-block: .5rem; padding-inline-end: .5rem; }
+.folder-select { height: auto; min-height: 2rem; padding-block: 0; padding-inline: .625rem; }
 .folder-active { background: var(--selaras-resolved-color-primary-subtle); color: var(--selaras-resolved-color-primary-text); font-weight: 700; }
 .folder-tree :deep(.folder-tree-label) { flex: 1; min-width: 0; overflow: visible; white-space: normal; }
 .folder-tree-content { position: relative; display: flex; min-width: 0; align-items: center; gap: .375rem; }
 .folder-tree :deep([data-selected]) { font-weight: 600; }
 /* Cap visual indentation so deeply nested folders keep their actions usable.
    STree supplies inline indentation, while aria-level retains the true depth. */
-.folder-tree :deep(.folder-tree-row) { padding-inline-start: 4rem !important; }
-.folder-tree :deep([aria-level="1"]) { padding-inline-start: 0 !important; }
-.folder-tree :deep([aria-level="2"]) { padding-inline-start: 1rem !important; }
-.folder-tree :deep([aria-level="3"]) { padding-inline-start: 2rem !important; }
-.folder-tree :deep([aria-level="4"]) { padding-inline-start: 3rem !important; }
+.folder-tree :deep(.folder-tree-row) { min-height: 2rem; padding-inline-start: 4.375rem !important; padding-inline-end: .625rem; border-radius: var(--selaras-resolved-radius-md); }
+.folder-tree :deep([aria-level="1"]) { padding-inline-start: .375rem !important; }
+.folder-tree :deep([aria-level="2"]) { padding-inline-start: 1.375rem !important; }
+.folder-tree :deep([aria-level="3"]) { padding-inline-start: 2.375rem !important; }
+.folder-tree :deep([aria-level="4"]) { padding-inline-start: 3.375rem !important; }
 .folder-branch, .folder-guide { position: absolute; inset-block: -.25rem; inset-inline-start: -1.75rem; border-inline-start: 1px solid var(--selaras-resolved-border-default); pointer-events: none; }
 .folder-branch { width: .75rem; }
 .folder-branch::after { position: absolute; top: 50%; width: 100%; border-top: 1px solid var(--selaras-resolved-border-default); content: ''; }
