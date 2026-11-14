@@ -23,6 +23,11 @@ on:
         description: Exact version to rehearse (overrides the bump)
         required: false
         type: string
+      platforms:
+        description: Image architectures (AMD64-only fallback)
+        type: choice
+        default: linux/amd64,linux/arm64
+        options: ["linux/amd64,linux/arm64", "linux/amd64"]
 
 # Rehearsals only read the repository and push nothing, so they can be
 # cancelled freely.
@@ -35,10 +40,11 @@ permissions:
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
+  PLATFORMS: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
 
 jobs:
   rehearsal:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
@@ -46,20 +52,23 @@ jobs:
       # rehearsal from a stale branch would rehearse the wrong commits.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.0
 
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ runner.arch }}-1.4.0-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-${{ runner.arch }}-1.4.0-
+
       - uses: docker/setup-buildx-action@v3
 
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
-
-      - name: Test
-        run: bun run test:ci
 
       - name: Create the candidate changelog and version
         id: candidate
@@ -87,7 +96,7 @@ jobs:
             args+=("--$BUMP")
           fi
 
-          bunx changelogen "${args[@]}"
+          bunx --no-install changelogen "${args[@]}"
 
           VERSION="$(node -p "require('./package.json').version")"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -110,47 +119,55 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           git status --short
 
-      # Build without pushing, then load it locally so the same
-      # boot-and-answer-health check as the real release can run.
-      - name: Build the image locally
+      # Compile the candidate once; package that same tested output twice.
+      - name: Test and compile the candidate once
+        timeout-minutes: 15
+        run: |
+          started=$SECONDS
+          bun run test:ci
+          echo "- Native candidate compilation + release tests: $((SECONDS - started))s" >> "$GITHUB_STEP_SUMMARY"
+      - name: Prepare the tested portable Docker output
+        run: bun scripts/prepare-docker-output.mjs .output "$RUNNER_TEMP/docker-app"
+      - name: Build the AMD64 image locally
+        timeout-minutes: 10
         uses: docker/build-push-action@v6
         with:
           context: .
+          target: prebuilt
+          build-contexts: app=${{ runner.temp }}/docker-app
           platforms: linux/amd64
           load: true
           push: false
-          tags: ${{ env.IMAGE }}:rehearsal
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Smoke test the image
-        env:
-          STAGED: ${{ env.IMAGE }}:rehearsal
-        run: |
-          set -euo pipefail
-          docker run -d --name serangkai-rehearsal -p 3999:3000 \
-            -e ADMIN_USERNAME=smoke \
-            -e ADMIN_PASSWORD=smoke-test-password \
-            -e JWT_SECRET="$(openssl rand -hex 32)" \
-            -e SHARE_SECRET="$(openssl rand -hex 32)" \
-            "$STAGED"
-
-          for attempt in $(seq 1 60); do
-            if curl -fsS --max-time 2 http://127.0.0.1:3999/api/health >/dev/null 2>&1; then
-              echo "Container is healthy." >> "$GITHUB_STEP_SUMMARY"
-              curl -fsS http://127.0.0.1:3999/api/health
-              exit 0
-            fi
-            sleep 1
-          done
-
-          echo "::error::The image started but never answered /api/health."
-          docker logs serangkai-rehearsal || true
-          exit 1
-
-      - name: Stop the smoke container
-        if: always()
-        run: docker rm -f serangkai-rehearsal >/dev/null 2>&1 || true
+          tags: ${{ env.IMAGE }}:rehearsal-amd64
+          cache-from: type=gha,scope=serangkai-prebuilt-amd64
+          cache-to: type=gha,scope=serangkai-prebuilt-amd64,mode=max
+      - name: Build the ARM64 image locally
+        if: contains(env.PLATFORMS, 'linux/arm64')
+        timeout-minutes: 10
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: prebuilt
+          build-contexts: app=${{ runner.temp }}/docker-app
+          platforms: linux/arm64
+          load: true
+          push: false
+          tags: ${{ env.IMAGE }}:rehearsal-arm64
+          cache-from: type=gha,scope=serangkai-prebuilt-arm64
+          cache-to: type=gha,scope=serangkai-prebuilt-arm64,mode=max
+      - uses: docker/setup-qemu-action@v3
+        timeout-minutes: 3
+        if: contains(env.PLATFORMS, 'linux/arm64')
+        with:
+          platforms: arm64
+          image: tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+      - name: Smoke test the AMD64 image
+        timeout-minutes: 4
+        run: timeout 180 bash scripts/smoke-docker.sh "$IMAGE:rehearsal-amd64" linux/amd64
+      - name: Smoke test the ARM64 image
+        if: contains(env.PLATFORMS, 'linux/arm64')
+        timeout-minutes: 4
+        run: timeout 180 bash scripts/smoke-docker.sh "$IMAGE:rehearsal-arm64" linux/arm64
 
       - name: Remind that nothing was published
         if: always()

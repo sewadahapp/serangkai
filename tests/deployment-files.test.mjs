@@ -19,7 +19,9 @@ test('deployment files require stable secrets and persistent storage at /data', 
   assert.match(dockerfile, /bun install --frozen-lockfile --ignore-scripts/)
   assert.match(dockerfile, /ENV DATABASE_PATH=\/data\/serangkai\.db/)
   assert.match(dockerfile, /ENV STORAGE_PATH=\/data\/files/)
-  assert.match(dockerfile, /scripts\/start\.mjs/)
+  assert.match(dockerfile, /COPY --from=build \/docker-app\//)
+  const prepare = await readFile(new URL('../scripts/prepare-docker-output.mjs', import.meta.url), 'utf8')
+  assert.match(prepare, /start\.mjs/)
   assert.match(dockerfile, /HEALTHCHECK/)
   assert.match(dockerfile, /docker-entrypoint\.sh/)
 
@@ -94,7 +96,7 @@ test('the release publishes nothing irreversible until the image is verified', a
 
   // Staging must not use the version tag directly, or a failed smoke test
   // would leave a published version behind.
-  assert.match(workflow, /tags: \$\{\{ env\.IMAGE \}\}:sha-\$\{\{ github\.sha \}\}/)
+  assert.match(workflow, /tags: \$\{\{ env\.IMAGE \}\}:\$\{\{ steps\.release\.outputs\.stage \}\}/)
   assert.match(workflow, /docker buildx imagetools create/)
 
   // GHCR login has to precede anything that pushes.
@@ -106,9 +108,17 @@ test('an interrupted release resumes instead of rebuilding or overwriting', asyn
 
   // A rerun must detect prior progress and either resume or refuse.
   assert.match(workflow, /Check for an interrupted release/)
-  assert.match(workflow, /state=promoted/)
-  assert.match(workflow, /state=staged/)
-  assert.match(workflow, /was not built from this commit/)
+  assert.match(workflow, /scripts\/release-image-state\.mjs/)
+  assert.match(workflow, /scripts\/release-candidate\.mjs/)
+  assert.match(workflow, /name: release-candidate/)
+  assert.match(workflow, /ref: \$\{\{ github\.sha \}\}/)
+  assert.match(workflow, /git push --atomic/)
+  assert.match(workflow, /gh release view/)
+  // A recovered staging tag may be left by a FAILED smoke test. Test it again.
+  const smoke = workflow.slice(workflow.indexOf('- name: Smoke test the staged image'), workflow.indexOf('- name: Promote to the version tag and latest'))
+  assert.doesNotMatch(smoke, /if:/)
+  assert.match(smoke, /steps\.image\.outputs\.reference/)
+  assert.match(workflow, /all\(\.metadata\.container\.tags\[\]; startswith\("sha-"\)\)/)
 })
 
 test('the rehearsal builds and smoke tests without publishing', async () => {

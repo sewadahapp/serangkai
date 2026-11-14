@@ -1,40 +1,37 @@
 name: Docker image
 
-# Builds the image on pull requests (amd64, not pushed) and on tags pushed by
-# hand. Releases do NOT rely on this workflow: a tag pushed with GITHUB_TOKEN
-# does not trigger `on: push: tags`, so .github/workflows/release.yml publishes
-# the image itself. Keeping this trigger is still useful for a tag pushed
-# manually from a checkout.
+# Hand-pushed tags still publish here; GITHUB_TOKEN release tags do not trigger
+# this workflow. PR builds stay local. All compilation uses BUILDPLATFORM.
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
-
+    inputs:
+      platforms:
+        description: Image architectures (AMD64-only fallback)
+        type: choice
+        default: linux/amd64,linux/arm64
+        options: ["linux/amd64,linux/arm64", "linux/amd64"]
 permissions:
   contents: read
   packages: write
-
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+  PLATFORMS: ${{ github.event_name == 'pull_request' && 'linux/amd64' || inputs.platforms || vars.SERANGKAI_IMAGE_PLATFORMS || 'linux/amd64,linux/arm64' }}
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-
-      - uses: docker/setup-qemu-action@v3
-        if: github.event_name != 'pull_request'
-
       - uses: docker/setup-buildx-action@v3
-
       - uses: docker/login-action@v3
         if: github.event_name != 'pull_request'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: docker/metadata-action@v5
         id: meta
         with:
@@ -43,13 +40,38 @@ jobs:
             type=ref,event=tag
             type=sha
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-
-      - uses: docker/build-push-action@v6
+      - name: Build once on the native build platform
+        id: build
+        timeout-minutes: 15
+        uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
+          platforms: ${{ env.PLATFORMS }}
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
+          load: ${{ github.event_name == 'pull_request' }}
+          # Publication waits for both runtime checks. Never build into :latest.
+          tags: ${{ env.IMAGE }}:build-${{ github.run_id }}-${{ github.run_attempt }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=serangkai-source
+          cache-to: type=gha,scope=serangkai-source,mode=max
+      - uses: docker/setup-qemu-action@v3
+        timeout-minutes: 3
+        if: contains(env.PLATFORMS, 'linux/arm64')
+        with:
+          platforms: arm64
+          image: tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+      - name: Smoke test all built architectures
+        timeout-minutes: 8
+        env:
+          STAGED: ${{ github.event_name == 'pull_request' && format('{0}:build-{1}-{2}', env.IMAGE, github.run_id, github.run_attempt) || format('{0}@{1}', env.IMAGE, steps.build.outputs.digest) }}
+        run: timeout 360 bash scripts/smoke-docker.sh "$STAGED" "$PLATFORMS"
+      - name: Publish verified image tags without rebuilding
+        if: github.event_name != 'pull_request'
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          args=()
+          while IFS= read -r tag; do [[ -z "$tag" ]] || args+=(-t "$tag"); done <<< "$TAGS"
+          docker buildx imagetools create "${args[@]}" "$IMAGE@$DIGEST"

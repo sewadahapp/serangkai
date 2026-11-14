@@ -41,6 +41,10 @@ Serangkai is a production-minded, open-source, self-hosted rangka and knowledge 
 - Keep it simple, avoid over-abstraction
 - Write tests for critical functionality
 - Commit meaningful progress regularly
+- Docker compilation must use `BUILDPLATFORM`, never QEMU. Release/rehearsal
+  package the single tested node-server output through the Docker `prebuilt`
+  target. Run `prepare-docker-output.mjs` first; its native-binary guard is a
+  publication gate. Verify both target runtimes with `scripts/smoke-docker.sh`.
 
 ### Commands
 ```bash

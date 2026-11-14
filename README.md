@@ -239,10 +239,12 @@ Images are published by the **Release** workflow, run manually from the Actions
 tab: *Actions → Release → Run workflow*. It takes an optional exact version and a
 bump, then in one run:
 
-1. Runs `bun run test:ci`.
-2. Bumps `package.json` from the conventional commits and writes `CHANGELOG.md`.
-3. Builds `linux/amd64` and `linux/arm64` images.
-4. Boots the built image and waits for `/api/health` to answer.
+1. Bumps `package.json` from conventional commits and writes `CHANGELOG.md`
+   locally, saving the exact release candidate for recovery.
+2. Runs `bun run test:ci`, compiling the candidate once on the native runner.
+3. Packages that tested output into `linux/amd64` and `linux/arm64` images.
+4. Boots **both** target runtimes and checks login, SQLite writes, uploads, and
+   persistence after container replacement.
 5. Promotes it to `:X.Y.Z` and `:latest`.
 6. Pushes the release commit and an annotated `vX.Y.Z` tag.
 7. Publishes a GitHub release with the changelog section as its notes.
@@ -252,16 +254,26 @@ irreversible happens until the image has actually started. The image is staged
 under a commit tag first; a failed build or a container that never answers
 health leaves no version tag and no `:latest` behind.
 
-**Recovering from a failure.** Re-run the workflow. The version is derived from
-pushed tags, so an interrupted run recomputes the same version and resumes: if
-the image was already staged or promoted from the same commit, the build is
-skipped and the run continues to the tag and release. If a published image for
-that version came from a different commit, it stops instead of overwriting it —
-release a higher version instead.
+**Recovering from a failure.** Use **Re-run failed jobs** on the same Actions run
+within 30 days. Its saved candidate restores the exact version, commit, tag,
+and notes, including after a successful git push. A matching staged image skips
+compilation and packaging, but always repeats both runtime smoke tests. Recovery
+compares manifest digests and refuses to overwrite a different published image.
+An existing GitHub release is left intact. A new manual dispatch starts a new
+release; it is not the way to resume a partly published one.
 
 To see what a release would do without publishing anything, run **Release
 rehearsal**. It computes the version, writes the changelog in the runner, builds
-the image, and smoke-tests it, then discards all of it.
+the images from the same tested output, and smoke-tests both architectures,
+then discards all of it.
+
+Nuxt/Vite builds never run under QEMU. `BUILDPLATFORM` handles source builds;
+only the short ARM64 runtime verification uses emulation on an AMD64 runner.
+If ARM64 verification is unavailable, select **linux/amd64** in the release or
+rehearsal `platforms` input. This publishes an explicitly AMD64-only image; it
+does not silently claim ARM64 support or extend a timeout. For the hand-pushed
+tag workflow, repository variable `SERANGKAI_IMAGE_PLATFORMS=linux/amd64` selects
+the same fallback. See [build strategy, recovery, and measurements](docs/release-builds.md).
 
 A version is required to advance and tags are checked for collisions. Until the
 first release there is no `:latest` image; build from source with

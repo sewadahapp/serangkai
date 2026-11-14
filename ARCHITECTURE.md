@@ -574,6 +574,14 @@ convenience path for clients that support it. Both resolve to the same scoped
 
 ## Deployment
 - **Docker**: Single container with a persistent volume at `/data`
+  - Nuxt compiles once on BuildKit `BUILDPLATFORM`. Release and rehearsal reuse
+    their tested node-server output via the `prebuilt` target and named `app`
+    context; neither recompiles in Docker. The target-specific pinned Bun image
+    supplies `bun:sqlite`. Docker preparation removes the unused Node SQLite
+    prebuilds only from its copy and rejects any remaining native binaries.
+  - Both target containers must pass bounded auth, SQLite, upload, and restart
+    smoke tests before image promotion. ARM64 runtime tests may use QEMU;
+    compilation never does. See [release build design](docs/release-builds.md).
   (`DATABASE_PATH=/data/serangkai.db`, `STORAGE_PATH=/data/files`).
 - **Required variables**: `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `JWT_SECRET`,
   `SHARE_SECRET`. Everything else has a working default.

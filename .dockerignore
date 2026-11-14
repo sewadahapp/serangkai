@@ -2,6 +2,10 @@ node_modules
 .nuxt
 .output
 .git
+.github
+AGENTS.md
+ARCHITECTURE.md
+README.md
 .wrangler
 .vercel
 data

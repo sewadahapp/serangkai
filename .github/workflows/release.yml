@@ -1,24 +1,8 @@
 name: Release
 
-# Manual, one-click release: bump the version from conventional commits, write
-# CHANGELOG.md, build and smoke-test the image, then publish it, tag it, and open
-# a GitHub release.
-#
-# Ordering is deliberate, because each step is more expensive to undo than the
-# last: test -> build -> smoke test -> publish image -> push tag -> create
-# release. Nothing irreversible happens until the image has actually booted.
-#
-# Re-running after a failure is the recovery path. The version derives only from
-# pushed tags, so an interrupted run recomputes the same version and either
-# resumes or rebuilds. If the image was already published from the same commit,
-# the build is skipped and the run continues to the tag and release. If the
-# published image came from a different commit, it stops instead of silently
-# overwriting a release.
-#
-# The image is built here rather than by .github/workflows/docker.yml on the tag,
-# because a tag pushed with GITHUB_TOKEN does not trigger `on: push: tags`
-# workflows. Chaining the two would produce a green release with no image and no
-# error anywhere.
+# Build once, stage by source/version/platforms, smoke BOTH target runtimes,
+# promote the exact digest, then atomically push the release commit and tag.
+# Re-run failed jobs to restore the same candidate, including after git push.
 on:
   workflow_dispatch:
     inputs:
@@ -26,115 +10,98 @@ on:
         description: Version bump to apply
         type: choice
         default: auto
-        options:
-          - auto
-          - patch
-          - minor
-          - major
+        options: [auto, patch, minor, major]
       version:
         description: Exact version (must advance; overrides the bump)
         required: false
         type: string
+      platforms:
+        description: Image architectures (AMD64-only fallback if ARM64 cannot be verified)
+        type: choice
+        default: linux/amd64,linux/arm64
+        options: ["linux/amd64,linux/arm64", "linux/amd64"]
 
-# A release mutates version, changelog, tag, and image. Overlapping runs would
-# race on all four, so queue them instead of cancelling.
 concurrency:
   group: release
   cancel-in-progress: false
-
 permissions:
   contents: write
   packages: write
+  actions: read
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
+  PLATFORMS: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
 
 jobs:
   release:
-    # Releases only ever run from the default branch, so a run started from a
-    # stale branch cannot tag a commit that is not on master.
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
-
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
-          # changelogen derives the version from the last tag, so the full
-          # history and all tags have to be present.
+          # A retry must use the original source, even if the release pushed.
+          ref: ${{ github.sha }}
           fetch-depth: 0
-
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.0
-
-      - uses: docker/setup-qemu-action@v3
-
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ runner.arch }}-1.4.0-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-${{ runner.arch }}-1.4.0-
       - uses: docker/setup-buildx-action@v3
-
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
-      - name: Test
-        run: bun run test:ci
-
+      - name: Find a saved release candidate
+        id: saved
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          found="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --paginate --jq '.artifacts[] | select(.name == "release-candidate" and .expired == false) | .id' | head -1)"
+          if [[ -n "$found" ]]; then
+            gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name release-candidate --dir "$RUNNER_TEMP/release-candidate"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Verify the requested version
-        if: inputs.version != ''
-        run: node scripts/check-release-version.mjs "${{ inputs.version }}"
-
+        if: steps.saved.outputs.found != 'true' && inputs.version != ''
+        env:
+          REQUESTED: ${{ inputs.version }}
+        run: node scripts/check-release-version.mjs "$REQUESTED"
       - name: Create changelog and bump version
+        if: steps.saved.outputs.found != 'true'
         env:
           REQUESTED: ${{ inputs.version }}
           BUMP: ${{ inputs.bump }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # --release is what performs the bump and writes CHANGELOG.md; the
-          # --no-* flags stop it committing, tagging, and calling GitHub, so
-          # nothing is published until the image has been verified.
           args=(--release --no-github --no-commit --no-tag)
-          if [[ -n "$REQUESTED" ]]; then
-            args+=(-r "$REQUESTED")
-          elif [[ "$BUMP" != "auto" ]]; then
-            args+=("--$BUMP")
-          fi
-
-          bunx changelogen "${args[@]}"
-
-          VERSION="$(node -p "require('./package.json').version")"
-          echo "--- changelog:"; head -12 CHANGELOG.md
-
-          # Validate whatever changelogen produced. The bump is already applied,
-          # so this checks validity and tag availability, not advancement.
-          node scripts/check-release-version.mjs "$VERSION" --verify-result
-
+          if [[ -n "$REQUESTED" ]]; then args+=(-r "$REQUESTED"); elif [[ "$BUMP" != auto ]]; then args+=("--$BUMP"); fi
+          bunx --no-install changelogen "${args[@]}"
+          node scripts/check-release-version.mjs "$(node -p "require('./package.json').version")" --verify-result
       - name: Stage the release commit locally
         id: release
+        env:
+          RESTORE: ${{ steps.saved.outputs.found }}
         run: |
           set -euo pipefail
-          VERSION="$(node -p "require('./package.json').version")"
-          TAG="v$VERSION"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-
-          git add package.json CHANGELOG.md
-          git commit -m "chore(release): $TAG"
-          git tag -a "$TAG" -m "$TAG"
-
-          # Release notes are the changelog section for this version.
-          awk -v tag="$TAG" '
-            $0 == "## " tag { found = 1; next }
-            found && /^## / { exit }
-            found { print }
-          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
-
-          if [[ ! -s "$RUNNER_TEMP/release-notes.md" ]]; then
-            echo "::error::CHANGELOG.md has no section for $TAG"
-            exit 1
-          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mode=save
+          if [[ "$RESTORE" == true ]]; then mode=restore; fi
+          node scripts/release-candidate.mjs "$mode" "$RUNNER_TEMP/release-candidate"
+      - name: Save the candidate for recovery before any image publication
+        if: steps.saved.outputs.found != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate
+          path: ${{ runner.temp }}/release-candidate/
+          retention-days: 30
+          if-no-files-found: error
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -142,131 +109,110 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Recovery: a re-run after a failure should resume, not rebuild. The
-      # staging tag is stamped with the exact commit, so it proves provenance
-      # without trusting labels on a multi-arch manifest.
       - name: Check for an interrupted release
         id: existing
         env:
           VERSION: ${{ steps.release.outputs.version }}
+          STAGED: ${{ env.IMAGE }}:${{ steps.release.outputs.stage }}
+        run: node scripts/release-image-state.mjs "$IMAGE" "$VERSION" "$STAGED"
+      - name: Test and compile the release candidate once
+        if: steps.existing.outputs.state == 'absent'
+        timeout-minutes: 15
+        # test:ci builds node-server output, then tests that exact candidate.
         run: |
-          set -euo pipefail
-          staged="$IMAGE:sha-${{ github.sha }}"
-          if docker buildx imagetools inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
-            if docker buildx imagetools inspect "$staged" >/dev/null 2>&1; then
-              echo "$VERSION was already promoted from this commit; resuming."
-              echo "state=promoted" >> "$GITHUB_OUTPUT"
-            else
-              echo "::error::$VERSION already exists but was not built from this commit. Choose a higher version rather than overwriting a published release."
-              exit 1
-            fi
-          elif docker buildx imagetools inspect "$staged" >/dev/null 2>&1; then
-            echo "Already staged from this commit; skipping the rebuild."
-            echo "state=staged" >> "$GITHUB_OUTPUT"
-          else
-            echo "state=absent" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Pushed under a staging tag only: if the smoke test fails, no version tag
-      # and no :latest exist yet.
+          started=$SECONDS
+          bun run test:ci
+          echo "- Native candidate compilation + release tests: $((SECONDS - started))s" >> "$GITHUB_STEP_SUMMARY"
+      - name: Prepare the tested portable Docker output
+        if: steps.existing.outputs.state == 'absent'
+        run: bun scripts/prepare-docker-output.mjs .output "$RUNNER_TEMP/docker-app"
       - name: Build and stage the image
         if: steps.existing.outputs.state == 'absent'
+        id: build
+        timeout-minutes: 15
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          target: prebuilt
+          build-contexts: app=${{ runner.temp }}/docker-app
+          platforms: ${{ env.PLATFORMS }}
           push: true
-          tags: ${{ env.IMAGE }}:sha-${{ github.sha }}
+          tags: ${{ env.IMAGE }}:${{ steps.release.outputs.stage }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ steps.release.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # A build succeeding says nothing about the container starting. Boot the
-      # staged image and require a healthy response before promoting it.
-      - name: Smoke test the staged image
-        if: steps.existing.outputs.state == 'absent'
+          cache-from: type=gha,scope=serangkai-prebuilt
+          cache-to: type=gha,scope=serangkai-prebuilt,mode=max
+      - name: Pin the staged manifest digest
+        id: image
         env:
-          STAGED: ${{ env.IMAGE }}:sha-${{ github.sha }}
+          DIGEST: ${{ steps.existing.outputs.digest || steps.build.outputs.digest }}
         run: |
           set -euo pipefail
-          docker run -d --name serangkai-smoke -p 3999:3000 \
-            -e ADMIN_USERNAME=smoke \
-            -e ADMIN_PASSWORD=smoke-test-password \
-            -e JWT_SECRET="$(openssl rand -hex 32)" \
-            -e SHARE_SECRET="$(openssl rand -hex 32)" \
-            "$STAGED"
+          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "reference=$IMAGE@$DIGEST" >> "$GITHUB_OUTPUT"
 
-          for attempt in $(seq 1 60); do
-            if curl -fsS --max-time 2 http://127.0.0.1:3999/api/health >/dev/null 2>&1; then
-              echo "Container is healthy."
-              curl -fsS http://127.0.0.1:3999/api/health
-              exit 0
-            fi
-            sleep 1
-          done
-
-          echo "::error::The image started but never answered /api/health."
-          docker logs serangkai-smoke || true
-          exit 1
-
-      - name: Stop the smoke container
-        if: always() && steps.existing.outputs.state == 'absent'
-        run: docker rm -f serangkai-smoke >/dev/null 2>&1 || true
-
-      # Promotion is a manifest copy, not a rebuild, so :latest and the version
-      # tag are the exact bytes that were smoke tested.
+      # Emulation is ONLY for bounded runtime verification, after all builds.
+      # No native ARM runner is required for JS packaging. If runtime emulation
+      # is unavailable, use the explicit AMD64-only dispatch fallback.
+      - uses: docker/setup-qemu-action@v3
+        timeout-minutes: 3
+        if: contains(env.PLATFORMS, 'linux/arm64')
+        with:
+          platforms: arm64
+          image: tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+      - name: Smoke test the staged image
+        timeout-minutes: 8
+        # Always re-test recovered images; a staged tag is not proof of health.
+        env:
+          STAGED: ${{ steps.image.outputs.reference }}
+        run: timeout 360 bash scripts/smoke-docker.sh "$STAGED" "$PLATFORMS"
       - name: Promote to the version tag and latest
         if: steps.existing.outputs.state != 'promoted'
         env:
           VERSION: ${{ steps.release.outputs.version }}
+          STAGED: ${{ steps.image.outputs.reference }}
+        run: docker buildx imagetools create -t "$IMAGE:$VERSION" -t "$IMAGE:latest" "$STAGED"
+      - name: Push the release commit and tag
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          docker buildx imagetools create \
-            -t "$IMAGE:$VERSION" \
-            -t "$IMAGE:latest" \
-            "$IMAGE:sha-${{ github.sha }}"
-
-      # Only now is anything irreversible published.
-      - name: Push the release commit and tag
-        run: git push origin "HEAD:${{ github.ref_name }}" --follow-tags
-
+          git fetch origin "$BRANCH:refs/remotes/origin/$BRANCH"
+          if git merge-base --is-ancestor HEAD "origin/$BRANCH"; then
+            # Retry after a successful push: never rewind subsequent commits.
+            git push origin "refs/tags/$TAG"
+          else
+            git push --atomic origin "HEAD:refs/heads/$BRANCH" "refs/tags/$TAG"
+          fi
       - name: Publish the GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.release.outputs.tag }}
-        run: gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$RUNNER_TEMP/release-notes.md"
-
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already has a GitHub release; recovery complete."
+          else
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$RUNNER_TEMP/release-candidate/release-notes.md"
+          fi
       - name: Prune superseded staging tags
-        # The :sha-<commit> tag is the recovery breadcrumb, so it must survive
-        # long enough to be useful. Keep the last few and drop the rest rather
-        # than accumulating a tag per release forever.
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          gh api --paginate \
-            "orgs/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }}/versions" \
-            --jq '.[] | select(.metadata.container.tags[]? | startswith("sha-")) | .id' \
-            | tail -n +6 \
-            | while read -r id; do
-                [[ -n "$id" ]] || continue
-                gh api --method DELETE \
-                  "orgs/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }}/versions/$id" \
-                  && echo "Pruned version $id"
-              done
-
+          # Never delete a manifest that ALSO carries a published version tag.
+          gh api --paginate "orgs/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }}/versions" \
+            --jq '.[] | select((.metadata.container.tags | length) > 0) | select(all(.metadata.container.tags[]; startswith("sha-"))) | .id' \
+            | tail -n +6 | while read -r id; do
+              [[ -n "$id" ]] || continue
+              gh api --method DELETE "orgs/${{ github.repository_owner }}/packages/container/${{ github.event.repository.name }}/versions/$id"
+            done
       - name: Remind about package visibility
-        # GitHub publishes new packages as private, even from a public repo, so
-        # anonymous `docker pull` answers 401 until this is flipped once. It is
-        # deliberately manual: making a package public cannot be undone.
         run: |
-          echo "### Image published" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "If this is the first release, set the package to public once:" >> "$GITHUB_STEP_SUMMARY"
-          echo "https://github.com/orgs/${{ github.repository_owner }}/packages/container/package/${{ github.event.repository.name }}/settings" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Until then, anonymous pulls return 401. Public packages cannot be made private again." >> "$GITHUB_STEP_SUMMARY"
+          echo '### Image published (${{ env.PLATFORMS }})' >> "$GITHUB_STEP_SUMMARY"
+          echo 'For a first release, set package visibility to public manually:' >> "$GITHUB_STEP_SUMMARY"
+          echo 'https://github.com/orgs/${{ github.repository_owner }}/packages/container/package/${{ github.event.repository.name }}/settings' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Until then, anonymous pulls return 401. Public packages cannot be made private again.' >> "$GITHUB_STEP_SUMMARY"

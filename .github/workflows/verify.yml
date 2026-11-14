@@ -26,6 +26,7 @@ jobs:
       - run: bun run test:runtime
       - run: bun run test:deployment-config
       - run: bun run test:deployment-files
+      - run: bun test tests/docker-build.test.mjs
       - run: bun run test:release-readiness
       - run: bun run test:database
       - run: bun run test:session-secret
