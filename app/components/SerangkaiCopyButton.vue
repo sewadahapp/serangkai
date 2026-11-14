@@ -1,5 +1,5 @@
 <template>
-  <SButton
+  <STooltip :text="copied ? 'Copied' : `Copy ${label}`"><SButton
     :icon="copied ? 'lucide:check' : 'lucide:copy'"
     variant="ghost"
     color="neutral"
@@ -7,9 +7,9 @@
     square
     :disabled="!value"
     :aria-label="copied ? 'Copied' : `Copy ${label}`"
-    :title="copied ? 'Copied' : `Copy ${label}`"
+
     @click="copy"
-  />
+  /></STooltip>
 </template>
 
 <script setup lang="ts">

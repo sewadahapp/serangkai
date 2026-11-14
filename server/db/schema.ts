@@ -137,7 +137,7 @@ export const folders = sqliteTable('folders', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
 })
 
-export const artifacts = sqliteTable('artifacts', {
+export const rangkaItems = sqliteTable('rangka', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   folderId: text('folder_id').references(() => folders.id, { onDelete: 'set null' }),
@@ -151,9 +151,9 @@ export const artifacts = sqliteTable('artifacts', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
 })
 
-export const artifactVersions = sqliteTable('artifact_versions', {
+export const rangkaVersions = sqliteTable('rangka_versions', {
   id: text('id').primaryKey(),
-  artifactId: text('artifact_id').notNull().references(() => artifacts.id, { onDelete: 'cascade' }),
+  rangkaId: text('rangka_id').notNull().references(() => rangkaItems.id, { onDelete: 'cascade' }),
   version: integer('version').notNull(),
   contentPath: text('content_path').notNull(),
   metadata: text('metadata', { mode: 'json' }).$type<Record<string, any>>().default({}),
@@ -166,7 +166,7 @@ export type ApiToken = typeof apiTokens.$inferSelect
 export type NewApiToken = typeof apiTokens.$inferInsert
 export type Folder = typeof folders.$inferSelect
 export type NewFolder = typeof folders.$inferInsert
-export type Artifact = typeof artifacts.$inferSelect
-export type NewArtifact = typeof artifacts.$inferInsert
-export type ArtifactVersion = typeof artifactVersions.$inferSelect
-export type NewArtifactVersion = typeof artifactVersions.$inferInsert
+export type Rangka = typeof rangkaItems.$inferSelect
+export type NewRangka = typeof rangkaItems.$inferInsert
+export type RangkaVersion = typeof rangkaVersions.$inferSelect
+export type NewRangkaVersion = typeof rangkaVersions.$inferInsert

@@ -26,15 +26,15 @@ after(async () => { child?.kill('SIGTERM'); await rm(dataDir, { recursive: true,
 const createToken = (body) => fetch(`${base}/api/tokens`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify(body) })
 const bearer = (token) => ({ authorization: `Bearer ${token}` })
 
-test('read tokens can read but cannot write artifacts or mint tokens', async () => {
+test('read tokens can read but cannot write rangka or mint tokens', async () => {
   const created = await createToken({ name: 'Reader', scopes: ['read'] })
   assert.equal(created.status, 200)
   const { token, id } = await created.json()
 
-  const listed = await fetch(`${base}/api/artifacts`, { headers: bearer(token) })
+  const listed = await fetch(`${base}/api/rangka`, { headers: bearer(token) })
   assert.equal(listed.status, 200)
 
-  const wrote = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { ...bearer(token), 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Nope', type: 'markdown', content: '# Nope' }) })
+  const wrote = await fetch(`${base}/api/rangka`, { method: 'POST', headers: { ...bearer(token), 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Nope', type: 'markdown', content: '# Nope' }) })
   assert.equal(wrote.status, 403)
 
   const minted = await fetch(`${base}/api/tokens`, { method: 'POST', headers: { ...bearer(token), 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Escalation', scopes: ['full'] }) })
@@ -42,7 +42,7 @@ test('read tokens can read but cannot write artifacts or mint tokens', async () 
 
   const revoked = await fetch(`${base}/api/tokens/${id}`, { method: 'DELETE', headers: { cookie } })
   assert.equal(revoked.status, 200)
-  assert.equal((await fetch(`${base}/api/artifacts`, { headers: bearer(token) })).status, 401)
+  assert.equal((await fetch(`${base}/api/rangka`, { headers: bearer(token) })).status, 401)
 })
 
 test('rejects unknown scopes and honors token expiry', async () => {
@@ -52,13 +52,13 @@ test('rejects unknown scopes and honors token expiry', async () => {
   const expired = await createToken({ name: 'Expired', scopes: ['read'], expiresAt: new Date(Date.now() - 60_000).toISOString() })
   assert.equal(expired.status, 200)
   const { token } = await expired.json()
-  assert.equal((await fetch(`${base}/api/artifacts`, { headers: bearer(token) })).status, 401)
+  assert.equal((await fetch(`${base}/api/rangka`, { headers: bearer(token) })).status, 401)
 })
 
-test('write tokens can create artifacts but still cannot manage tokens', async () => {
+test('write tokens can create rangka but still cannot manage tokens', async () => {
   const created = await createToken({ name: 'Writer', scopes: ['read', 'write'] })
   const { token } = await created.json()
-  const wrote = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { ...bearer(token), 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Written by token', type: 'markdown', content: '# Token' }) })
+  const wrote = await fetch(`${base}/api/rangka`, { method: 'POST', headers: { ...bearer(token), 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Written by token', type: 'markdown', content: '# Token' }) })
   assert.equal(wrote.status, 200)
   const minted = await fetch(`${base}/api/tokens`, { method: 'POST', headers: { ...bearer(token), 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Escalation', scopes: ['full'] }) })
   assert.equal(minted.status, 403)

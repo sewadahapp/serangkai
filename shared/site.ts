@@ -6,5 +6,5 @@
  * apart when the product copy changes.
  */
 export const SITE_NAME = 'Serangkai'
-export const SITE_TITLE = 'Serangkai — artifact and knowledge workspace'
-export const SITE_DESCRIPTION = 'Self-hosted artifact and knowledge workspace for AI agents and humans.'
+export const SITE_TITLE = 'Serangkai — rangka and knowledge workspace'
+export const SITE_DESCRIPTION = 'Self-hosted rangka and knowledge workspace for AI agents and humans.'

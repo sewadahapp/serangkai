@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import * as schema from './schema'
 import { BOOTSTRAP_SQL } from './bootstrap'
-import { ensureGlobalSlugUniqueness, ensureOAuthSchema, ensureUserSchema } from './migrations'
+import { ensureGlobalSlugUniqueness, ensureOAuthSchema, ensureUserSchema, ensureRangkaSchema, recoverEmptyRangkaTables } from './migrations'
 import { getServerConfig } from '../utils/config'
 
 /**
@@ -23,8 +23,10 @@ async function createDatabase() {
     const { drizzle } = await import('drizzle-orm/bun-sqlite')
     const sqlite = new Database(path)
     sqlite.exec('PRAGMA foreign_keys = ON;')
-    sqlite.exec(BOOTSTRAP_SQL)
+    recoverEmptyRangkaTables(sqlite)
     const db = drizzle(sqlite, { schema })
+    await ensureRangkaSchema(db)
+    sqlite.exec(BOOTSTRAP_SQL)
     await ensureUserSchema(db)
     await ensureGlobalSlugUniqueness(db)
     await ensureOAuthSchema(db)
@@ -35,8 +37,10 @@ async function createDatabase() {
   const { drizzle } = await import('drizzle-orm/better-sqlite3')
   const sqlite = new Database(path)
   sqlite.pragma('foreign_keys = ON')
-  sqlite.exec(BOOTSTRAP_SQL)
+  recoverEmptyRangkaTables(sqlite)
   const db = drizzle(sqlite, { schema })
+  await ensureRangkaSchema(db)
+  sqlite.exec(BOOTSTRAP_SQL)
   await ensureUserSchema(db)
   await ensureGlobalSlugUniqueness(db)
   await ensureOAuthSchema(db)

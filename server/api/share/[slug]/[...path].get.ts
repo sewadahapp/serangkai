@@ -1,26 +1,28 @@
 import { and, eq } from 'drizzle-orm'
-import { artifacts } from '../../../db/schema'
+import { rangkaItems } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
 import { requireUser } from '../../../utils/require-auth'
 import { isValidShareKey } from '../../../utils/share'
 import { bundleMimeType } from '../../../utils/bundles'
-import { readArtifactBytes } from '../../../utils/artifact-storage'
+import { readRangkaBytes } from '../../../utils/rangka-storage'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
   const slug = getRouterParam(event, 'slug')
   const path = getRouterParam(event, 'path') || 'index.html'
-  const artifact = await db.select().from(artifacts).where(and(eq(artifacts.slug, slug || ''), eq(artifacts.type, 'bundle'))).get()
-  if (!artifact) throw createError({ statusCode: 404, message: 'Bundle not found' })
+  const rangka = await db.select().from(rangkaItems).where(and(eq(rangkaItems.slug, slug || ''), eq(rangkaItems.type, 'bundle'))).get()
+  if (!rangka) throw createError({ statusCode: 404, message: 'Bundle not found' })
   const key = String(getQuery(event).k || '')
-  if (artifact.visibility === 'private') { requireUser(event); if (event.context.user.id !== artifact.userId) throw createError({ statusCode: 403, message: 'Forbidden' }) }
-  if (artifact.visibility === 'unlisted' && !isValidShareKey(artifact.id, key)) throw createError({ statusCode: 404, message: 'Bundle not found' })
-  if (path.includes('\0') || path.includes('\\') || path.startsWith('/') || path.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
+  if (rangka.visibility === 'private') { requireUser(event); if (event.context.user.id !== rangka.userId) throw createError({ statusCode: 403, message: 'Forbidden' }) }
+  if (rangka.visibility === 'unlisted' && !isValidShareKey(rangka.id, key)) throw createError({ statusCode: 404, message: 'Bundle not found' })
+  // Storage treats `:` as a separator like `/`, so `..:..:other` would escape
+  // the bundle prefix; a colon is never part of a valid bundle path.
+  if (path.includes('\0') || path.includes('\\') || path.includes(':') || path.startsWith('/') || path.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
     throw createError({ statusCode: 404, message: 'File not found' })
   }
 
   try {
-    const content = await readArtifactBytes(`${artifact.userId}/${artifact.id}/bundle/${path}`)
+    const content = await readRangkaBytes(`${rangka.userId}/${rangka.id}/bundle/${path}`)
     setHeader(event, 'Content-Type', bundleMimeType(path))
     setHeader(event, 'X-Content-Type-Options', 'nosniff')
     // Bundle assets share the app origin, so every document-like file needs the

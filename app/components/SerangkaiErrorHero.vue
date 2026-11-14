@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Shared error hero used by the full-page error screen and the shared-artifact
+ * Shared error hero used by the full-page error screen and the shared-rangka
  * reader. Keeping one implementation means both keep the same illustration,
  * typography, and recovery actions.
  */

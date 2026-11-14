@@ -15,7 +15,7 @@
 
 <script setup lang="ts">
 /**
- * HTML artifact preview.
+ * HTML rangka preview.
  *
  * The iframe is sandboxed (no same-origin access), so the workspace theme
  * cannot be inherited -- `color-scheme` is not reset across the frame boundary,
@@ -29,7 +29,7 @@ const props = withDefaults(defineProps<{
   /**
    * Resize the frame to the document height reported by the injected preview
    * bridge, so the page owns the scrollbar instead of the iframe. Used by the
-   * artifact detail view; the share reader keeps a full-viewport frame.
+   * rangka detail view; the share reader keeps a full-viewport frame.
    */
   autoHeight?: boolean
   /**
@@ -56,7 +56,7 @@ const resolvedHeight = computed(() => {
   return `${reportedHeight.value + VERTICAL_BORDER}px`
 })
 
-// Resolve "system" to the concrete mode the artifact should render in.
+// Resolve "system" to the concrete mode the rangka should render in.
 const resolvedMode = computed(() => colorMode.value === 'dark' ? 'dark' : 'light')
 
 function sync() {

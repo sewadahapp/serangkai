@@ -6,7 +6,7 @@
 
 <script setup lang="ts">
 import { MarkdownDocument as ComarkMarkdownDocument } from '@comark/vue'
-import { artifactComponents } from '#shared/artifact-components'
+import { rangkaComponents } from '#shared/rangka-components'
 import { selarasComponents } from '~/utils/selaras-components'
 import MarkdownPre from './MarkdownPre.vue'
 import MarkdownMermaid from './MarkdownMermaid.vue'
@@ -18,7 +18,7 @@ import SerangkaiTable from './SerangkaiTable.vue'
  *
  * The server parses and sanitizes the document; this component only maps the
  * trusted tag vocabulary to Vue components. No parser or plugin code ships to
- * the browser for artifact rendering.
+ * the browser for rangka rendering.
  */
 defineProps<{ body: Record<string, any> }>()
 
@@ -29,7 +29,7 @@ const components: Record<string, any> = {
   's-table': SerangkaiTable,
 }
 
-for (const entry of artifactComponents) {
+for (const entry of rangkaComponents) {
   const component = selarasComponents[entry.component]
   if (component) components[entry.tag] = component
 }

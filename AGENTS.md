@@ -3,7 +3,7 @@
 Guidelines for AI agents working on Serangkai.
 
 ## Project
-Serangkai is a production-minded, open-source, self-hosted artifact and knowledge workspace for AI agents and humans. It combines the organization of Notion, the interactive artifact capabilities of Claude Artifacts, and simplicity of lightweight self-hosted apps.
+Serangkai is a production-minded, open-source, self-hosted rangka and knowledge workspace for AI agents and humans. It combines the organization of Notion, the interactive rangka capabilities of Claude Artifacts, and simplicity of lightweight self-hosted apps.
 
 ## Technology Stack
 - **Framework**: Nuxt 4 + TypeScript, running on **Nitro 2 / H3 v1**
@@ -19,11 +19,16 @@ Serangkai is a production-minded, open-source, self-hosted artifact and knowledg
 - **Storage**: Nitro `useStorage()` over unstorage; filesystem by default, R2 binding on Cloudflare, S3-compatible storage (including Backblaze B2) on any runtime via `STORAGE_DRIVER=s3`
 - **Deployment**: Docker (primary, persistent volume at `/data`), Cloudflare Workers, Vercel
 
+## Terminology
+- Use **rangka** for both singular and plural throughout UI, APIs, MCP, and internals.
+- MCP tools explicitly describe the Serangkai workspace; advertise only `*_rangka` names.
+- Legacy terminology is retained only where required for migration/compatibility or external product names.
+
 ## Core Principles
 - **Agent-first**: Agents create/update/publish via MCP and REST APIs
 - **Human-friendly**: Polished web UI for browsing, organizing, sharing
 - **Beautiful by default**: Markdown renders nicely with Selaras styling without HTML/CSS from agents
-- **Private by default**: Artifacts owned by creator, explicit opt-in for public sharing
+- **Private by default**: Rangka owned by creator, explicit opt-in for public sharing
 - **Security-first**: Treat authz, untrusted JS execution, private delivery as critical
 - **Simple deployment**: Single container, no external deps required by default
 - **Portable**: Nitro storage mounts for different platforms
@@ -61,7 +66,7 @@ verification. Do not make npm the default.
 - Declarative TanStack chart JSON for supported charts
 - Mermaid for diagrams
 - HTML for custom interfaces; the Selaras document theme is explicit opt-in
-- `shared/artifact-components.ts` is the single source of truth for supported components; do not add renderer-only component lists
+- `shared/rangka-components.ts` is the single source of truth for supported components; do not add renderer-only component lists
 - MCP must advertise only implemented, verified capabilities
 
 ## Nitro version note
@@ -78,7 +83,7 @@ Maintain: AGENTS.md, ARCHITECTURE.md, README.md.
 - Auth required for writes; scoped API tokens for agents
 - Never let a browser session authorize MCP, and never fall back to a session when a bearer token is present
 - Never add public registration; the single owner comes from the environment
-- Private artifacts must not be accessible without auth/permission
+- Private rangka must not be accessible without auth/permission
 - Markdown is sanitized server-side; never evaluate author expressions or template code
 - No secrets in code/logs
 - Review security-critical changes carefully

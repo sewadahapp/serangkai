@@ -18,7 +18,7 @@ test('CI workflow uses Bun for install, build, and integration coverage', async 
     'tests/mcp-protocol.test.mjs',
     'tests/tokens-api.test.mjs',
     'tests/folders-api.test.mjs',
-    'tests/artifacts-lifecycle.test.mjs',
+    'tests/rangka-lifecycle.test.mjs',
     'tests/browser-workspace.test.mjs',
     'tests/auth-api.test.mjs',
     'tests/auth-migration.test.mjs',

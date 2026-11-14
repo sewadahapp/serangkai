@@ -4,26 +4,29 @@ import { z } from 'zod'
 import { and, eq, isNull, like, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { toWebRequest } from 'h3'
-import { artifactVersions, artifacts, folders, oauthTokens } from '../../db/schema'
+import { rangkaVersions, rangkaItems, folders, oauthTokens } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { requireScope } from '../../utils/require-auth'
-import { readArtifactBytes, writeArtifact } from '../../utils/artifact-storage'
-import { reserveSlug } from '../../utils/artifacts'
+import { readRangkaBytes, writeRangka } from '../../utils/rangka-storage'
+import { checkTextRangka, reserveSlug } from '../../utils/rangka'
+import { appendVersion } from '../../utils/rangka-versions'
 import { isSlugConflict } from '../../db/migrations'
 import { findGrantByApiTokenId, resourceMatches } from '../../utils/oauth'
 import { mcpResourceUrl, protectedResourceMetadataUrl } from '../../utils/oauth-urls'
 import { capabilities, capabilitiesText, htmlGuide, markdownGuide, promptMessages, templates } from '../../utils/authoring'
-import { componentCatalogMarkdown } from '../../../shared/artifact-components'
+import { componentCatalogMarkdown } from '../../../shared/rangka-components'
 import { selarasTokensGuide } from '../../../shared/selaras-tokens'
 
-const artifactType = z.enum(['markdown', 'html', 'javascript', 'pdf', 'image', 'json', 'bundle'])
+// Text content only. Bundles and PDFs are binary and go through the multipart
+// upload; `image` is accepted as SVG markup (see `checkTextRangka`).
+const rangkaType = z.enum(['markdown', 'html', 'javascript', 'json', 'image'])
 const guideResources = [
   { name: 'Markdown authoring guide', uri: 'serangkai://guides/markdown', description: 'Comark Markdown, Selaras components, Mermaid, charts, and security limits.', text: markdownGuide },
   { name: 'HTML authoring guide', uri: 'serangkai://guides/html', description: 'Self-styled HTML, the optional Selaras document theme, markers, and sandbox rules.', text: htmlGuide },
   { name: 'Selaras component catalog', uri: 'serangkai://components/selaras', description: 'Supported component tags, props, slots, examples, and application-only exclusions.', text: componentCatalogMarkdown() },
-  { name: 'Selaras design tokens', uri: 'serangkai://tokens/selaras', description: 'Theme-aware CSS custom properties for HTML artifacts: surfaces, text, borders, primary/accent/secondary, radius, elevation.', text: selarasTokensGuide() },
+  { name: 'Selaras design tokens', uri: 'serangkai://tokens/selaras', description: 'Theme-aware CSS custom properties for HTML rangka: surfaces, text, borders, primary/accent/secondary, radius, elevation.', text: selarasTokensGuide() },
 ] as const
-const templateResources = Object.entries(templates).map(([name, text]) => ({ name: `Template: ${name}`, uri: `serangkai://templates/${name}`, description: `Starting ${name} artifact.`, text }))
+const templateResources = Object.entries(templates).map(([name, text]) => ({ name: `Template: ${name}`, uri: `serangkai://templates/${name}`, description: `Starting ${name} rangka.`, text }))
 const visibility = z.enum(['private', 'public', 'unlisted'])
 
 function textResult(value: unknown) {
@@ -31,13 +34,13 @@ function textResult(value: unknown) {
 }
 
 function createMcpServer(userId: string, canWrite: boolean, db: any) {
-  const server = new McpServer({ name: 'serangkai', version: '0.1.0' }, { maxToolInputElements: 100 })
+  const server = new McpServer({ name: 'serangkai', version: '0.1.0' }, { maxToolInputElements: 100, instructions: 'Rangka are documents, files, and interactive content stored in the connected Serangkai workspace. Use create_rangka to create them in Serangkai and get_rangka/update_rangka to read or revise them. The workspace owns persistence, versions, folders, and sharing.' })
   const findFolder = (folderId: string) => db.select().from(folders)
     .where(and(eq(folders.id, folderId), eq(folders.userId, userId))).get()
 
-  server.registerTool('get_artifact_capabilities', {
+  server.registerTool('get_rangka_capabilities', {
     title: 'Get authoring capabilities',
-    description: 'Discover supported artifact types, Markdown/HTML authoring, Selaras components, Mermaid, TanStack chart schema, and security limits. Use this before creating a rich artifact.',
+    description: 'Discover supported rangka types, Markdown/HTML authoring, Selaras components, Mermaid, TanStack chart schema, and security limits. Use this before creating a rich rangka.',
     inputSchema: {},
     annotations: { readOnlyHint: true },
   }, async () => textResult(capabilities))
@@ -54,19 +57,19 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
 
   server.registerTool('search', {
     title: 'Search workspace',
-    description: 'Search artifacts and folders by title, name, or slug.',
+    description: 'Search rangka and folders by title, name, or slug.',
     inputSchema: { query: z.string().min(1), folderId: z.string().optional() },
     annotations: { readOnlyHint: true },
   }, async ({ query, folderId }) => {
     const pattern = `%${query}%`
-    const [matchedArtifacts, matchedFolders] = await Promise.all([
-      db.select().from(artifacts).where(and(
-        eq(artifacts.userId, userId),
-        or(like(artifacts.title, pattern), like(artifacts.slug, pattern)),
+    const [matchedRangka, matchedFolders] = await Promise.all([
+      db.select().from(rangkaItems).where(and(
+        eq(rangkaItems.userId, userId),
+        or(like(rangkaItems.title, pattern), like(rangkaItems.slug, pattern)),
       )),
       db.select().from(folders).where(and(eq(folders.userId, userId), like(folders.name, pattern))),
     ])
-    let scopedArtifacts = matchedArtifacts
+    let scopedRangka = matchedRangka
     if (folderId) {
       const owned = await findFolder(folderId)
       if (!owned) return { isError: true, content: [{ type: 'text', text: 'Folder not found.' }] }
@@ -82,10 +85,10 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
           }
         }
       }
-      scopedArtifacts = matchedArtifacts.filter(artifact => artifact.folderId && scope.has(artifact.folderId))
+      scopedRangka = matchedRangka.filter(rangka => rangka.folderId && scope.has(rangka.folderId))
     }
     return textResult({
-      artifacts: scopedArtifacts.map(({ contentPath: _contentPath, ...row }) => row),
+      rangka: scopedRangka.map(({ contentPath: _contentPath, ...row }) => row),
       folders: matchedFolders,
     })
   })
@@ -108,67 +111,69 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
     return textResult({ id, name, parentId: parentId || null, path })
   })
 
-  server.registerTool('list_artifacts', {
-    title: 'List artifacts',
-    description: 'List artifacts owned by the authenticated Serangkai user.',
+  server.registerTool('list_rangka', {
+    title: 'List rangka',
+    description: 'List rangka owned by the authenticated Serangkai user.',
     inputSchema: { query: z.string().optional() },
     annotations: { readOnlyHint: true },
   }, async ({ query }) => {
-    const rows = await db.select().from(artifacts).where(eq(artifacts.userId, userId))
+    const rows = await db.select().from(rangkaItems).where(eq(rangkaItems.userId, userId))
     const filtered = query ? rows.filter(row => `${row.title} ${row.slug}`.toLowerCase().includes(query.toLowerCase())) : rows
     return textResult(filtered.map(({ contentPath: _contentPath, ...row }) => row))
   })
 
-  server.registerTool('get_artifact', {
-    title: 'Read artifact',
-    description: 'Read the source of an artifact by id or slug.',
+  server.registerTool('get_rangka', {
+    title: 'Read rangka',
+    description: 'Read the source of a rangka in the Serangkai workspace by id or slug.',
     inputSchema: { id: z.string().optional(), slug: z.string().optional() },
     annotations: { readOnlyHint: true },
   }, async ({ id, slug }) => {
     if (!id && !slug) return { isError: true, content: [{ type: 'text', text: 'Provide id or slug.' }] }
-    const row = await db.select().from(artifacts).where(and(
-      eq(artifacts.userId, userId), id ? eq(artifacts.id, id) : eq(artifacts.slug, slug!),
+    const row = await db.select().from(rangkaItems).where(and(
+      eq(rangkaItems.userId, userId), id ? eq(rangkaItems.id, id) : eq(rangkaItems.slug, slug!),
     )).get()
-    if (!row) return { isError: true, content: [{ type: 'text', text: 'Artifact not found.' }] }
-    const content = (await readArtifactBytes(row.contentPath)).toString()
+    if (!row) return { isError: true, content: [{ type: 'text', text: 'Rangka not found.' }] }
+    const content = (await readRangkaBytes(row.contentPath)).toString()
     // An agent cannot publish without baseVersion, and this is where it learns
     // the current one. Omitting it here made the documented workflow impossible.
-    const versionRows = await db.select({ version: artifactVersions.version }).from(artifactVersions).where(eq(artifactVersions.artifactId, row.id))
+    const versionRows = await db.select({ version: rangkaVersions.version }).from(rangkaVersions).where(eq(rangkaVersions.rangkaId, row.id))
     const currentVersion = Math.max(0, ...versionRows.map(item => item.version))
     return textResult({ id: row.id, slug: row.slug, title: row.title, type: row.type, visibility: row.visibility, folderId: row.folderId, currentVersion, content })
   })
 
-  server.registerTool('create_artifact', {
-    title: 'Create artifact',
-    description: 'Create a private-by-default artifact. Call get_artifact_capabilities for authoring syntax.',
+  server.registerTool('create_rangka', {
+    title: 'Create rangka',
+    description: 'Create a private-by-default rangka in the Serangkai workspace. Call get_rangka_capabilities for authoring syntax.',
     inputSchema: {
       title: z.string().min(1).max(200),
-      type: artifactType,
+      type: rangkaType,
       content: z.string().max(10_000_000),
       folderId: z.string().optional(),
       visibility: visibility.default('private'),
     },
     annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
-  }, async ({ title, type, content, folderId, visibility: artifactVisibility }) => {
+  }, async ({ title, type, content, folderId, visibility: rangkaVisibility }) => {
     if (!canWrite) return { isError: true, content: [{ type: 'text', text: 'This API token requires write scope.' }] }
     if (folderId && !(await findFolder(folderId))) return { isError: true, content: [{ type: 'text', text: 'Folder not found.' }] }
     const id = nanoid()
     const slug = await reserveSlug(db, title)
+    const checked = checkTextRangka(type, content, slug)
+    if (!checked.ok) return { isError: true, content: [{ type: 'text', text: checked.message }] }
     const contentPath = `${userId}/${id}/content`
-    await writeArtifact(contentPath, content)
+    await writeRangka(contentPath, content)
     try {
-      await db.insert(artifacts).values({ id, userId, folderId: folderId || null, slug, title, type, visibility: artifactVisibility, contentPath, metadata: {}, createdAt: new Date(), updatedAt: new Date() })
+      await db.insert(rangkaItems).values({ id, userId, folderId: folderId || null, slug, title, type, visibility: rangkaVisibility, contentPath, metadata: checked.metadata, createdAt: new Date(), updatedAt: new Date() })
     } catch (error) {
       if (isSlugConflict(error)) return { isError: true, content: [{ type: 'text', text: 'That share identifier is already in use. Retry with a slightly different title.' }] }
       throw error
     }
-    await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version: 1, contentPath, metadata: {}, createdAt: new Date() })
-    return textResult({ id, slug, title, type, visibility: artifactVisibility, folderId: folderId || null })
+    await db.insert(rangkaVersions).values({ id: nanoid(), rangkaId: id, version: 1, contentPath, metadata: checked.metadata, createdAt: new Date() })
+    return textResult({ id, slug, title, type, visibility: rangkaVisibility, folderId: folderId || null })
   })
 
-  server.registerTool('update_artifact', {
-    title: 'Update artifact',
-    description: 'Publish a new version. baseVersion from get_artifact is required when content changes; a mismatch returns the current version. Call get_artifact_capabilities for authoring syntax. Unchanged content creates no version.',
+  server.registerTool('update_rangka', {
+    title: 'Update rangka',
+    description: 'Publish a new version of a Serangkai rangka. baseVersion from get_rangka is required when content changes; a mismatch returns the current version. Call get_rangka_capabilities for authoring syntax. Unchanged content creates no version.',
     inputSchema: {
       id: z.string(),
       title: z.string().min(1).max(200).optional(),
@@ -178,13 +183,13 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
       baseVersion: z.number().int().positive().optional(),
     },
     annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
-  }, async ({ id, title, content, visibility: artifactVisibility, folderId, baseVersion }) => {
+  }, async ({ id, title, content, visibility: rangkaVisibility, folderId, baseVersion }) => {
     if (!canWrite) return { isError: true, content: [{ type: 'text', text: 'This API token requires write scope.' }] }
-    const row = await db.select().from(artifacts).where(and(eq(artifacts.id, id), eq(artifacts.userId, userId))).get()
-    if (!row) return { isError: true, content: [{ type: 'text', text: 'Artifact not found.' }] }
+    const row = await db.select().from(rangkaItems).where(and(eq(rangkaItems.id, id), eq(rangkaItems.userId, userId))).get()
+    if (!row) return { isError: true, content: [{ type: 'text', text: 'Rangka not found.' }] }
     if (folderId && !(await findFolder(folderId))) return { isError: true, content: [{ type: 'text', text: 'Folder not found.' }] }
 
-    const versionRows = await db.select({ version: artifactVersions.version }).from(artifactVersions).where(eq(artifactVersions.artifactId, id))
+    const versionRows = await db.select({ version: rangkaVersions.version }).from(rangkaVersions).where(eq(rangkaVersions.rangkaId, id))
     const currentVersion = Math.max(0, ...versionRows.map(item => item.version))
 
     // Publish-time staleness check, mirroring Claude Code's behaviour: refuse a
@@ -195,7 +200,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
         isError: true,
         content: [{
           type: 'text',
-          text: `baseVersion is required when publishing content. The current version is ${currentVersion}. Call get_artifact, then publish with baseVersion ${currentVersion}.`,
+          text: `baseVersion is required when publishing content. The current version is ${currentVersion}. Call get_rangka, then publish with baseVersion ${currentVersion}.`,
         }],
       }
     }
@@ -204,31 +209,43 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
         isError: true,
         content: [{
           type: 'text',
-          text: `Stale write refused: baseVersion ${baseVersion} but the current version is ${currentVersion}. Re-read the artifact with get_artifact, merge your changes, then publish again with baseVersion ${currentVersion}.`,
+          text: `Stale write refused: baseVersion ${baseVersion} but the current version is ${currentVersion}. Re-read the rangka with get_rangka, merge your changes, then publish again with baseVersion ${currentVersion}.`,
         }],
       }
     }
 
     let contentPath = row.contentPath
+    let metadata = row.metadata || {}
     if (content !== undefined) {
+      const checked = checkTextRangka(row.type, content, row.slug)
+      if (!checked.ok) return { isError: true, content: [{ type: 'text', text: checked.message }] }
+      metadata = { ...metadata, ...checked.metadata }
       // Only record a version when the bytes actually change. Agents commonly
       // re-save unchanged content, and unconditional inserts turned that into
       // duplicate history entries.
-      const currentContent = (await readArtifactBytes(row.contentPath)).toString()
+      const currentContent = (await readRangkaBytes(row.contentPath)).toString()
       if (currentContent !== content) {
         const version = currentVersion + 1
         contentPath = `${userId}/${id}/versions/${version}`
-        await writeArtifact(contentPath, content)
-        await db.insert(artifactVersions).values({ id: nanoid(), artifactId: id, version, contentPath, metadata: row.metadata || {}, createdAt: new Date() })
+        const claimed = await appendVersion(db, { rangkaId: id, version, contentPath, metadata, content })
+        if (!claimed) {
+          return {
+            isError: true,
+            content: [{
+              type: 'text',
+              text: `Stale write refused: version ${version} was published by another writer. Re-read the rangka with get_rangka, merge your changes, then publish again with baseVersion ${version}.`,
+            }],
+          }
+        }
       }
     }
-    await db.update(artifacts).set({ ...(title === undefined ? {} : { title }), ...(artifactVisibility === undefined ? {} : { visibility: artifactVisibility }), ...(folderId === undefined ? {} : { folderId }), ...(content === undefined ? {} : { contentPath }), updatedAt: new Date() }).where(eq(artifacts.id, id))
+    await db.update(rangkaItems).set({ ...(title === undefined ? {} : { title }), ...(rangkaVisibility === undefined ? {} : { visibility: rangkaVisibility }), ...(folderId === undefined ? {} : { folderId }), ...(content === undefined ? {} : { contentPath, metadata }), updatedAt: new Date() }).where(eq(rangkaItems.id, id))
 
     const versionCreated = contentPath !== row.contentPath
     return textResult({
       id,
       title: title || row.title,
-      visibility: artifactVisibility || row.visibility,
+      visibility: rangkaVisibility || row.visibility,
       folderId: folderId === undefined ? row.folderId : folderId,
       contentPath,
       versionCreated,
@@ -238,7 +255,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
 
   server.registerResource('Serangkai capabilities', 'serangkai://capabilities', {
     title: 'Serangkai authoring capabilities',
-    description: 'Supported artifact types, rendering modes, components, charts, diagrams, and security limits.',
+    description: 'Supported rangka types, rendering modes, components, charts, diagrams, and security limits.',
     mimeType: 'application/json',
   }, async uri => ({ contents: [{ uri: uri.href, mimeType: 'application/json', text: capabilitiesText() }] }))
 

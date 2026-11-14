@@ -84,7 +84,7 @@ useHead(() => ({
 
 <template>
   <SApp>
-    <div class="flex min-h-dvh flex-col bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]">
+    <div class="serangkai-canvas-pattern flex min-h-dvh flex-col bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]">
       <header class="border-b border-[var(--selaras-resolved-border-default)]">
         <div class="serangkai-shell flex h-16 items-center justify-between gap-4">
           <NuxtLink to="/" class="flex items-center gap-2 rounded-md focus-visible:outline-offset-4" aria-label="Serangkai home">
@@ -117,7 +117,7 @@ useHead(() => ({
 
       <footer class="border-t border-[var(--selaras-resolved-border-muted)] py-6">
         <div class="serangkai-shell flex flex-col gap-2 text-sm text-[var(--selaras-resolved-text-muted)] sm:flex-row sm:items-center sm:justify-between">
-          <p>Serangkai — artifact and knowledge workspace.</p>
+          <p>Serangkai — rangka and knowledge workspace.</p>
           <NuxtLink to="/" class="underline-offset-4 hover:underline">Back to home</NuxtLink>
         </div>
       </footer>

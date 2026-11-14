@@ -1,12 +1,14 @@
 <template>
-  <SProsePre
-    :code="code"
-    :language="language"
-    :filename="filename"
-    icon="lucide:file-code"
-  >
-    <span class="serangkai-shiki"><slot /></span>
-  </SProsePre>
+  <div class="markdown-code-block">
+    <SProsePre
+      :code="code"
+      :language="language"
+      :filename="filename"
+      icon="lucide:file-code"
+    >
+      <span class="serangkai-shiki"><slot /></span>
+    </SProsePre>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -33,3 +35,9 @@ const props = withDefaults(defineProps<{
 
 const code = computed(() => props.__node ? textContent(props.__node).replace(/\n$/, '') : '')
 </script>
+
+<style scoped>
+.markdown-code-block { margin-block: 1.25em; min-width: 0; }
+.markdown-code-block:first-child { margin-block-start: 0; }
+.markdown-code-block:last-child { margin-block-end: 0; }
+</style>

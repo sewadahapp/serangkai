@@ -1,11 +1,11 @@
 /**
- * Selaras design tokens for sandboxed HTML artifacts.
+ * Selaras design tokens for sandboxed HTML rangka.
  *
  * Single source of truth for two consumers:
  *  - the MCP authoring surface (capabilities, HTML guide, and the
  *    `serangkai://tokens/selaras` resource), so an agent can theme-match without
  *    knowing which theme the viewer has active;
- *  - `scripts/build-artifact-runtime.ts`, which emits the opt-in document theme
+ *  - `scripts/build-rangka-runtime.ts`, which emits the opt-in document theme
  *    CSS from the same values.
  *
  * The contract for authors is `var(--selaras-resolved-<token>)`. The generated
@@ -16,7 +16,7 @@
  */
 import { themes } from './themes'
 
-export type ArtifactThemeId = 'serangkai' | 'rose-pine' | 'flexoki' | 'catppuccin'
+export type RangkaThemeId = 'serangkai' | 'rose-pine' | 'flexoki' | 'catppuccin'
 
 export interface SelarasToken {
   /** Semantic token name, e.g. `surface-elevated`. */
@@ -146,7 +146,7 @@ function theme(light: {
   return { light: expand(light), dark: expand(dark) }
 }
 
-export const ARTIFACT_THEME_VALUES: Record<ArtifactThemeId, ThemeValues> = {
+export const RANGKA_THEME_VALUES: Record<RangkaThemeId, ThemeValues> = {
   serangkai: theme(
     {
       surface: ['#f8fafc', '#ffffff', '#f1f5f9', '#0f172a'],
@@ -233,7 +233,7 @@ const SHAPE_VALUES: ModeValues = {
 
 /** Every semantic name that gets a resolved wrapper (color + shape). */
 export const RESOLVED_TOKEN_NAMES: string[] = [
-  ...Object.keys(ARTIFACT_THEME_VALUES.serangkai.light),
+  ...Object.keys(RANGKA_THEME_VALUES.serangkai.light),
   ...Object.keys(SHAPE_VALUES),
 ]
 
@@ -241,12 +241,12 @@ export const RESOLVED_TOKEN_NAMES: string[] = [
  * Emits the token layer of the opt-in document theme.
  *
  * Base block = the default (serangkai) theme; a `data-serangkai-theme` override
- * swaps in the alternate palette. `light-dark()` resolves against the artifact's
+ * swaps in the alternate palette. `light-dark()` resolves against the rangka's
  * own `color-scheme`, which the delivery bridge keeps in sync with the viewer.
  */
-export function buildArtifactTokenCss(): string {
+export function buildRangkaTokenCss(): string {
   const lines: string[] = [':root {', '  color-scheme: light dark;']
-  const base = ARTIFACT_THEME_VALUES.serangkai
+  const base = RANGKA_THEME_VALUES.serangkai
   for (const [name, light] of Object.entries(base.light)) {
     lines.push(`  --selaras-${name}: light-dark(${light}, ${base.dark[name]});`)
   }
@@ -259,8 +259,8 @@ export function buildArtifactTokenCss(): string {
   lines.push('}')
 
   // One override block per non-default theme, so adding a theme to
-  // ARTIFACT_THEME_VALUES automatically themes HTML artifacts too.
-  for (const [id, values] of Object.entries(ARTIFACT_THEME_VALUES)) {
+  // RANGKA_THEME_VALUES automatically themes HTML rangka too.
+  for (const [id, values] of Object.entries(RANGKA_THEME_VALUES)) {
     if (id === 'serangkai') continue
     lines.push(`:root[data-serangkai-theme='${id}'] {`)
     for (const [name, light] of Object.entries(values.light)) {
@@ -278,7 +278,7 @@ export function selarasTokensGuide(): string {
     return `### ${group.title}\n\n| CSS | Use for |\n| --- | --- |\n${rows}`
   }).join('\n\n')
 
-  return `# Selaras design tokens for HTML artifacts
+  return `# Selaras design tokens for HTML rangka
 
 Opt in to the document theme, then style with the resolved tokens below. They
 resolve against the viewer's active theme (${themes.map(theme => theme.label).join(', ')}) and light/dark

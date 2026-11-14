@@ -11,7 +11,7 @@ import { adminEnv, login } from './helpers/auth.mjs'
 
 const port = 3620 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
-let child, dataDir, cookie, htmlArtifact, markdownArtifact, pinnedArtifact
+let child, dataDir, cookie, htmlRangka, markdownRangka, pinnedRangka
 
 function makeZip(entries) {
   const zip = new yazl.ZipFile()
@@ -30,20 +30,20 @@ before(async () => {
   child = spawn(serverRuntime, ['.output/server/index.mjs'], { cwd: join(import.meta.dirname, '..'), env: { ...process.env, ...adminEnv(), PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'serangkai.db'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
   for (let i = 0; i < 60; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break } catch {} await new Promise(resolve => setTimeout(resolve, 100)) }
   cookie = (await login(base)).cookie
-  htmlArtifact = (await (await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Unsafe HTML', type: 'html', content: '<script>fetch(\"https://evil.example\")</script>', visibility: 'public' }) })).json()).artifact
-  markdownArtifact = (await (await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: '</title><script>alert(1)</script>', type: 'markdown', content: '[bad](javascript:alert(1))', visibility: 'public' }) })).json()).artifact
-  pinnedArtifact = (await (await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Pinned light', type: 'html', content: '<!DOCTYPE html><html><head><meta name="color-scheme" content="only light"></head><body>pinned</body></html>', visibility: 'public' }) })).json()).artifact
+  htmlRangka = (await (await fetch(`${base}/api/rangka`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Unsafe HTML', type: 'html', content: '<script>fetch(\"https://evil.example\")</script>', visibility: 'public' }) })).json()).rangka
+  markdownRangka = (await (await fetch(`${base}/api/rangka`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: '</title><script>alert(1)</script>', type: 'markdown', content: '[bad](javascript:alert(1))', visibility: 'public' }) })).json()).rangka
+  pinnedRangka = (await (await fetch(`${base}/api/rangka`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Pinned light', type: 'html', content: '<!DOCTYPE html><html><head><meta name="color-scheme" content="only light"></head><body>pinned</body></html>', visibility: 'public' }) })).json()).rangka
 })
 
 after(async () => { child?.kill('SIGTERM'); await rm(dataDir, { recursive: true, force: true }) })
 
-test('HTML artifacts receive a restrictive sandbox CSP', async () => {
-  const response = await fetch(`${base}/api/share/${htmlArtifact.slug}`)
+test('HTML rangka receive a restrictive sandbox CSP', async () => {
+  const response = await fetch(`${base}/api/share/${htmlRangka.slug}`)
   assert.equal(response.status, 200)
   const csp = response.headers.get('content-security-policy')
   assert.match(csp, /sandbox allow-scripts/)
   assert.match(csp, /connect-src 'none'/)
-  // The reader frames the artifact on the same origin; outside origins cannot.
+  // The reader frames the rangka on the same origin; outside origins cannot.
   assert.match(csp, /frame-ancestors 'self'/)
   assert.match(csp, /form-action 'none'/)
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
@@ -59,7 +59,7 @@ test('HTML artifacts receive a restrictive sandbox CSP', async () => {
 })
 
 test('Markdown output strips executable links and escapes document metadata', async () => {
-  const response = await fetch(`${base}/api/share/${markdownArtifact.slug}`)
+  const response = await fetch(`${base}/api/share/${markdownRangka.slug}`)
   const body = await response.text()
   assert.equal(response.status, 200)
   assert.doesNotMatch(body, /<script>alert\(1\)<\/script>/)
@@ -67,8 +67,8 @@ test('Markdown output strips executable links and escapes document metadata', as
   assert.match(body, /&lt;\/title&gt;/)
 })
 
-test('HTML artifacts get a color-mode bridge that follows the client hint', async () => {
-  const adaptive = await fetch(`${base}/api/share/${htmlArtifact.slug}`)
+test('HTML rangka get a color-mode bridge that follows the client hint', async () => {
+  const adaptive = await fetch(`${base}/api/share/${htmlRangka.slug}`)
   const body = await adaptive.text()
   assert.match(body, /data-serangkai-color-mode/)
   assert.match(body, /serangkai:color-mode/)
@@ -77,7 +77,7 @@ test('HTML artifacts get a color-mode bridge that follows the client hint', asyn
   const csp = adaptive.headers.get('content-security-policy')
   assert.match(csp, /script-src 'self' 'unsafe-inline'/, 'the bridge and same-origin runtime must be allowed')
   assert.doesNotMatch(csp, /script-src[^;]*https?:/, 'remote scripts must stay blocked')
-  assert.match(csp, /connect-src 'none'/, 'artifacts must not reach the network')
+  assert.match(csp, /connect-src 'none'/, 'rangka must not reach the network')
   assert.match(csp, /sandbox allow-scripts/)
   assert.match(csp, /style-src 'self' 'unsafe-inline'/)
   assert.doesNotMatch(csp, /allow-same-origin/)
@@ -86,17 +86,17 @@ test('HTML artifacts get a color-mode bridge that follows the client hint', asyn
   assert.match(adaptive.headers.get('vary') || '', /Sec-CH-Prefers-Color-Scheme/)
 
   // The client hint bakes the mode into the first paint.
-  const dark = await fetch(`${base}/api/share/${htmlArtifact.slug}`, { headers: { 'sec-ch-prefers-color-scheme': 'dark' } })
+  const dark = await fetch(`${base}/api/share/${htmlRangka.slug}`, { headers: { 'sec-ch-prefers-color-scheme': 'dark' } })
   assert.match(await dark.text(), /html\{\s*color-scheme:dark;\s*\}/)
-  const light = await fetch(`${base}/api/share/${htmlArtifact.slug}`, { headers: { 'sec-ch-prefers-color-scheme': 'light' } })
+  const light = await fetch(`${base}/api/share/${htmlRangka.slug}`, { headers: { 'sec-ch-prefers-color-scheme': 'light' } })
   assert.match(await light.text(), /html\{\s*color-scheme:light;\s*\}/)
 })
 
-test('an artifact that pins one color scheme is delivered untouched', async () => {
-  const response = await fetch(`${base}/api/share/${pinnedArtifact.slug}`, { headers: { 'sec-ch-prefers-color-scheme': 'dark' } })
+test('a rangka that pins one color scheme is delivered untouched', async () => {
+  const response = await fetch(`${base}/api/share/${pinnedRangka.slug}`, { headers: { 'sec-ch-prefers-color-scheme': 'dark' } })
   const body = await response.text()
   assert.equal(response.status, 200)
-  assert.doesNotMatch(body, /data-serangkai-color-mode/, 'pinned artifacts opt out of the bridge')
+  assert.doesNotMatch(body, /data-serangkai-color-mode/, 'pinned rangka opt out of the bridge')
   assert.match(body, /only light/)
 })
 
@@ -109,8 +109,8 @@ test('shared images and bundle documents cannot execute scripts on the app origi
   imageForm.append('file', new Blob([svg], { type: 'image/svg+xml' }), 'image.svg')
   imageForm.append('title', 'svg image')
   imageForm.append('visibility', 'public')
-  const uploaded = await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie }, body: imageForm })
-  const image = (await uploaded.json()).artifact
+  const uploaded = await fetch(`${base}/api/rangka/upload`, { method: 'POST', headers: { cookie }, body: imageForm })
+  const image = (await uploaded.json()).rangka
   const imageResponse = await fetch(`${base}/api/share/${image.slug}`)
   assert.equal(imageResponse.status, 200)
   assert.match(imageResponse.headers.get('content-security-policy'), /sandbox/)
@@ -126,7 +126,7 @@ test('shared images and bundle documents cannot execute scripts on the app origi
   bundleForm.append('title', 'sandbox bundle')
   bundleForm.append('type', 'bundle')
   bundleForm.append('visibility', 'public')
-  const bundle = (await (await fetch(`${base}/api/artifacts/upload`, { method: 'POST', headers: { cookie }, body: bundleForm })).json()).artifact
+  const bundle = (await (await fetch(`${base}/api/rangka/upload`, { method: 'POST', headers: { cookie }, body: bundleForm })).json()).rangka
 
   for (const path of ['EVIL.HTML', 'image.svg']) {
     const response = await fetch(`${base}/api/share/${bundle.slug}/${path}`)
@@ -135,8 +135,8 @@ test('shared images and bundle documents cannot execute scripts on the app origi
   }
 })
 
-test('image metadata cannot upgrade a non-SVG artifact to an executable type', async () => {
-  const created = await fetch(`${base}/api/artifacts`, {
+test('image metadata cannot upgrade a non-SVG rangka to an executable type', async () => {
+  const created = await fetch(`${base}/api/rangka`, {
     method: 'POST',
     headers: { cookie, 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -144,12 +144,44 @@ test('image metadata cannot upgrade a non-SVG artifact to an executable type', a
       type: 'image',
       visibility: 'public',
       metadata: { mimeType: 'text/html' },
-      content: '<script>document.title="x"</script>',
+      content: '<svg xmlns="http://www.w3.org/2000/svg"><script>document.title="x"</script></svg>',
     }),
   })
-  const artifact = (await created.json()).artifact
-  const response = await fetch(`${base}/api/share/${artifact.slug}`)
+  assert.equal(created.status, 200)
+  const rangka = (await created.json()).rangka
+  const response = await fetch(`${base}/api/share/${rangka.slug}`)
   assert.equal(response.status, 200)
-  assert.doesNotMatch(response.headers.get('content-type') || '', /text\/html/)
+  assert.equal(response.headers.get('content-type'), 'image/svg+xml')
   assert.match(response.headers.get('content-security-policy') || '', /sandbox/)
+})
+
+test('binary types are refused as text content, and SVG text is labelled as SVG', async () => {
+  const create = body => fetch(`${base}/api/rangka`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ visibility: 'public', ...body }),
+  })
+  for (const type of ['bundle', 'pdf']) {
+    const response = await create({ title: `text ${type}`, type, content: 'not binary' })
+    assert.equal(response.status, 400, type)
+    assert.match((await response.json()).message, /rangka\/upload/)
+  }
+  const raster = await create({ title: 'text png', type: 'image', content: 'iVBORw0KGgo=' })
+  assert.equal(raster.status, 400)
+  assert.match((await raster.json()).message, /SVG/)
+
+  const svg = await create({ title: 'text svg', type: 'image', content: '<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg"><circle r="4"/></svg>' })
+  assert.equal(svg.status, 200)
+  const rangka = (await svg.json()).rangka
+  const served = await fetch(`${base}/api/share/${rangka.slug}`)
+  assert.equal(served.headers.get('content-type'), 'image/svg+xml')
+  assert.match(await served.text(), /<circle/)
+
+  // Content edits follow the same rule as creation.
+  const edit = await fetch(`${base}/api/rangka/${rangka.id}`, {
+    method: 'PUT',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ baseVersion: 1, content: 'plain text' }),
+  })
+  assert.equal(edit.status, 400)
 })

@@ -10,7 +10,7 @@ import { adminEnv, login } from './helpers/auth.mjs'
 
 const port = 3520 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
-let child, dataDir, cookie, artifact
+let child, dataDir, cookie, rangka
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-share-test-'))
@@ -19,15 +19,15 @@ before(async () => {
   for (let i = 0; i < 120; i++) { try { if ((await fetch(`${base}/api/health`)).ok) { healthy = true; break } } catch {} await new Promise(resolve => setTimeout(resolve, 100)) }
   if (!healthy) throw new Error('Server did not become healthy before the share test')
   cookie = (await login(base)).cookie
-  const created = await fetch(`${base}/api/artifacts`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Unlisted report', type: 'markdown', content: '# Secret link', visibility: 'unlisted' }) })
-  artifact = (await created.json()).artifact
+  const created = await fetch(`${base}/api/rangka`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Unlisted report', type: 'markdown', content: '# Secret link', visibility: 'unlisted' }) })
+  rangka = (await created.json()).rangka
 })
 
 after(async () => { child?.kill('SIGTERM'); await rm(dataDir, { recursive: true, force: true }) })
 
-test('unlisted artifacts require signed links', async () => {
-  assert.equal((await fetch(`${base}/api/share/${artifact.slug}`)).status, 404)
-  const link = await fetch(`${base}/api/artifacts/${artifact.id}/share`, { method: 'POST', headers: { cookie } })
+test('unlisted rangka require signed links', async () => {
+  assert.equal((await fetch(`${base}/api/share/${rangka.slug}`)).status, 404)
+  const link = await fetch(`${base}/api/rangka/${rangka.id}/share`, { method: 'POST', headers: { cookie } })
   assert.equal(link.status, 200)
   const share = await link.json()
   assert.match(share.url, /[?]k=[a-f0-9]{64}$/)
@@ -43,13 +43,13 @@ test('unlisted artifacts require signed links', async () => {
 })
 
 test('unlisted downloads require the capability key, and read-only tokens cannot mint one', async () => {
-  // Knowing the opaque artifact id is not authorization for an unlisted file.
-  assert.equal((await fetch(`${base}/api/artifacts/${artifact.id}/download`)).status, 404)
+  // Knowing the opaque rangka id is not authorization for an unlisted file.
+  assert.equal((await fetch(`${base}/api/rangka/${rangka.id}/download`)).status, 404)
 
-  const link = await fetch(`${base}/api/artifacts/${artifact.id}/share`, { method: 'POST', headers: { cookie } })
+  const link = await fetch(`${base}/api/rangka/${rangka.id}/share`, { method: 'POST', headers: { cookie } })
   const share = await link.json()
   const key = new URL(share.url).searchParams.get('k')
-  const downloaded = await fetch(`${base}/api/artifacts/${artifact.id}/download?k=${encodeURIComponent(key)}`)
+  const downloaded = await fetch(`${base}/api/rangka/${rangka.id}/download?k=${encodeURIComponent(key)}`)
   assert.equal(downloaded.status, 200)
   assert.match(await downloaded.text(), /Secret link/)
 
@@ -60,7 +60,7 @@ test('unlisted downloads require the capability key, and read-only tokens cannot
     body: JSON.stringify({ name: 'read-only-share', scopes: ['read'] }),
   })
   const { token } = await tokenResponse.json()
-  const denied = await fetch(`${base}/api/artifacts/${artifact.id}/share`, {
+  const denied = await fetch(`${base}/api/rangka/${rangka.id}/share`, {
     method: 'POST',
     headers: { authorization: `Bearer ${token}` },
   })
@@ -68,7 +68,7 @@ test('unlisted downloads require the capability key, and read-only tokens cannot
 })
 
 test('HTML shares get the opt-in chart runtime without widening the CSP', async () => {
-  const create = (content) => fetch(`${base}/api/artifacts`, {
+  const create = (content) => fetch(`${base}/api/rangka`, {
     method: 'POST',
     headers: { cookie, 'content-type': 'application/json' },
     body: JSON.stringify({ title: 'Runtime share', type: 'html', content, visibility: 'public' }),
@@ -79,8 +79,8 @@ test('HTML shares get the opt-in chart runtime without widening the CSP', async 
     + '<script type="application/json" data-serangkai-chart>{"type":"bar","data":[{"label":"A","value":1}]}</script>'
     + '</body></html>'
   const created = await create(content)
-  const runtimeArtifact = (await created.json()).artifact
-  const response = await fetch(`${base}/api/share/${runtimeArtifact.slug}`)
+  const runtimeRangka = (await created.json()).rangka
+  const response = await fetch(`${base}/api/share/${runtimeRangka.slug}`)
   assert.equal(response.status, 200)
   const html = await response.text()
   assert.match(response.headers.get('content-security-policy'), /script-src 'self' 'unsafe-inline'/)
@@ -89,36 +89,36 @@ test('HTML shares get the opt-in chart runtime without widening the CSP', async 
   assert.match(html, /data-serangkai-runtime>/)
 
   const plain = await create('<!doctype html><html><body><p>Just HTML</p></body></html>')
-  const plainArtifact = (await plain.json()).artifact
-  const plainResponse = await fetch(`${base}/api/share/${plainArtifact.slug}`)
+  const plainRangka = (await plain.json()).rangka
+  const plainResponse = await fetch(`${base}/api/share/${plainRangka.slug}`)
   const plainHtml = await plainResponse.text()
   assert.doesNotMatch(plainHtml, /data-serangkai-runtime/)
 })
 
-test('the workspace list exposes preview URLs only for shared artifacts', async () => {
+test('the workspace list exposes preview URLs only for shared rangka', async () => {
   const create = async (title, visibility) => {
-    const response = await fetch(`${base}/api/artifacts`, {
+    const response = await fetch(`${base}/api/rangka`, {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ title, type: 'markdown', content: `# ${title}`, visibility }),
     })
-    return (await response.json()).artifact
+    return (await response.json()).rangka
   }
 
-  const privateArtifact = await create('Private preview', 'private')
-  const publicArtifact = await create('Public preview', 'public')
+  const privateRangka = await create('Private preview', 'private')
+  const publicRangka = await create('Public preview', 'public')
 
-  const list = await (await fetch(`${base}/api/artifacts`, { headers: { cookie } })).json()
-  const unlistedRow = list.artifacts.find(item => item.id === artifact.id)
-  const privateRow = list.artifacts.find(item => item.id === privateArtifact.id)
-  const publicRow = list.artifacts.find(item => item.id === publicArtifact.id)
+  const list = await (await fetch(`${base}/api/rangka`, { headers: { cookie } })).json()
+  const unlistedRow = list.rangka.find(item => item.id === rangka.id)
+  const privateRow = list.rangka.find(item => item.id === privateRangka.id)
+  const publicRow = list.rangka.find(item => item.id === publicRangka.id)
 
   assert.match(unlistedRow.shareUrl, /\/share\/[^?]+\?k=[a-f0-9]{64}$/)
   assert.equal(privateRow.shareUrl, null)
   assert.match(publicRow.shareUrl, /\/share\/[^?]+$/)
   assert.doesNotMatch(publicRow.shareUrl, /\?k=/)
 
-  const privateShare = await fetch(`${base}/api/artifacts/${privateArtifact.id}/share`, {
+  const privateShare = await fetch(`${base}/api/rangka/${privateRangka.id}/share`, {
     method: 'POST',
     headers: { cookie },
   })
@@ -127,12 +127,12 @@ test('the workspace list exposes preview URLs only for shared artifacts', async 
 
 test('share capability URLs follow one policy across list, search, and caller type', async () => {
   const create = async (title, visibility) => {
-    const response = await fetch(`${base}/api/artifacts`, {
+    const response = await fetch(`${base}/api/rangka`, {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ title, type: 'markdown', content: `# ${title}`, visibility }),
     })
-    return (await response.json()).artifact
+    return (await response.json()).rangka
   }
   const priv = await create('Policy private', 'private')
   const pub = await create('Policy public', 'public')
@@ -152,8 +152,8 @@ test('share capability URLs follow one policy across list, search, and caller ty
   const rowFor = (rows, id) => rows.find(item => item.id === id)
   const hasKey = url => Boolean(url && /[?]k=[a-f0-9]{64}$/.test(url))
 
-  const listWith = async (headers) => (await (await fetch(`${base}/api/artifacts`, { headers })).json()).artifacts
-  const searchWith = async (headers) => (await (await fetch(`${base}/api/search?q=Policy`, { headers })).json()).artifacts
+  const listWith = async (headers) => (await (await fetch(`${base}/api/rangka`, { headers })).json()).rangka
+  const searchWith = async (headers) => (await (await fetch(`${base}/api/search?q=Policy`, { headers })).json()).rangka
 
   // Owner browser session: preview links for public + unlisted, none for private.
   for (const rows of [await listWith({ cookie }), await searchWith({ cookie })]) {
@@ -178,6 +178,6 @@ test('share capability URLs follow one policy across list, search, and caller ty
   }
 
   // Unauthorized visitors cannot list or search at all.
-  assert.equal((await fetch(`${base}/api/artifacts`)).status, 401)
+  assert.equal((await fetch(`${base}/api/rangka`)).status, 401)
   assert.equal((await fetch(`${base}/api/search?q=Policy`)).status, 401)
 })

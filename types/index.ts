@@ -25,7 +25,7 @@ export interface Folder {
   updatedAt: Date
 }
 
-export interface Artifact {
+export interface Rangka {
   id: string
   userId: string
   folderId: string | null

@@ -61,14 +61,14 @@ test('MCP exposes capabilities, guides, components, templates, and prompts', asy
 
   const tools = await rpc({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} })
   const toolNames = tools.result.tools.map(tool => tool.name)
-  assert.ok(toolNames.includes('get_artifact_capabilities'), toolNames.join(','))
-  const create = tools.result.tools.find(tool => tool.name === 'create_artifact')
-  assert.match(create.description, /get_artifact_capabilities/)
+  assert.ok(toolNames.includes('get_rangka_capabilities'), toolNames.join(','))
+  const create = tools.result.tools.find(tool => tool.name === 'create_rangka')
+  assert.match(create.description, /get_rangka_capabilities/)
 
-  const capabilities = await rpc({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'get_artifact_capabilities', arguments: {} } })
+  const capabilities = await rpc({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'get_rangka_capabilities', arguments: {} } })
   const capabilityText = capabilities.result.content[0].text
   const parsed = JSON.parse(capabilityText)
-  assert.ok(parsed.artifactTypes.some(item => item.type === 'markdown'))
+  assert.ok(parsed.rangkaTypes.some(item => item.type === 'markdown'))
   assert.ok(parsed.markdown.components.includes('s-table'))
   assert.ok(parsed.markdown.applicationOnlyComponents.includes('SModal'))
   assert.equal(parsed.html.defaultStyling.startsWith('self-styled'), true)
@@ -121,7 +121,7 @@ test('an agent can author a rich report from MCP guidance alone', async () => {
     '',
     '## Summary',
     '',
-    'This artifact was authored from the MCP capabilities and Markdown guide only.',
+    'This rangka was authored from the MCP capabilities and Markdown guide only.',
     '',
     '| Metric | W1 | W2 |',
     '| --- | --- | --- |',
@@ -146,21 +146,21 @@ test('an agent can author a rich report from MCP guidance alone', async () => {
     id: 11,
     method: 'tools/call',
     params: {
-      name: 'create_artifact',
+      name: 'create_rangka',
       arguments: { title: 'MCP-only report', type: 'markdown', content, visibility: 'public' },
     },
   })
-  const artifact = JSON.parse(created.result.content[0].text)
-  assert.ok(artifact.id)
+  const rangka = JSON.parse(created.result.content[0].text)
+  assert.ok(rangka.id)
 
-  const read = await rpc({ jsonrpc: '2.0', id: 12, method: 'tools/call', params: { name: 'get_artifact', arguments: { id: artifact.id } } })
-  const readArtifact = JSON.parse(read.result.content[0].text)
-  assert.equal(readArtifact.currentVersion, 1)
-  assert.match(readArtifact.content, /s-callout/)
+  const read = await rpc({ jsonrpc: '2.0', id: 12, method: 'tools/call', params: { name: 'get_rangka', arguments: { id: rangka.id } } })
+  const readRangka = JSON.parse(read.result.content[0].text)
+  assert.equal(readRangka.currentVersion, 1)
+  assert.match(readRangka.content, /s-callout/)
 
-  const owner = await fetch(`${base}/api/artifacts/${artifact.id}`, { headers: { cookie } })
+  const owner = await fetch(`${base}/api/rangka/${rangka.id}`, { headers: { cookie } })
   const ownerBody = await owner.json()
-  assert.equal(ownerBody.artifact.title, 'MCP-only report')
+  assert.equal(ownerBody.rangka.title, 'MCP-only report')
   assert.ok(ownerBody.body)
   assert.ok(ownerBody.toc.some(link => link.id === 'summary'))
   assert.ok(JSON.stringify(ownerBody.body).includes('s-callout'))
