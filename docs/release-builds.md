@@ -73,11 +73,33 @@ runtime-emulation helper are also versioned/pinned. Update digests deliberately.
   tag. Version and latest tags appear only after runtime verification. CI logs
   and step summaries record compilation/packaging and per-architecture timings.
 
+### Pinned pulls on the classic Docker store
+
+Docker's classic image store cannot map a single multi-platform index digest to
+two local platform images: pulling AMD64 and then ARM64 under the same digest
+can fail with `cannot overwrite digest` before the ARM64 container starts. This
+is [a reported Moby limitation](https://github.com/moby/moby/issues/43188).
+The initial local checks used the containerd store and missed this difference.
+
+The smoke script now reads the pinned index once and uses
+`docker-platform-image.mjs` to select exactly one runnable child manifest for
+each requested architecture, ignoring attestations and rejecting missing,
+ambiguous, or invalid matches. Docker pulls and runs **distinct child digests**,
+with implicit pulls disabled. Promotion still copies the original immutable
+index containing those children. Local PR and rehearsal tags skip registry
+resolution. The Docker image workflow installs the same pinned Bun used by
+release and rehearsal to run this helper; no application compilation is added.
+
 ## Recovery and fallback
 
 Release saves a small `release-candidate` Actions artifact **before publication**:
 the candidate git bundle, source/commit/version/platform metadata, and release
 notes. Use **Re-run failed jobs** on that same run within its 30-day retention.
+If the workflow or smoke script itself needs a code fix, first push that fix
+and start a **new** Release run. Re-running an old run still checks out its
+original source and therefore cannot pick up corrected CI code. A failure before
+promotion leaves the candidate version unpublished, so the new run can release
+that version using the fixed scripts.
 Checkout is pinned to the original source SHA. Restoring the bundle prevents a
 post-push retry from calculating the next version or creating a different
 release commit. The artifact contains no credentials or application data.
@@ -140,3 +162,13 @@ native-binary rejection, digest conflicts, and exact candidate recovery before
 and after pushing a tag. A public-registry inspection also verified the digest
 helper against the pinned Bun runtime index. No hosted Actions run, GHCR
 publication, git push, or GitHub release was performed during local validation.
+
+The classic-store follow-up used an isolated Docker 28 daemon with `overlay2`
+and a temporary localhost registry. The old smoke script reproduced the exact
+`cannot overwrite digest` error after AMD64 succeeded and ARM64 was pulled.
+The corrected script passed against the **same index**: AMD64 in 6 seconds and
+ARM64 under QEMU in 18 seconds, including SQLite writes, upload, and container
+replacement. Regression tests cover child-digest selection, attestation
+filtering, missing/ambiguous matches, and running both architectures without
+ever pulling the shared index digest into the classic store. Loaded local tags
+are also verified to avoid registry access.

@@ -1,15 +1,87 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { prepareDockerOutput, assertPortableOutput } from '../scripts/prepare-docker-output.mjs'
 import { imageDigest, releaseImageState } from '../scripts/release-image-state.mjs'
+import { platformImage } from '../scripts/docker-platform-image.mjs'
 
 const root = new URL('../', import.meta.url)
 const digest = `sha256:${'a'.repeat(64)}`
 const other = `sha256:${'b'.repeat(64)}`
+const armDigest = `sha256:${'c'.repeat(64)}`
+const imageType = 'application/vnd.oci.image.manifest.v1+json'
+const stagedImage = `example.test/serangkai@${digest}`
+const imageIndex = {
+  schemaVersion: 2,
+  mediaType: 'application/vnd.oci.image.index.v1+json',
+  manifests: [
+    { mediaType: imageType, digest: other, platform: { os: 'linux', architecture: 'amd64' } },
+    { mediaType: imageType, digest: armDigest, platform: { os: 'linux', architecture: 'arm64', variant: 'v8' } },
+    { mediaType: imageType, digest, platform: { os: 'unknown', architecture: 'unknown' }, annotations: { 'vnd.docker.reference.type': 'attestation-manifest' } },
+  ],
+}
+
+test('smoke pulls use distinct platform manifests belonging to the pinned promotion index', () => {
+  assert.equal(platformImage(stagedImage, 'linux/amd64', imageIndex), `example.test/serangkai@${other}`)
+  assert.equal(platformImage(stagedImage, 'linux/arm64', imageIndex), `example.test/serangkai@${armDigest}`)
+  assert.equal(platformImage(stagedImage, 'linux/arm64/v8', imageIndex), `example.test/serangkai@${armDigest}`)
+  assert.throws(() => platformImage(stagedImage, 'linux/arm/v7', imageIndex), /found 0/)
+  assert.throws(() => platformImage(stagedImage, 'linux/amd64', { ...imageIndex, manifests: [...imageIndex.manifests, imageIndex.manifests[0]] }), /found 2/)
+  assert.throws(() => platformImage(stagedImage, 'linux/amd64', { ...imageIndex, manifests: [{ ...imageIndex.manifests[0], digest: 'invalid' }] }), /Invalid manifest digest/)
+  assert.throws(() => platformImage('example.test/serangkai:mutable', 'linux/amd64', imageIndex), /pinned/)
+  assert.equal(platformImage(stagedImage, 'linux/amd64', { schemaVersion: 2, mediaType: imageType }), stagedImage)
+})
+
+test('smoke orchestration avoids classic-store index collisions and preserves loaded local tags', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'serangkai-smoke-regression-'))
+  try {
+    const bin = join(directory, 'bin')
+    const calls = join(directory, 'calls.jsonl')
+    const state = join(directory, 'images.json')
+    const fixture = join(directory, 'index.json')
+    await mkdir(bin)
+    await writeFile(fixture, JSON.stringify(imageIndex))
+    // Reproduce the classic store's failure if the shared INDEX digest is
+    // passed to pull/run. Real container behavior is checked separately.
+    await writeFile(join(bin, 'docker'), `#!${process.execPath}
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
+const args = process.argv.slice(2)
+appendFileSync(process.env.SMOKE_CALLS, JSON.stringify(args) + '\\n')
+const images = JSON.parse(readFileSync(process.env.SMOKE_IMAGES, 'utf8'))
+const pinned = ${JSON.stringify(stagedImage)}
+const ref = args.find(arg => arg.startsWith('example.test/') || arg.startsWith('local:'))
+if (args[0] === 'buildx') { console.log(readFileSync(process.env.SMOKE_INDEX, 'utf8')); process.exit(0) }
+if (['pull', 'run'].includes(args[0]) && ref === pinned) { console.error('cannot overwrite digest ' + ${JSON.stringify(digest)}); process.exit(1) }
+if (args[0] === 'image') process.exit(ref.startsWith('local:') || images.includes(ref) ? 0 : 1)
+if (args[0] === 'pull') { images.push(ref); writeFileSync(process.env.SMOKE_IMAGES, JSON.stringify(images)); process.exit(0) }
+if (args[0] === 'port') console.log('127.0.0.1:3999')
+if (args[0] === 'inspect') console.log('true')
+if (args[0] === 'run') console.log(args.includes('--entrypoint') ? (args[args.indexOf('--platform') + 1] === 'linux/amd64' ? 'x64' : 'arm64') : 'container-id')
+`)
+    await writeFile(join(bin, 'curl'), `#!${process.execPath}
+console.log(JSON.stringify({ rangka: [{ title: 'Docker SQLite smoke' }, { title: 'Docker storage smoke' }] }))
+`)
+    for (const command of ['docker', 'curl']) await chmod(join(bin, command), 0o755)
+    const script = new URL('../scripts/smoke-docker.sh', import.meta.url).pathname
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, SMOKE_CALLS: calls, SMOKE_IMAGES: state, SMOKE_INDEX: fixture, GITHUB_STEP_SUMMARY: '' }
+    await writeFile(state, '[]')
+    execFileSync('bash', [script, stagedImage, 'linux/amd64,linux/arm64'], { env, stdio: ['ignore', 'pipe', 'pipe'], timeout: 30000 })
+    const commands = (await readFile(calls, 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+    const pulls = commands.filter(args => args[0] === 'pull')
+    assert.deepEqual(pulls.map(args => args.at(-1)), [`example.test/serangkai@${other}`, `example.test/serangkai@${armDigest}`])
+    assert.equal(commands.filter(args => args[0] === 'buildx').length, 1)
+    assert.equal(commands.filter(args => args[0] === 'run').length, 6, 'both architectures must probe and boot twice')
+    assert.ok(commands.filter(args => args[0] === 'run').every(args => args.includes('--pull=never')))
+    assert.ok(commands.filter(args => args[0] === 'image').every(args => !args.includes('--platform')), 'works with older classic-store Docker APIs')
+    await writeFile(calls, '')
+    execFileSync('bash', [script, 'local:rehearsal-arm64', 'linux/arm64'], { env, stdio: ['ignore', 'pipe', 'pipe'], timeout: 30000 })
+    const local = (await readFile(calls, 'utf8')).trim().split('\n').map(line => JSON.parse(line))
+    assert.ok(local.every(args => !['buildx', 'pull'].includes(args[0])), 'loaded rehearsal/PR tags need no registry access')
+  } finally { await rm(directory, { recursive: true, force: true }) }
+})
 
 test('Docker packaging removes only unused SQLite bindings and preserves tested Node output', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'serangkai-portable-'))

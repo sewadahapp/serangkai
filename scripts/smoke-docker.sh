@@ -8,28 +8,40 @@ workdir="$(mktemp -d)"
 container="serangkai-smoke-${RANDOM}-$$"
 volume="$container-data"
 cleanup() {
-  docker rm -f "$container" >/dev/null 2>&1 || true
+  docker rm -f "$container" "$container-probe" >/dev/null 2>&1 || true
   docker volume rm "$volume" >/dev/null 2>&1 || true
 }
 trap 'cleanup; rm -rf "$workdir"' EXIT
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# The classic Docker store cannot bind one index digest to two target images.
+# Resolve children from the pinned index; leave that index intact for promotion.
+# Local PR/rehearsal tags are already loaded and require no registry lookup.
+if [[ "$image" == *@sha256:* ]]; then
+  timeout 30 docker buildx imagetools inspect "$image" --raw > "$workdir/manifest.json"
+fi
 IFS=',' read -ra targets <<< "$platforms"
 for platform in "${targets[@]}"; do
   case "$platform" in linux/amd64) expected=x64 ;; linux/arm64) expected=arm64 ;; *) echo "Unsupported platform: $platform" >&2; exit 1 ;; esac
   started=$SECONDS
   cleanup
-  # Pull is bounded too. A loaded rehearsal image needs no registry access.
-  if ! docker image inspect --platform "$platform" "$image" >/dev/null 2>&1; then
-    timeout 120 docker pull --platform "$platform" "$image"
+  target_image="$image"
+  if [[ -f "$workdir/manifest.json" ]]; then
+    target_image="$(bun "$script_dir/docker-platform-image.mjs" "$image" "$platform" "$workdir/manifest.json")"
   fi
-  actual="$(timeout 30 docker run --rm --platform "$platform" --entrypoint bun "$image" -e 'console.log(process.arch)')"
+  echo "Smoke testing $platform: $target_image"
+  # Pull is bounded too. A loaded rehearsal image needs no registry access.
+  if ! docker image inspect "$target_image" >/dev/null 2>&1; then
+    timeout 120 docker pull --platform "$platform" "$target_image"
+  fi
+  actual="$(timeout 30 docker run --rm --name "$container-probe" --pull=never --platform "$platform" --entrypoint bun "$target_image" -e 'console.log(process.arch)')"
   [[ "$actual" == "$expected" ]] || { echo "Expected $expected, got $actual" >&2; exit 1; }
   docker volume create "$volume" >/dev/null
   jwt="$(openssl rand -hex 32)"
   share="$(openssl rand -hex 32)"
   for boot in 1 2; do
-    docker run -d --name "$container" --platform "$platform" -p 127.0.0.1::3000 -v "$volume:/data" \
+    docker run -d --name "$container" --pull=never --platform "$platform" -p 127.0.0.1::3000 -v "$volume:/data" \
       -e ADMIN_USERNAME=smoke -e ADMIN_PASSWORD=smoke-test-password \
-      -e JWT_SECRET="$jwt" -e SHARE_SECRET="$share" -e NUXT_SESSION_COOKIE_SECURE=false "$image" >/dev/null
+      -e JWT_SECRET="$jwt" -e SHARE_SECRET="$share" -e NUXT_SESSION_COOKIE_SECURE=false "$target_image" >/dev/null
     port="$(docker port "$container" 3000/tcp | head -1 | sed 's/.*://')"
     base="http://127.0.0.1:$port"
     healthy=false
