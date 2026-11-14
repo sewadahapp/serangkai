@@ -8,10 +8,30 @@
           <span class="grid size-8 shrink-0 place-items-center rounded-md bg-[var(--selaras-resolved-color-primary-fill)] text-sm font-bold text-[var(--selaras-resolved-color-primary-on-fill)]">S</span>
           <span class="text-base font-semibold tracking-tight">Serangkai</span>
         </NuxtLink>
-        <div class="flex items-center gap-3">
-          <span v-if="rangka" class="hidden text-xs text-[var(--selaras-resolved-text-muted)] sm:inline">
-            {{ visibilityLabel }} · updated {{ updatedLabel }}
-          </span>
+        <div class="flex shrink-0 items-center gap-2">
+          <STooltip v-if="rangka" text="Sharing details">
+            <span class="inline-flex">
+              <SPopover :positioning="{ align: 'end', sideOffset: 8, collisionPadding: 16 }" :ui="{ content: 'w-72 max-w-[calc(100vw-2rem)] p-4' }">
+                <SButton variant="soft" color="neutral" size="sm" :icon="visibilityIcon" aria-label="Sharing details" :ui="{ base: 'rounded-full' }">
+                  <span class="hidden sm:inline">{{ visibilityShortLabel }}</span>
+                  <SIcon name="lucide:chevron-down" class="hidden size-3 sm:block" aria-hidden="true" />
+                </SButton>
+                <template #content>
+                  <p class="text-sm font-semibold">Sharing details</p>
+                  <dl class="mt-4 space-y-4 text-sm">
+                    <div class="flex items-start gap-3">
+                      <SIcon :name="visibilityIcon" class="mt-0.5 size-4 shrink-0 text-[var(--selaras-resolved-text-muted)]" aria-hidden="true" />
+                      <div><dt class="text-xs text-[var(--selaras-resolved-text-muted)]">Access</dt><dd class="mt-1">{{ visibilityLabel }}</dd></div>
+                    </div>
+                    <div class="flex items-start gap-3">
+                      <SIcon name="lucide:clock" class="mt-0.5 size-4 shrink-0 text-[var(--selaras-resolved-text-muted)]" aria-hidden="true" />
+                      <div><dt class="text-xs text-[var(--selaras-resolved-text-muted)]">Last updated</dt><dd class="mt-1"><time :datetime="rangka.updatedAt">{{ updatedLabel }}</time></dd></div>
+                    </div>
+                  </dl>
+                </template>
+              </SPopover>
+            </span>
+          </STooltip>
           <SColorModeToggle />
         </div>
       </div>
@@ -136,9 +156,18 @@
          same way. Only the header is pinned; the footer closes the page and is
          pushed to the viewport bottom when the content is short. -->
     <footer class="border-t border-[var(--selaras-resolved-border-muted)] py-6">
-      <div class="serangkai-shell flex flex-col gap-2 text-sm text-[var(--selaras-resolved-text-muted)] sm:flex-row sm:items-center sm:justify-between">
-        <p>Shared from Serangkai — a private-by-default rangka workspace.</p>
-        <NuxtLink to="/" class="underline-offset-4 hover:underline">Open Serangkai</NuxtLink>
+      <div class="serangkai-shell flex items-center justify-between gap-4 text-sm text-[var(--selaras-resolved-text-muted)]">
+        <p class="min-w-0">Shared from Serangkai — a private-by-default rangka workspace.</p>
+        <div class="flex shrink-0 items-center gap-1">
+          <STooltip text="Serangkai on GitHub">
+            <SButton to="https://github.com/sewadahapp/serangkai" target="_blank" rel="noopener noreferrer" variant="ghost" color="neutral" icon="lucide:github" aria-label="Serangkai on GitHub (opens in a new tab)" />
+          </STooltip>
+          <STooltip text="Selaras documentation">
+            <SButton to="https://selarasui.my.id" target="_blank" rel="noopener noreferrer" variant="ghost" color="neutral" square aria-label="Selaras documentation (opens in a new tab)">
+              <SerangkaiSelarasMark />
+            </SButton>
+          </STooltip>
+        </div>
       </div>
     </footer>
   </div>
@@ -209,6 +238,16 @@ const visibilityLabel = computed(() => (
   rangka.value?.visibility === 'public' ? 'Public rangka'
     : rangka.value?.visibility === 'unlisted' ? 'Shared via signed link'
       : 'Private rangka'
+))
+
+const visibilityShortLabel = computed(() => (
+  rangka.value?.visibility === 'public' ? 'Public'
+    : rangka.value?.visibility === 'unlisted' ? 'Shared link' : 'Private'
+))
+
+const visibilityIcon = computed(() => (
+  rangka.value?.visibility === 'public' ? 'lucide:globe'
+    : rangka.value?.visibility === 'unlisted' ? 'lucide:link' : 'lucide:lock'
 ))
 
 const updatedLabel = computed(() => (

@@ -1503,4 +1503,5 @@ html.serangkai-editor-fullscreen-open body {
 .serangkai-canvas-pattern {
   background-image: radial-gradient(circle, color-mix(in srgb, var(--selaras-resolved-text-muted) 24%, transparent) 1px, transparent 1.1px);
   background-size: 24px 24px;
+  background-attachment: fixed;
 }
