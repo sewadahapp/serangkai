@@ -1,6 +1,38 @@
 # Changelog
 
 
+## v0.1.0
+
+[compare changes](https://github.com/sewadahapp/serangkai/compare/v0.0.1...v0.1.0)
+
+### 🚀 Enhancements
+
+- **workspace:** Improve browsing and creation ([5c43a24](https://github.com/sewadahapp/serangkai/commit/5c43a24))
+- Improve agent and artifact pages ([3332488](https://github.com/sewadahapp/serangkai/commit/3332488))
+- **ui:** Introduce workspace-first layout ([7cb5d52](https://github.com/sewadahapp/serangkai/commit/7cb5d52))
+- Rename artifacts to rangka ([7d3683f](https://github.com/sewadahapp/serangkai/commit/7d3683f))
+- **ui:** Integrate rangka editors into workspace ([f26c363](https://github.com/sewadahapp/serangkai/commit/f26c363))
+- **ui:** Add persistent folder tree navigation ([1f8883c](https://github.com/sewadahapp/serangkai/commit/1f8883c))
+- **ui:** Simplify agent setup and improve theme highlights ([3f5c644](https://github.com/sewadahapp/serangkai/commit/3f5c644))
+- **ui:** Redesign settings and theme previews ([45ebccb](https://github.com/sewadahapp/serangkai/commit/45ebccb))
+- **ui:** Add subtle Selaras credit ([5c94f31](https://github.com/sewadahapp/serangkai/commit/5c94f31))
+- **ui:** Refine shared pages and fix canvas background ([cc9f4ed](https://github.com/sewadahapp/serangkai/commit/cc9f4ed))
+
+### 🩹 Fixes
+
+- **storage:** Block colon and dot-segment paths escaping bundles ([843b84a](https://github.com/sewadahapp/serangkai/commit/843b84a))
+- **versions:** Claim version number before writing content ([e5bda23](https://github.com/sewadahapp/serangkai/commit/e5bda23))
+- **auth:** Keep known devices out of the shared login rate limit ([9af39c9](https://github.com/sewadahapp/serangkai/commit/9af39c9))
+- **artifacts:** Reject binary types sent as text and label SVG images ([a9baf1b](https://github.com/sewadahapp/serangkai/commit/a9baf1b))
+- **ui:** Refine account control and code spacing ([4aacbcc](https://github.com/sewadahapp/serangkai/commit/4aacbcc))
+- **ui:** Align sidebar folder navigation ([69692cb](https://github.com/sewadahapp/serangkai/commit/69692cb))
+- **ci:** Eliminate emulated Nuxt release builds ([d146996](https://github.com/sewadahapp/serangkai/commit/d146996))
+- **ci:** Smoke test platform-specific image digests ([4dd1d69](https://github.com/sewadahapp/serangkai/commit/4dd1d69))
+
+### ❤️ Contributors
+
+- Wicaksana Pratama <wicaksanapratama@gmail.com>
+
 ## v0.0.1
 
 
