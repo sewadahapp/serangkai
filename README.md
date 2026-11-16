@@ -223,6 +223,36 @@ Worker restart). Vercel uses Nitro's `vercel` preset and a Node 24 function
 runtime, but its filesystem is ephemeral: durable data needs an external
 database plus `STORAGE_DRIVER=s3`.
 
+### Turso / remote libSQL
+
+Select Turso instead of the local SQLite file with:
+
+```dotenv
+DATABASE_DRIVER=turso
+TURSO_DATABASE_URL=libsql://your-database.turso.io
+TURSO_AUTH_TOKEN=your-database-token
+```
+
+This uses Drizzle's [libSQL adapter](https://orm.drizzle.team/docs/sqlite/connect-turso)
+on Bun, Node/Vercel, and Cloudflare Workers. The network client accepts
+`libsql://`, `https://`, and `http://` endpoints; an unauthenticated self-hosted
+libSQL server can omit the token. An explicit Turso selection takes priority
+over a Cloudflare D1 binding. Local SQLite remains the default, and
+`DATABASE_PATH` is ignored when Turso is selected. Configuration or connection
+failures surface as errors; they never fall back to a local database.
+
+The shared schema and upgrade migrations run before the first database request.
+Existing SQLite data is **not copied automatically**: back up your database and
+import it into Turso using its [migration guide](https://docs.turso.tech/cloud/migrate-to-turso)
+before switching an existing installation. Keep the object store and stable
+secrets with it: rangka content stays in filesystem/R2/S3 storage, while Turso
+stores metadata, users, and tokens. On Vercel, pair Turso with `STORAGE_DRIVER=s3`.
+Drizzle Kit also uses the selected Turso endpoint when `DATABASE_DRIVER=turso`.
+
+`bun run test:turso` checks the adapter and OAuth atomicity without cloud credentials.
+`bun run test:turso-runtime` exercises the built server on Bun and Node;
+`bun run test:cloudflare-runtime` checks both D1 and Turso in a local Worker.
+
 ### What has actually been exercised
 
 Docker persistence is checked locally with Podman: the container is replaced on
@@ -232,6 +262,9 @@ local test matrices, not a hosted deployment. Nothing in this repository deploys
 anywhere on its own, and no platform is a supported contract until health and
 persistence have been verified after a real deployment. Run
 `bun run test:provider-local` for the local matrix.
+
+Turso checks use the production libSQL HTTP client with a local SQLite-backed
+Hrana fixture. Hosted Turso validation remains a deployment step.
 
 ### Publishing an image
 

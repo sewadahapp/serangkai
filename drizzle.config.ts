@@ -1,10 +1,19 @@
 import { defineConfig } from 'drizzle-kit'
+import { getDatabaseProvider, getTursoConfig } from './server/db/provider'
 
-export default defineConfig({
+const common = {
   schema: './server/db/schema.ts',
   out: './drizzle',
+}
+
+export default defineConfig(getDatabaseProvider() === 'turso' ? {
+  ...common,
+  dialect: 'turso',
+  dbCredentials: getTursoConfig(),
+} : {
+  ...common,
   dialect: 'sqlite',
   dbCredentials: {
-    url: './data/serangkai.db',
+    url: process.env.DATABASE_PATH || './data/serangkai.db',
   },
 })

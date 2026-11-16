@@ -10,6 +10,8 @@
  * the stable root secret that the session key is derived from (see
  * `scripts/session-secret.mjs`).
  */
+import { getDatabaseProvider, getTursoConfig, type DatabaseProvider } from '../db/provider'
+
 export type StorageDriver = 'local' | 's3' | 'r2-binding'
 
 export interface ServerConfig {
@@ -24,6 +26,8 @@ export interface ServerConfig {
    */
   ownerMigrationUserId: string
   databasePath: string
+  databaseDriver: DatabaseProvider
+  turso?: ReturnType<typeof getTursoConfig>
   storageDriver: StorageDriver
   storagePath: string
   r2Binding: string
@@ -103,6 +107,9 @@ export function getServerConfig(): ServerConfig {
     }
   }
 
+  const databaseDriver = getDatabaseProvider()
+  const turso = databaseDriver === 'turso' ? getTursoConfig() : undefined
+
   cached = {
     production,
     jwtSecret,
@@ -111,6 +118,8 @@ export function getServerConfig(): ServerConfig {
     adminPassword,
     ownerMigrationUserId: process.env.SERANGKAI_MIGRATION_OWNER_USER_ID || '',
     databasePath: process.env.DATABASE_PATH || './data/serangkai.db',
+    databaseDriver,
+    turso,
     storageDriver,
     storagePath: process.env.STORAGE_PATH || './data/files',
     r2Binding: process.env.R2_BINDING || 'RANGKA',

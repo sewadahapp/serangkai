@@ -15,7 +15,7 @@ Serangkai is a production-minded, open-source, self-hosted rangka and knowledge 
 - **Auth**: Nuxt Auth Utils sealed browser sessions for one environment-configured
   owner account (`ADMIN_USERNAME` / `ADMIN_PASSWORD`); scoped SHA-256 API tokens
   are separate and never fall back to a browser session
-- **Database**: Drizzle ORM; `bun:sqlite` under Bun, `better-sqlite3` under Node, request-scoped D1 on Cloudflare
+- **Database**: Drizzle ORM; `bun:sqlite` under Bun, `better-sqlite3` under Node, request-scoped D1 on Cloudflare; opt-in Turso/libSQL on every runtime via `DATABASE_DRIVER=turso`
 - **Storage**: Nitro `useStorage()` over unstorage; filesystem by default, R2 binding on Cloudflare, S3-compatible storage (including Backblaze B2) on any runtime via `STORAGE_DRIVER=s3`
 - **Deployment**: Docker (primary, persistent volume at `/data`), Cloudflare Workers, Vercel
 
@@ -39,6 +39,7 @@ Serangkai is a production-minded, open-source, self-hosted rangka and knowledge 
 - Use `bun install --frozen-lockfile` for reproducible installs
 - Follow Nuxt 4 conventions and prefer built-in Nuxt/Nitro features
 - Keep it simple, avoid over-abstraction
+- Turso uses the network-only `@libsql/client/web` and `drizzle-orm/libsql/web` imports. Preserve the shared SQLite schema/migrations and atomic OAuth batches; do not bundle native libSQL binaries into Docker or Workers.
 - Write tests for critical functionality
 - Commit meaningful progress regularly
 - Docker compilation must use `BUILDPLATFORM`, never QEMU. Release/rehearsal

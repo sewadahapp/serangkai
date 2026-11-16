@@ -12,9 +12,11 @@ import { BOOTSTRAP_STATEMENTS } from '../server/db/bootstrap.ts'
 // and the count assertion below still catches a statement that never runs.
 const TABLE_COUNT = BOOTSTRAP_STATEMENTS.length
 
-test('selects SQLite by default and D1 explicitly', () => {
+test('selects SQLite by default and D1 or Turso explicitly', () => {
   assert.equal(getDatabaseProvider({}), 'sqlite')
   assert.equal(getDatabaseProvider({ DATABASE_DRIVER: 'd1' }), 'd1')
+  assert.equal(getDatabaseProvider({ DATABASE_DRIVER: 'turso' }), 'turso')
+  assert.throws(() => getDatabaseProvider({ DATABASE_DRIVER: 'typo' }), /Unknown DATABASE_DRIVER/)
 })
 
 test('initializes a D1-compatible binding through prepared statements', async () => {

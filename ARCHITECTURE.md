@@ -36,7 +36,8 @@ Serangkai is a Nuxt 4 application providing rangka storage, organization, and sh
   Author-supplied JavaScript is never evaluated.
 - **Backend**: Nuxt Nitro server routes (Nitro 2 / H3 v1 via Nuxt 4)
 - **Database**: Drizzle ORM with Bun's built-in SQLite under Bun, better-sqlite3
-  under Node, and a request-scoped D1 adapter for Cloudflare
+  under Node, and a request-scoped D1 adapter for Cloudflare; opt-in remote
+  Turso/libSQL on all runtimes with `DATABASE_DRIVER=turso`
 - **Storage**: Nitro `useStorage()` over unstorage — filesystem by default,
   Cloudflare R2 binding, or S3-compatible storage
 - **Toolchain**: Bun 1.4 for install, scripts, tests, builds, and the Docker
@@ -592,10 +593,20 @@ convenience path for clients that support it. Both resolve to the same scoped
 - **Healthcheck**: /api/health endpoint
 - **Persistence**: `bun run test:docker` replaces a container on the same volume
   and checks the owner, rangka, uploads, tokens, and share links.
+- **Turso**: `DATABASE_DRIVER=turso` selects a network-only libSQL client using
+  `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (optional for unauthenticated
+  self-hosted libSQL). It takes precedence over D1 bindings and never falls back
+  to local SQLite. Each process/isolate shares a lazy initialization promise;
+  concurrent requests wait for schema readiness and transient failures retry.
+  The shared rename migrations run before bootstrap; OAuth uses atomic batches
+  and libSQL `rowsAffected` counts. Imports use `/web` to exclude native libSQL
+  binaries. Existing databases must be imported explicitly; file content remains
+  in the configured object store. Drizzle Kit honors the same selection.
 - **Edge**: Cloudflare uses D1/R2 by default, or D1 + S3-compatible storage
   (Backblaze B2) with `STORAGE_DRIVER=s3`; Vercel uses Node + S3 for durable
-  data. Edge entry points set `NUXT_APP_SECRET` explicitly because they cannot
-  be wrapped.
+  data, with Turso available as the external database. Cloudflare can also select
+  Turso while keeping R2 or S3. Edge entry points set `NUXT_APP_SECRET` explicitly
+  because they cannot be wrapped.
 - **Cloudflare button**: `wrangler.jsonc` omits account-specific D1/R2 ids so
   Wrangler or the Deploy to Cloudflare button provisions them. The `deploy`
   script builds the `cloudflare_module` preset before running Wrangler, and
