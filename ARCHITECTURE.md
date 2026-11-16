@@ -618,3 +618,10 @@ convenience path for clients that support it. Both resolve to the same scoped
   deploy time instead of duplicating it. Its Wrangler config has no R2 binding:
   D1 is provisioned, object storage is Backblaze B2 via `S3_*` secrets. Manual
   deployments use `wrangler.b2.jsonc` and `bun run deploy:b2` from the root.
+- **Turso button**: `deploy/cloudflare-turso/` is a standalone launcher with
+  `DATABASE_DRIVER=turso`, R2 for object storage, and no D1 binding. The button
+  prompts for an existing Turso database URL and read/write token alongside the
+  five owner/session secrets; it provisions only R2. Its source pin includes
+  the Turso adapter and is recorded in the build output. Manual deployments use
+  `wrangler.turso.jsonc` and `bun run deploy:turso`; the local Worker test covers
+  remote SQL and R2 uploads without D1.

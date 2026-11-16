@@ -116,6 +116,26 @@ or set to `bun run build:cloudflare`; the deploy script performs the Cloudflare
 build itself. Manual deployments can add the D1 `database_id` and R2
 `bucket_name` returned by Wrangler instead of relying on automatic provisioning.
 
+### Deploy to Cloudflare with Turso
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sewadahapp/serangkai/tree/master/deploy/cloudflare-turso)
+
+Use Turso/libSQL for the database and R2 for rangka content and uploaded files.
+Create the Turso database and a read/write database token first, then enter
+`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, and the five owner/session secrets
+when prompted. The button provisions an R2 bucket; this variant has no D1
+binding. R2 must be enabled in your Cloudflare account.
+
+The standalone [Turso template](deploy/cloudflare-turso/README.md) pins an
+application commit with Turso support and builds it with Bun. It records the
+source ref in `.output/serangkai-source.json`; update the pin deliberately to
+upgrade. Existing data needs an explicit import into Turso and matching object
+storage. See [Turso / remote libSQL](#turso--remote-libsql) for the adapter details.
+
+Manual deployment from the repository root uses `bun run deploy:turso`.
+First create an R2 bucket, add its `bucket_name` to `wrangler.turso.jsonc`, and
+set the Worker secrets using `wrangler secret put NAME --config wrangler.turso.jsonc`.
+
 ### Deploy to Cloudflare with Backblaze B2
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sewadahapp/serangkai/tree/master/deploy/cloudflare-b2)
@@ -142,11 +162,11 @@ versions can still appear in usage until the next run.
 The second button deploys from the thin template in
 [`deploy/cloudflare-b2/`](deploy/cloudflare-b2/README.md): it provisions D1,
 prompts for the same owner and session secrets plus the five `S3_*` values, and
-builds the application source at deploy time. Two buttons exist because the
+builds the application source at deploy time. Separate buttons exist because the
 Deploy to Cloudflare platform reads one Wrangler configuration per repository.
 The template is a launcher, not a copy of the app: `build.mjs` downloads
-`sewadahapp/serangkai` at `master` unless you set `SERANGKAI_REF` to a tag or
-commit (and `SERANGKAI_REPO` for a fork). Editing the cloned template does not
+`sewadahapp/serangkai` at its committed `serangkai.ref` pin unless you set
+`SERANGKAI_REF` to another ref (and `SERANGKAI_REPO` for a fork). Editing the cloned template does not
 change the deployed application.
 
 Manual deployment works from the repository root:
