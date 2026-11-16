@@ -5,12 +5,13 @@ import { join } from 'node:path'
 import { test, after } from 'node:test'
 import * as b2 from '../deploy/cloudflare-b2/ref.mjs'
 import * as turso from '../deploy/cloudflare-turso/ref.mjs'
+import * as tursoB2 from '../deploy/cloudflare-turso-b2/ref.mjs'
 
 const dir = mkdtempSync(join(tmpdir(), 'serangkai-ref-'))
 const pinFile = join(dir, 'serangkai.ref')
 after(() => rmSync(dir, { recursive: true, force: true }))
 
-for (const [template, { resolveRef, DEFAULT_BRANCH }] of [['cloudflare-b2', b2], ['cloudflare-turso', turso]]) {
+for (const [template, { resolveRef, DEFAULT_BRANCH }] of [['cloudflare-b2', b2], ['cloudflare-turso', turso], ['cloudflare-turso-b2', tursoB2]]) {
   test(`${template}: explicit SERANGKAI_REF override always wins`, () => {
     writeFileSync(pinFile, 'pinned-commit\n')
     const result = resolveRef({ env: { SERANGKAI_REF: 'my-branch' }, pinFile })

@@ -18,6 +18,7 @@
     "deploy": "bun run build:cloudflare && wrangler deploy",
     "deploy:b2": "bun run build:cloudflare && wrangler deploy --config wrangler.b2.jsonc",
     "deploy:turso": "bun run build:cloudflare && wrangler deploy --config wrangler.turso.jsonc",
+    "deploy:turso-b2": "bun run build:cloudflare && wrangler deploy --config wrangler.turso-b2.jsonc",
     "dev": "bun run build:runtime && bun --bun run nuxt dev --port 6969 --host 127.0.0.1",
     "preview": "bun scripts/start.mjs",
     "start": "bun scripts/start.mjs",

@@ -602,26 +602,34 @@ convenience path for clients that support it. Both resolve to the same scoped
   and libSQL `rowsAffected` counts. Imports use `/web` to exclude native libSQL
   binaries. Existing databases must be imported explicitly; file content remains
   in the configured object store. Drizzle Kit honors the same selection.
-- **Edge**: Cloudflare uses D1/R2 by default, or D1 + S3-compatible storage
-  (Backblaze B2) with `STORAGE_DRIVER=s3`; Vercel uses Node + S3 for durable
+- **Edge**: Cloudflare supports D1 or Turso independently of R2 or S3-compatible
+  storage (Backblaze B2) with `STORAGE_DRIVER=s3`; Vercel uses Node + S3 for durable
   data, with Turso available as the external database. Cloudflare can also select
   Turso while keeping R2 or S3. Edge entry points set `NUXT_APP_SECRET` explicitly
   because they cannot be wrapped.
-- **Cloudflare button**: `wrangler.jsonc` omits account-specific D1/R2 ids so
-  Wrangler or the Deploy to Cloudflare button provisions them. The `deploy`
-  script builds the `cloudflare_module` preset before running Wrangler, and
+- **Cloudflare chooser**: the README has one deployment entry linking to
+  `docs/deploy-cloudflare.md`. Its four choices route to fixed native button
+  templates with only the chosen resources and secret prompts. The chooser has
+  no default selection, creates no resources, and requires no separate hosting.
+  The explicit D1 + R2 choice uses `wrangler.jsonc`, which omits account-specific
+  D1/R2 ids so Wrangler or the Deploy to Cloudflare button provisions them.
+  The `deploy` script builds the `cloudflare_module` preset before running Wrangler, and
   `.dev.vars.example` lists the five secrets the deploy page prompts for. The
   Worker creates its schema on the first request, so there is no migration step.
-- **B2 button**: `deploy/cloudflare-b2/` is a thin, self-contained template for
-  a second Deploy to Cloudflare button. The platform copies only that
-  subdirectory, so the template's `build.mjs` fetches the application source at
-  deploy time instead of duplicating it. Its Wrangler config has no R2 binding:
+- **D1 + B2 template**: `deploy/cloudflare-b2/` is a thin, self-contained template.
+  The platform copies only that subdirectory, so the template's `build.mjs`
+  fetches the application source at deploy time instead of duplicating it.
+  Its Wrangler config has no R2 binding:
   D1 is provisioned, object storage is Backblaze B2 via `S3_*` secrets. Manual
   deployments use `wrangler.b2.jsonc` and `bun run deploy:b2` from the root.
-- **Turso button**: `deploy/cloudflare-turso/` is a standalone launcher with
+- **Turso + R2 template**: `deploy/cloudflare-turso/` is a standalone launcher with
   `DATABASE_DRIVER=turso`, R2 for object storage, and no D1 binding. The button
   prompts for an existing Turso database URL and read/write token alongside the
   five owner/session secrets; it provisions only R2. Its source pin includes
   the Turso adapter and is recorded in the build output. Manual deployments use
   `wrangler.turso.jsonc` and `bun run deploy:turso`; the local Worker test covers
   remote SQL and R2 uploads without D1.
+- **Turso + B2 template**: `deploy/cloudflare-turso-b2/` uses
+  `wrangler.turso-b2.jsonc` and `bun run deploy:turso-b2` for manual deployments.
+  These select both external providers and declare no D1/R2 bindings. The Worker
+  test covers remote SQL and signed S3 requests for text and binary content in this mode.

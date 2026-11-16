@@ -61,8 +61,8 @@ test('the Backblaze B2 path uses D1 without R2 and never commits credentials', a
   assert.match(build, /build:cloudflare/)
   assert.doesNotMatch(devVars, /AKIA|BEGIN [A-Z ]*PRIVATE KEY/)
 
-  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
-  assert.match(readme, /deploy\.workers\.cloudflare\.com\/\?url=https:\/\/github\.com\/sewadahapp\/serangkai\/tree\/master\/deploy\/cloudflare-b2/)
+  const chooser = await readFile(new URL('../docs/deploy-cloudflare.md', import.meta.url), 'utf8')
+  assert.match(chooser, /deploy\.workers\.cloudflare\.com\/\?url=https:\/\/github\.com\/sewadahapp\/serangkai\/tree\/master\/deploy\/cloudflare-b2/)
 })
 
 test('the Turso button provisions R2 without D1 and prompts for external database credentials', async () => {
@@ -82,7 +82,7 @@ test('the Turso button provisions R2 without D1 and prompts for external databas
 
   const templatePkg = JSON.parse(await readFile(new URL('../deploy/cloudflare-turso/package.json', import.meta.url), 'utf8'))
   const vars = await readFile(new URL('../deploy/cloudflare-turso/.dev.vars.example', import.meta.url), 'utf8')
-  const keys = [...vars.matchAll(/^([A-Z_]+)=/gm)].map(match => match[1]).sort()
+  const keys = [...vars.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map(match => match[1]).sort()
   assert.deepEqual(keys, ['ADMIN_USERNAME', 'ADMIN_PASSWORD', 'JWT_SECRET', 'SHARE_SECRET', 'NUXT_APP_SECRET', 'TURSO_DATABASE_URL', 'TURSO_AUTH_TOKEN'].sort())
   assert.deepEqual(Object.keys(templatePkg.cloudflare.bindings).sort(), keys)
   assert.equal(templatePkg.packageManager, 'bun@1.4.0')
@@ -90,6 +90,62 @@ test('the Turso button provisions R2 without D1 and prompts for external databas
   assert.match(templatePkg.scripts.deploy, /bun run build .*wrangler@4\.156\.1 deploy/)
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   assert.equal(pkg.scripts['deploy:turso'], 'bun run build:cloudflare && wrangler deploy --config wrangler.turso.jsonc')
+  const chooser = await readFile(new URL('../docs/deploy-cloudflare.md', import.meta.url), 'utf8')
+  assert.match(chooser, /deploy\.workers\.cloudflare\.com\/\?url=https:\/\/github\.com\/sewadahapp\/serangkai\/tree\/master\/deploy\/cloudflare-turso/)
+})
+
+test('Turso and B2 require neither a D1 nor an R2 binding', async () => {
+  const config = await readJsonc('../wrangler.turso-b2.jsonc')
+  const template = await readJsonc('../deploy/cloudflare-turso-b2/wrangler.jsonc')
+  assert.deepEqual(template, config)
+  assert.equal(config.d1_databases, undefined)
+  assert.equal(config.r2_buckets, undefined)
+  assert.equal(config.vars.DATABASE_DRIVER, 'turso')
+  assert.equal(config.vars.STORAGE_DRIVER, 's3')
+  assert.deepEqual(Object.keys(config.vars).sort(), ['DATABASE_DRIVER', 'NODE_ENV', 'STORAGE_DRIVER'])
+  assert.equal(config.assets.binding, 'ASSETS')
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.equal(pkg.scripts['deploy:turso-b2'], 'bun run build:cloudflare && wrangler deploy --config wrangler.turso-b2.jsonc')
+
+  const templatePkg = JSON.parse(await readFile(new URL('../deploy/cloudflare-turso-b2/package.json', import.meta.url), 'utf8'))
+  const vars = await readFile(new URL('../deploy/cloudflare-turso-b2/.dev.vars.example', import.meta.url), 'utf8')
+  const keys = [...vars.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map(match => match[1]).sort()
+  assert.deepEqual(keys, ['ADMIN_USERNAME', 'ADMIN_PASSWORD', 'JWT_SECRET', 'SHARE_SECRET', 'NUXT_APP_SECRET', 'TURSO_DATABASE_URL', 'TURSO_AUTH_TOKEN', 'S3_ENDPOINT', 'S3_REGION', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'].sort())
+  assert.deepEqual(Object.keys(templatePkg.cloudflare.bindings).sort(), keys)
+  assert.equal(templatePkg.packageManager, 'bun@1.4.0')
+  assert.equal(templatePkg.scripts.build, 'bun build.mjs')
+  assert.match(templatePkg.scripts.deploy, /bun run build .*wrangler@4\.156\.1 deploy/)
+})
+
+test('one README deployment entry opens a chooser with all four configured provider combinations', async () => {
   const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
-  assert.match(readme, /deploy\.workers\.cloudflare\.com\/\?url=https:\/\/github\.com\/sewadahapp\/serangkai\/tree\/master\/deploy\/cloudflare-turso/)
+  assert.equal((readme.match(/https:\/\/deploy\.workers\.cloudflare\.com\/button/g) || []).length, 1)
+  assert.match(readme, /\]\(docs\/deploy-cloudflare\.md\)/)
+  const chooser = await readFile(new URL('../docs/deploy-cloudflare.md', import.meta.url), 'utf8')
+  const targets = [...chooser.matchAll(/\]\(https:\/\/deploy\.workers\.cloudflare\.com\/\?url=(https:\/\/github\.com\/sewadahapp\/serangkai[^)]*)\)/g)].map(match => match[1])
+  assert.deepEqual(targets, [
+    'https://github.com/sewadahapp/serangkai',
+    'https://github.com/sewadahapp/serangkai/tree/master/deploy/cloudflare-b2',
+    'https://github.com/sewadahapp/serangkai/tree/master/deploy/cloudflare-turso',
+    'https://github.com/sewadahapp/serangkai/tree/master/deploy/cloudflare-turso-b2',
+  ])
+  assert.match(chooser, /no preselected combination/)
+})
+
+test('each deployment choice prompts only for credentials used by its selected providers', async () => {
+  const auth = ['ADMIN_USERNAME', 'ADMIN_PASSWORD', 'JWT_SECRET', 'SHARE_SECRET', 'NUXT_APP_SECRET']
+  const turso = ['TURSO_DATABASE_URL', 'TURSO_AUTH_TOKEN']
+  const b2 = ['S3_ENDPOINT', 'S3_REGION', 'S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY']
+  for (const [directory, expected] of [
+    ['', auth],
+    ['deploy/cloudflare-b2/', [...auth, ...b2]],
+    ['deploy/cloudflare-turso/', [...auth, ...turso]],
+    ['deploy/cloudflare-turso-b2/', [...auth, ...turso, ...b2]],
+  ]) {
+    const example = await readFile(new URL(`../${directory}.dev.vars.example`, import.meta.url), 'utf8')
+    const prompted = [...example.matchAll(/^([A-Z][A-Z0-9_]*)=/gm)].map(match => match[1]).sort()
+    const pkg = JSON.parse(await readFile(new URL(`../${directory}package.json`, import.meta.url), 'utf8'))
+    assert.deepEqual(prompted, [...expected].sort(), directory || 'D1 + R2')
+    assert.deepEqual(Object.keys(pkg.cloudflare.bindings).sort(), prompted)
+  }
 })

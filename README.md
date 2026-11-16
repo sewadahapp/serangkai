@@ -97,103 +97,17 @@ change.
 
 ## Deploy to Cloudflare
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sewadahapp/serangkai)
+[![Choose providers and deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](docs/deploy-cloudflare.md)
 
-The button clones this repository into your GitHub or GitLab account, provisions
-a D1 database and R2 bucket, and prompts for the secrets listed in
-`.dev.vars.example`. It then configures Workers Builds, so pushes to the new
-repository's production branch redeploy automatically.
+Choose your database (**D1 or Turso**) and file storage (**R2 or Backblaze B2**)
+in the [deployment chooser](docs/deploy-cloudflare.md), then continue to the
+matching Cloudflare setup page. Only your selected Cloudflare resources are
+provisioned. **Turso + B2 requires neither a D1 nor an R2 binding.**
 
-`NUXT_APP_SECRET` is required on Workers: unlike the Docker and Node entry
-points, the Worker cannot run `scripts/start.mjs` to derive a session key from
-`JWT_SECRET`. Generate each random value with `openssl rand -base64 32` and keep
-them stable across deploys. The `deploy` script builds with
-`NITRO_PRESET=cloudflare_module` before running Wrangler; the Worker creates its
-D1 schema on the first request, so no separate migration command is needed.
-
-If the setup page pre-populates a separate build command, it may be left blank
-or set to `bun run build:cloudflare`; the deploy script performs the Cloudflare
-build itself. Manual deployments can add the D1 `database_id` and R2
-`bucket_name` returned by Wrangler instead of relying on automatic provisioning.
-
-### Deploy to Cloudflare with Turso
-
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sewadahapp/serangkai/tree/master/deploy/cloudflare-turso)
-
-Use Turso/libSQL for the database and R2 for rangka content and uploaded files.
-Create the Turso database and a read/write database token first, then enter
-`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, and the five owner/session secrets
-when prompted. The button provisions an R2 bucket; this variant has no D1
-binding. R2 must be enabled in your Cloudflare account.
-
-The standalone [Turso template](deploy/cloudflare-turso/README.md) pins an
-application commit with Turso support and builds it with Bun. It records the
-source ref in `.output/serangkai-source.json`; update the pin deliberately to
-upgrade. Existing data needs an explicit import into Turso and matching object
-storage. See [Turso / remote libSQL](#turso--remote-libsql) for the adapter details.
-
-Manual deployment from the repository root uses `bun run deploy:turso`.
-First create an R2 bucket, add its `bucket_name` to `wrangler.turso.jsonc`, and
-set the Worker secrets using `wrangler secret put NAME --config wrangler.turso.jsonc`.
-
-### Deploy to Cloudflare with Backblaze B2
-
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sewadahapp/serangkai/tree/master/deploy/cloudflare-b2)
-
-Backblaze B2 provides an S3-compatible API, so it can replace R2 while D1 keeps
-every database row. This path needs no R2 bucket — and therefore no R2
-activation or billing card. The free B2 tier includes 10 GB of storage, free
-egress up to 3× your average monthly stored data, and the first 2,500 Class D
-downloads per day; beyond those limits Backblaze bills storage, egress, and API
-calls, so this is not a permanently free setup.
-
-Before deploying, create **a private bucket** and **a bucket-scoped application
-key** in Backblaze, then note the endpoint (`https://s3.<region>.backblazeb2.com`),
-region, bucket name, key ID, and application key.
-
-B2 keeps old object versions by default, and hidden versions still count toward
-storage. Add a lifecycle rule with an empty file prefix that keeps only the last
-version of each file — in the console, **Keep only the last version of the
-file**, or set **Days from hiding to deleting** to `1` and leave **Days from
-uploading to hiding** empty. Do not set the upload-to-hiding value: it hides the
-current version too. Lifecycle rules run once per day, so recently replaced
-versions can still appear in usage until the next run.
-
-The second button deploys from the thin template in
-[`deploy/cloudflare-b2/`](deploy/cloudflare-b2/README.md): it provisions D1,
-prompts for the same owner and session secrets plus the five `S3_*` values, and
-builds the application source at deploy time. Separate buttons exist because the
-Deploy to Cloudflare platform reads one Wrangler configuration per repository.
-The template is a launcher, not a copy of the app: `build.mjs` downloads
-`sewadahapp/serangkai` at its committed `serangkai.ref` pin unless you set
-`SERANGKAI_REF` to another ref (and `SERANGKAI_REPO` for a fork). Editing the cloned template does not
-change the deployed application.
-
-Manual deployment works from the repository root:
-
-```bash
-bun run build:cloudflare
-wrangler d1 create serangkai        # paste the database_id into wrangler.b2.jsonc
-wrangler deploy --config wrangler.b2.jsonc
-```
-
-Then set the secrets once with `wrangler secret put S3_ENDPOINT`, `S3_REGION`,
-`S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and the four required
-authentication secrets plus `NUXT_APP_SECRET`. `S3_ENDPOINT` must be the full
-URL including `https://` (Backblaze displays the hostname without the scheme);
-`S3_REGION` is the region segment of that endpoint, such as `us-west-004`. If
-storage is misconfigured, rangka writes fail with a clear error instead of
-falling back to Worker memory — the rest of the app still loads, so a health
-check alone does not prove uploads work. `bun run deploy:b2` builds and deploys
-with the same config. On Workers, uploads and downloads are stored in B2 and
-survive redeployments as long as the secrets stay stable; D1 holds the
-metadata.
-
-The B2 path is verified locally with the Workers runtime against a
-Backblaze-compatible mock — signed requests, binary round-trips, and persistence
-across a Worker restart — but the hosted button flow has not been run against a
-real Cloudflare account and B2 bucket. Treat the first hosted deployment as
-something to verify.
+The chooser includes prerequisites, secret setup, and manual deployment
+commands for all four combinations. Turso databases and B2 buckets must be
+created in their respective services before deploying. Hosted deployments
+still require verification with a login, rangka write, and file upload.
 
 ## Development
 
@@ -234,12 +148,12 @@ bun run build:cloudflare
 bun run build:vercel
 ```
 
-Cloudflare uses Nitro's `cloudflare_module` preset, a request-scoped Drizzle D1
-adapter, and a native R2 binding. The local Wrangler/Miniflare test covers owner
-login, rangka creation, binary upload, and download; a second local Worker
-run covers the B2 path with D1, no R2 binding, and a Backblaze-compatible mock
-(signing, binary integrity, rangka update/delete, and persistence across a
-Worker restart). Vercel uses Nitro's `vercel` preset and a Node 24 function
+Cloudflare uses Nitro's `cloudflare_module` preset with D1 or Turso for rows
+and R2 or S3-compatible storage for files. Local Wrangler/Miniflare tests cover
+all four provider combinations, including signed B2 requests and a Turso + B2
+Worker with no D1/R2 bindings. The D1 + B2 test also checks updates, deletes,
+and persistence across a Worker restart. Vercel uses Nitro's `vercel` preset
+and a Node 24 function
 runtime, but its filesystem is ephemeral: durable data needs an external
 database plus `STORAGE_DRIVER=s3`.
 

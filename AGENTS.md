@@ -40,7 +40,7 @@ Serangkai is a production-minded, open-source, self-hosted rangka and knowledge 
 - Follow Nuxt 4 conventions and prefer built-in Nuxt/Nitro features
 - Keep it simple, avoid over-abstraction
 - Turso uses the network-only `@libsql/client/web` and `drizzle-orm/libsql/web` imports. Preserve the shared SQLite schema/migrations and atomic OAuth batches; do not bundle native libSQL binaries into Docker or Workers.
-- `deploy/cloudflare-turso/` is a standalone Deploy to Cloudflare template: Turso + R2, no D1. Keep its Wrangler settings aligned with `wrangler.turso.jsonc` and pin application source to a commit that includes Turso support.
+- The README's Cloudflare deployment entry opens `docs/deploy-cloudflare.md`: choose D1/Turso and R2/B2 before entering a native deploy flow. Keep standalone templates under `deploy/` aligned with their root Wrangler configurations. Turso + B2 must declare no D1/R2 bindings; pin Turso launchers to application commits with Turso support.
 - Write tests for critical functionality
 - Commit meaningful progress regularly
 - Docker compilation must use `BUILDPLATFORM`, never QEMU. Release/rehearsal

@@ -143,9 +143,12 @@ test('the Deploy to Cloudflare button has a build path, secrets, and auto-provis
   const config = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8')
   const gitignore = await readFile(new URL('../.gitignore', import.meta.url), 'utf8')
 
-  // The button must point at this repository and be visible in the README.
+  // One README entry opens the chooser; its explicit D1 + R2 choice uses the
+  // full repository and preserves the existing provisioning flow.
   assert.match(readme, /deploy\.workers\.cloudflare\.com\/button/)
-  assert.match(readme, /deploy\.workers\.cloudflare\.com\/\?url=https:\/\/github\.com\/sewadahapp\/serangkai/)
+  assert.match(readme, /\]\(docs\/deploy-cloudflare\.md\)/)
+  const chooser = await readFile(new URL('../docs/deploy-cloudflare.md', import.meta.url), 'utf8')
+  assert.match(chooser, /deploy\.workers\.cloudflare\.com\/\?url=https:\/\/github\.com\/sewadahapp\/serangkai\)/)
 
   // The deploy script must build the Cloudflare preset before Wrangler runs;
   // a node-server build would pull in better-sqlite3 and fail on Workers.
