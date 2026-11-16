@@ -113,4 +113,3 @@ test('libSQL device redemption rolls back on failure and concurrent retry has on
   assert.equal((await db.select().from(schema.apiTokens)).length, 1)
   assert.equal((await db.select().from(schema.oauthTokens)).length, 1)
 })
-
