@@ -253,7 +253,8 @@ export async function createAuthorizationCode(db: any, input: CreateCodeInput): 
  *
  * The UPDATE is conditional on `consumed_at IS NULL`, so the loser of a
  * concurrent exchange updates zero rows. The affected-row count is read from
- * each driver's own shape: bun-sqlite/better-sqlite3 report `changes`, D1
+ * each driver's own shape: bun-sqlite/better-sqlite3 report `changes`, libSQL
+ * reports `rowsAffected`, D1
  * reports `meta.changes`. An unrecognized shape is treated as "not consumed"
  * so this fails closed rather than letting a replay through.
  */
@@ -323,7 +324,7 @@ export async function issueTokens(db: any, input: IssueTokensInput): Promise<Iss
   const { apiTokenRow, grantRow, tokens } = await buildTokenRows(input)
 
   if (typeof db.batch === 'function') {
-    // D1: one batch is atomic, and there is no BEGIN/COMMIT.
+    // D1 and libSQL: one batch writes both rows atomically.
     await db.batch([
       db.insert(apiTokens).values(apiTokenRow),
       db.insert(oauthTokens).values(grantRow),
@@ -454,7 +455,7 @@ export async function rotateRefreshToken(
   }
 
   if (typeof db.batch === 'function') {
-    // D1: all four statements commit together. The conditional UPDATE is the
+    // D1 and libSQL: all four statements commit together. The conditional UPDATE is the
     // single winner; the trailing deletes clean up the loser's orphan token.
     const results = await db.batch([
       db.insert(apiTokens).values(apiTokenRow),
@@ -826,7 +827,7 @@ export async function pollDeviceAuthorization(
   )
 
   if (typeof db.batch === 'function') {
-    // D1: all five statements commit together; the conditional claim is the
+    // D1 and libSQL: all five statements commit together; the conditional claim is the
     // single winner and the trailing deletes clean up the loser's rows.
     const results = await db.batch([
       db.insert(apiTokens).values(apiTokenRow),

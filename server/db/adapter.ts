@@ -2,16 +2,13 @@ import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import * as schema from './schema'
 import { BOOTSTRAP_STATEMENTS } from './bootstrap'
 import { ensureGlobalSlugUniqueness, ensureOAuthSchema, ensureUserSchema, ensureRangkaSchema } from './migrations'
+import { getDatabaseProvider } from './provider'
 
-export type DatabaseProvider = 'sqlite' | 'd1'
+export { getDatabaseProvider, type DatabaseProvider } from './provider'
 
 export interface D1Like {
   prepare(query: string): { run(): Promise<unknown> }
   batch?(statements: Array<{ run(): Promise<unknown> }>): Promise<unknown[]>
-}
-
-export function getDatabaseProvider(env: NodeJS.ProcessEnv = process.env): DatabaseProvider {
-  return env.DATABASE_DRIVER === 'd1' ? 'd1' : 'sqlite'
 }
 
 /** Create a Drizzle D1 database from a request-scoped Cloudflare binding. */
@@ -35,11 +32,19 @@ export function resetD1InitializationForTests() {
  * Resolve the database for the current request.
  *
  * Cloudflare exposes its bindings on `event.context.cloudflare`; every other
- * runtime uses the lazy local SQLite singleton. Nitro 2's experimental db0
+ * runtime uses the lazy local SQLite singleton unless Turso is selected.
+ * An explicit Turso selection takes priority over an existing D1 binding.
+ * Nitro 2's experimental db0
  * layer is intentionally not used because Drizzle already owns the schema and
  * query surface.
  */
 export async function getRequestDatabase(event: any) {
+  const provider = getDatabaseProvider()
+  if (provider === 'turso') {
+    const { getTursoDatabase } = await import('./turso')
+    return getTursoDatabase()
+  }
+
   const binding = event?.context?.cloudflare?.env?.DB
   if (binding) {
     if (!event.context.d1Database) {
@@ -67,6 +72,7 @@ export async function getRequestDatabase(event: any) {
     return db
   }
 
+  if (provider === 'd1') throw new Error('DATABASE_DRIVER=d1 requires a Cloudflare DB binding.')
   const { getDatabase } = await import('#serangkai-db-runtime')
   return getDatabase()
 }

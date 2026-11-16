@@ -1,5 +1,5 @@
 /**
- * Schema bootstrap shared by local SQLite and Cloudflare D1.
+ * Schema bootstrap shared by local SQLite, Turso/libSQL and Cloudflare D1.
  *
  * Keeping the statements in one place means a new table cannot be added to one
  * runtime and forgotten in the other.

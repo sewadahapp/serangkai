@@ -1,0 +1,19 @@
+{
+  "$schema": "https://developers.cloudflare.com/workers/wrangler/config-schema.json",
+  "name": "serangkai",
+  "compatibility_date": "2025-07-15",
+  "main": "./.output/server/index.mjs",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./.output/public"
+  },
+  "vars": {
+    "NODE_ENV": "production",
+    "DATABASE_DRIVER": "turso",
+    "STORAGE_DRIVER": "s3"
+  }
+  // No D1 or R2 resources: Turso stores rows and Backblaze B2 stores files.
+  // Configure TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, S3_*, and owner/session
+  // secrets with `wrangler secret put NAME --config wrangler.turso-b2.jsonc`.
+}

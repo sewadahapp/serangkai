@@ -1,0 +1,26 @@
+{
+  "$schema": "https://developers.cloudflare.com/workers/wrangler/config-schema.json",
+  "name": "serangkai",
+  "compatibility_date": "2025-07-15",
+  "main": "./.output/server/index.mjs",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./.output/public"
+  },
+  "vars": {
+    "NODE_ENV": "production",
+    "DATABASE_DRIVER": "turso",
+    "STORAGE_DRIVER": "r2-binding"
+  },
+  // Turso replaces D1; R2 stores rangka content and uploaded files.
+  "r2_buckets": [
+    {
+      "binding": "RANGKA"
+      // Manual deployments: create the bucket with `wrangler r2 bucket create
+      // serangkai` and paste the returned bucket_name here.
+    }
+  ]
+  // TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, and the owner/session secrets are
+  // Worker secrets (`wrangler secret put NAME --config wrangler.turso.jsonc`).
+}

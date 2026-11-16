@@ -1,5 +1,7 @@
 # Serangkai on Cloudflare Workers + Backblaze B2
 
+[Choose other provider combinations](https://github.com/sewadahapp/serangkai/blob/master/docs/deploy-cloudflare.md).
+
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sewadahapp/serangkai/tree/master/deploy/cloudflare-b2)
 
 This directory is a thin deployment template: Serangkai on Cloudflare Workers

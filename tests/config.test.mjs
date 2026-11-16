@@ -15,6 +15,8 @@ function run(env) {
     process.env.ADMIN_PASSWORD = '${env.ADMIN_PASSWORD ?? ''}'
     process.env.SERANGKAI_ALLOW_EPHEMERAL_STORAGE = '${env.SERANGKAI_ALLOW_EPHEMERAL_STORAGE ?? ''}'
     delete process.env.STORAGE_DRIVER
+    process.env.DATABASE_DRIVER = '${env.DATABASE_DRIVER ?? ''}'
+    process.env.TURSO_DATABASE_URL = '${env.TURSO_DATABASE_URL ?? ''}'
     try {
       const { getServerConfig } = await import('./server/utils/config.ts')
       const config = getServerConfig()
@@ -23,6 +25,7 @@ function run(env) {
         production: config.production,
         allowEphemeralStorage: config.allowEphemeralStorage,
         adminUsername: config.adminUsername,
+        databaseDriver: config.databaseDriver,
       }))
     } catch (error) {
       console.log(JSON.stringify({ ok: false, message: error.message }))
@@ -66,4 +69,12 @@ test('production never allows the ephemeral storage fallback', () => {
   const result = run({ ...valid, SERANGKAI_ALLOW_EPHEMERAL_STORAGE: 'true' })
   assert.match(result.stdout, /"ok":true/)
   assert.match(result.stdout, /"allowEphemeralStorage":false/)
+})
+
+test('production validates Turso selection and URL without changing the local defaults', () => {
+  assert.match(run(valid).stdout, /"databaseDriver":"sqlite"/)
+  assert.match(run({ ...valid, DATABASE_DRIVER: 'typo' }).stdout, /Unknown DATABASE_DRIVER/)
+  assert.match(run({ ...valid, DATABASE_DRIVER: 'turso' }).stdout, /TURSO_DATABASE_URL is required/)
+  assert.match(run({ ...valid, DATABASE_DRIVER: 'turso', TURSO_DATABASE_URL: 'file:local.db' }).stdout, /TURSO_DATABASE_URL must be/)
+  assert.match(run({ ...valid, DATABASE_DRIVER: 'turso', TURSO_DATABASE_URL: 'libsql://example.turso.io' }).stdout, /"databaseDriver":"turso"/)
 })
