@@ -32,11 +32,6 @@
         </SButton>
       </form>
     </div>
-
-    <p class="mt-5 text-center text-sm text-[var(--selaras-resolved-text-muted)]">
-      Credentials are managed with <code class="font-mono text-xs">ADMIN_USERNAME</code> and
-      <code class="font-mono text-xs">ADMIN_PASSWORD</code> on the server.
-    </p>
   </div>
 </template>
 
