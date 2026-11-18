@@ -6,6 +6,10 @@ A **rangka** is a document, file, or interactive work saved in Serangkai. The na
 is the same in the UI, REST API, and MCP tools: ask an agent to “create a rangka
 in Serangkai” to identify the intended workspace.
 
+## Demo
+
+[![Serangkai workspace showing an interactive dashboard](https://github.com/user-attachments/assets/d985cacc-904a-434b-b73e-7e3f87fd52a8)](https://github.com/user-attachments/assets/4a852e25-9585-493a-90da-8ab7da98727a)
+
 ## Features
 
 - 🗂️ **Organized Workspace** - Nested folders, pages, and rangka like Notion
