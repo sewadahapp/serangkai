@@ -228,6 +228,23 @@ test('Markdown renders Mermaid diagrams and JSON charts', async () => {
   const chartFills = await page.locator('.ts-chart-host svg rect').evaluateAll(rects => rects.map(rect => getComputedStyle(rect).fill))
   assert.ok(chartFills.includes('rgb(37, 99, 235)'), `expected Serangkai chart blue, got ${chartFills.join(', ')}`)
 
+  // Selaras spaces blocks with a direct-child selector. Comark wraps the
+  // document in its own element, so `selaras-prose` must sit on that wrapper;
+  // otherwise headings sit flush against Mermaid diagrams and charts.
+  assert.equal(await page.locator('.comark-content.selaras-prose').count(), 1)
+  const rhythm = await page.evaluate(() => {
+    function gapAfter(text) {
+      const heading = [...document.querySelectorAll('.comark-content > h2')]
+        .find(element => element.textContent?.trim() === text)
+      const next = heading?.nextElementSibling
+      if (!heading || !next) return null
+      return next.getBoundingClientRect().top - heading.getBoundingClientRect().bottom
+    }
+    return { mermaid: gapAfter('Diagram'), chart: gapAfter('Chart') }
+  })
+  assert.ok(rhythm.mermaid !== null && rhythm.mermaid >= 12, `Mermaid needs rhythm after its heading: ${rhythm.mermaid}`)
+  assert.ok(rhythm.chart !== null && rhythm.chart >= 12, `Chart needs rhythm after its heading: ${rhythm.chart}`)
+
   // Headings get ids for deep links...
   const headingId = await page.locator('h2', { hasText: 'Diagram' }).getAttribute('id')
   assert.equal(headingId, 'diagram')
@@ -326,6 +343,18 @@ test('the share reader shows a table of contents', async () => {
   // The rail links to real headings, so SContentToc can track them.
   const href = await tocLinks.first().getAttribute('href')
   assert.equal(await page.locator(href).count(), 1)
+  // The public reader reuses MarkdownDocument, so Comark's wrapper owns the
+  // Selaras prose class here too and paragraphs get their sibling rhythm.
+  assert.equal(await page.locator('.comark-content.selaras-prose').count(), 1)
+  const paragraphGap = await page.evaluate(() => {
+    const heading = [...document.querySelectorAll('.comark-content > h2')]
+      .find(element => element.textContent?.trim() === 'Diagram')
+    const next = heading?.nextElementSibling
+    return heading && next
+      ? next.getBoundingClientRect().top - heading.getBoundingClientRect().bottom
+      : null
+  })
+  assert.ok(paragraphGap !== null && paragraphGap >= 12, `shared Markdown needs block rhythm: ${paragraphGap}`)
   await page.setViewportSize({ width: 1280, height: 720 })
 })
 
