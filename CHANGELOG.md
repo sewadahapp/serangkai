@@ -1,6 +1,22 @@
 # Changelog
 
 
+## v0.3.0
+
+[compare changes](https://github.com/sewadahapp/serangkai/compare/v0.2.0...v0.3.0)
+
+### 🚀 Enhancements
+
+- **auth:** Drop server credential hint from the login page ([16d6d09](https://github.com/sewadahapp/serangkai/commit/16d6d09))
+
+### 🩹 Fixes
+
+- **preview:** Stop owner HTML preview from scrolling ([f264ace](https://github.com/sewadahapp/serangkai/commit/f264ace))
+
+### ❤️ Contributors
+
+- Wicaksana Pratama <wicaksanapratama@gmail.com>
+
 ## v0.2.0
 
 [compare changes](https://github.com/sewadahapp/serangkai/compare/v0.1.0...v0.2.0)
