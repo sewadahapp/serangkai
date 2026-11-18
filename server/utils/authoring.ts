@@ -226,6 +226,21 @@ workspace mode into the frame. To pin one scheme:
 <meta name="color-scheme" content="only light">
 \`\`\`
 
+## Presentation mode
+
+The shared reader sizes HTML to its content, so the page owns the scrollbar and
+the footer follows the document.
+
+Full-viewport applications that manage their own layout and scrolling should
+opt into a bounded frame instead:
+
+\`\`\`html
+<meta name="serangkai-presentation" content="app">
+\`\`\`
+
+The iframe then fills the space between the shared header and footer and scrolls
+internally. Document-style HTML (the default) needs no marker.
+
 ## Security
 
 - The frame is sandboxed and cannot reach the app origin.

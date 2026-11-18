@@ -35,6 +35,13 @@ test('does not report from a standalone visit', () => {
   assert.match(out, /window\.parent === window/)
 })
 
+test('lets viewport-sized apps opt out of height reporting', () => {
+  const out = withPreviewHeight(plain)
+  assert.match(out, /serangkai-presentation/)
+  assert.match(out, /usesBoundedFrame/)
+  assert.match(out, /value === 'app'/)
+})
+
 test('caps the reported height', () => {
   assert.ok(MAX_PREVIEW_HEIGHT > 0)
   assert.match(withPreviewHeight(plain), new RegExp(`Math\\.min\\(height, ${MAX_PREVIEW_HEIGHT}\\)`))

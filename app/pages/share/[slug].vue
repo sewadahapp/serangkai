@@ -1,6 +1,6 @@
 <template>
   <div
-    class="serangkai-canvas-pattern flex min-h-dvh flex-col bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]"
+    class="serangkai-canvas-pattern grid min-h-dvh grid-rows-[auto_1fr_auto] bg-[var(--selaras-resolved-surface-canvas)] text-[var(--selaras-resolved-text-default)]"
   >
     <header class="sticky top-0 z-40 shrink-0 border-b border-[var(--selaras-resolved-border-default)] bg-[var(--selaras-resolved-surface-canvas)]">
       <div class="serangkai-shell flex h-16 items-center justify-between gap-4">
@@ -39,7 +39,7 @@
 
     <!-- A missing or private share keeps the reader chrome but uses the same
          error hero as the rest of the app. -->
-    <main v-if="errorInfo" class="serangkai-shell flex flex-1 items-center py-10 md:py-16">
+    <main v-if="errorInfo" class="serangkai-shell flex items-center py-10 md:py-16">
       <SerangkaiErrorHero
         :eyebrow="errorInfo.eyebrow"
         :title="errorInfo.title"
@@ -58,17 +58,20 @@
     </main>
 
     <!-- Framed, PDF, and source rangka are the document itself rather than a
-         preview inside the page: they use the full width, and the frame or
-         viewer fills the first screen. The footer follows in normal flow, so
-         only the header is pinned. -->
-    <main v-else-if="isFill" class="flex-1">
+         preview inside the page: they use the full width between the header and
+         footer. HTML grows with its content, so the page owns the scrollbar;
+         viewport-sized apps opt out through the presentation meta and keep a
+         bounded frame that scrolls internally. -->
+    <main v-else-if="isFill" class="min-w-0">
       <template v-if="rangka">
         <SerangkaiHtmlPreview
           v-if="isFramed && rangka.rawUrl"
           flush
           :src="rangka.rawUrl"
           :title="`${rangka.title} preview`"
-          height="calc(100dvh - 4rem)"
+          :auto-height="rangka.type === 'html'"
+          height="100%"
+          class="min-h-full"
         />
         <iframe
           v-else-if="rangka.type === 'pdf' && rangka.rawUrl"
@@ -101,7 +104,7 @@
     </main>
 
     <!-- Markdown and images scroll like a document. -->
-    <main v-else class="serangkai-shell flex-1 py-10">
+    <main v-else class="serangkai-shell py-10">
       <template v-if="rangka">
         <!-- Markdown keeps its prose measure and contents rail. -->
         <div v-if="rangka.type === 'markdown'" class="share-markdown-layout">

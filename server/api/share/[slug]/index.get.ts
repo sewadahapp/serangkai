@@ -1,5 +1,6 @@
 import { renderMarkdownContent } from '../../../utils/markdown'
 import { normalizeColorMode, withColorMode } from '../../../utils/rangka-color-mode'
+import { withPreviewHeight } from '../../../utils/rangka-preview-height'
 import { withRangkaRuntime } from '../../../utils/rangka-runtime'
 import { withDocumentTheme, readerTheme } from '../../../utils/rangka-theme'
 import { loadSharedRangka } from '../../../utils/share-access'
@@ -89,11 +90,14 @@ export default defineEventHandler(async (event) => {
     // denies same-origin access, forms, popups, framing outsiders, and network.
     setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' https: data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
     setHeader(event, 'X-Content-Type-Options', 'nosniff')
+    // The share reader frames this document too. The bridge lets it grow to
+    // the content height so the page owns the scrollbar; app-style HTML opts
+    // out with `<meta name="serangkai-presentation" content="app">`.
     // No parent frame to message, so bake the requested mode in and let the
     // client's prefers-color-scheme take over afterwards.
     setHeader(event, 'Vary', 'Sec-CH-Prefers-Color-Scheme')
     setHeader(event, 'Accept-CH', 'Sec-CH-Prefers-Color-Scheme')
-    return withRangkaRuntime(withDocumentTheme(withColorMode(content.toString(), normalizeColorMode(getHeader(event, 'sec-ch-prefers-color-scheme'))), readerTheme(event)))
+    return withRangkaRuntime(withDocumentTheme(withColorMode(withPreviewHeight(content.toString()), normalizeColorMode(getHeader(event, 'sec-ch-prefers-color-scheme'))), readerTheme(event)))
   }
 
   if (rangka.type === 'json') {

@@ -249,15 +249,19 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   Mermaid, charts, and a contents rail; images sit in a document page. HTML,
   bundles, PDFs, and JSON/JavaScript skip the title card and use the full
   width: framed types are borderless and sandboxed (with the live color mode
-  posted into them), PDFs use the browser viewer, and source files get a
-  full-width highlighted code block. It has no workspace navigation and is
-  `noindex`. Signed unlisted links pass `?k=`.
+  posted into them). Shared HTML grows to its content height through the
+  injected height bridge, so the page owns the scrollbar; a
+  `serangkai-presentation=app` meta keeps a bounded, internally scrolling
+  frame for viewport-sized apps. PDFs use the browser viewer, and source files
+  get a full-width highlighted code block. It has no workspace navigation and
+  is `noindex`. Signed unlisted links pass `?k=`.
 - Share delivery happens through `/api/share/:slug`, which applies visibility,
   always redirects Markdown to the reader, and redirects other types only for
   top-level browser navigations (`Sec-Fetch-Dest: document`). Frames, images,
   and direct fetches still receive raw bytes, so the reader can embed them
   without redirecting to itself. HTML rangka allow `frame-ancestors 'self'`
-  for that frame; the sandbox still denies same-origin access.
+  for that frame, inject the height bridge, and keep the sandbox that denies
+  same-origin access.
 
 ### Design system notes
 - Semantic roles (`primary`, `accent`, plus Selaras builtins) are compiled at build
@@ -412,9 +416,11 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   share reader, so a missing or private share uses the same illustration,
   typography, status code, and recovery actions while keeping the reader's own
   header and footer.
-- The default layout, the full-page error screen, and the share reader are flex
-  columns with `min-h-dvh`; their footer sits at the viewport bottom when the
-  content is shorter than the screen.
+- The default layout and the full-page error screen are flex columns with
+  `min-h-dvh`; their footer sits at the viewport bottom when the content is
+  shorter than the screen. The share reader uses a three-row grid so bounded
+  frames fill the space between its header and footer while document content
+  can grow the middle row.
 - `NuxtErrorBoundary` wraps `NuxtPage`. A component failure keeps the layout and
   navigation available, and `router.afterEach` clears the boundary when the
   route changes so the fallback cannot cover the next page. The fallback's retry
