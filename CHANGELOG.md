@@ -1,6 +1,33 @@
 # Changelog
 
 
+## v0.2.0
+
+[compare changes](https://github.com/sewadahapp/serangkai/compare/v0.1.0...v0.2.0)
+
+### 🚀 Enhancements
+
+- **db:** Add Turso libSQL compatibility ([d03b60d](https://github.com/sewadahapp/serangkai/commit/d03b60d))
+- **deploy:** Add Cloudflare Turso one-click template ([3979db0](https://github.com/sewadahapp/serangkai/commit/3979db0))
+- **deploy:** Unify provider selection behind one chooser ([b1aceed](https://github.com/sewadahapp/serangkai/commit/b1aceed))
+
+### 🩹 Fixes
+
+- **markdown:** Restore Selaras block rhythm ([122732f](https://github.com/sewadahapp/serangkai/commit/122732f))
+- **share:** Give HTML one scrollbar ([3544568](https://github.com/sewadahapp/serangkai/commit/3544568))
+
+### 📖 Documentation
+
+- Add Serangkai demo video to README ([fd680df](https://github.com/sewadahapp/serangkai/commit/fd680df))
+
+### 🏡 Chore
+
+- **test:** Tidy Turso adapter test formatting ([b338522](https://github.com/sewadahapp/serangkai/commit/b338522))
+
+### ❤️ Contributors
+
+- Wicaksana Pratama <wicaksanapratama@gmail.com>
+
 ## v0.1.0
 
 [compare changes](https://github.com/sewadahapp/serangkai/compare/v0.0.1...v0.1.0)
