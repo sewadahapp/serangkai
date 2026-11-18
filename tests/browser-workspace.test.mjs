@@ -597,9 +597,24 @@ test('shared HTML rangka open in the reader with the app chrome', async () => {
   assert.ok(await page.getByRole('link', { name: 'Serangkai home' }).isVisible())
   await assert.doesNotReject(() => page.frameLocator('iframe').getByText('Frame content').waitFor())
 
+  const previewFrame = page.frames().find(frame => frame.url().includes('/api/share/'))
+  assert.ok(previewFrame, 'the shared HTML frame must be available')
+  let inner
+  for (let attempt = 0; attempt < 30; attempt++) {
+    inner = await previewFrame.evaluate(() => ({
+      scrollHeight: document.documentElement.scrollHeight,
+      clientHeight: document.documentElement.clientHeight,
+      hasBridge: !!document.querySelector('script[data-serangkai-preview-height]'),
+    }))
+    if (inner.hasBridge && inner.scrollHeight <= inner.clientHeight + 1) break
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  assert.equal(inner.hasBridge, true, 'public shares must inject the height bridge')
+  assert.ok(inner.scrollHeight <= inner.clientHeight + 1, `the frame must not scroll: ${inner.scrollHeight} > ${inner.clientHeight}`)
+
   // The rangka is the page, not a card inside it: the header and footer are
-  // the only chrome, the frame spans the width, and the footer follows the
-  // content instead of being pinned.
+  // the only chrome, the frame spans the width, and a short document still
+  // fills the row so the footer closes the viewport.
   const layout = await page.evaluate(() => {
     const header = document.querySelector('header')
     const frame = document.querySelector('iframe')
@@ -624,11 +639,12 @@ test('shared HTML rangka open in the reader with the app chrome', async () => {
   assert.equal(layout.border, '0px')
   assert.equal(layout.title, 0)
   assert.match(layout.footer.text, /Shared from Serangkai/)
-  assert.equal(layout.windowScrolls, true)
-  assert.ok(layout.footer.top >= layout.viewport.height, `footer top ${layout.footer.top}`)
+  // A short document does not add an outer scrollbar: the frame fills the
+  // space between the header and footer.
+  assert.equal(layout.windowScrolls, false)
+  assert.ok(layout.frame.height > 0, `frame height ${layout.frame.height}`)
+  assert.ok(Math.abs(layout.footer.bottom - layout.viewport.height) < 1, `footer bottom ${layout.footer.bottom}`)
 
-  // Only the header is pinned: scrolling to the end reveals the footer at the
-  // bottom of the viewport, with the header still in place.
   await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight))
   await page.waitForTimeout(150)
   const scrolled = await page.evaluate(() => ({
@@ -638,6 +654,118 @@ test('shared HTML rangka open in the reader with the app chrome', async () => {
   }))
   assert.equal(scrolled.headerTop, 0)
   assert.ok(Math.abs(scrolled.footerBottom - scrolled.viewportHeight) < 1, `footer bottom ${scrolled.footerBottom}`)
+})
+
+test('shared document HTML grows with its content and keeps one scrollbar', async () => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  const shareUrl = await page.evaluate(async () => {
+    const paragraphs = Array.from({ length: 80 }, (_, index) => `<p>Paragraph ${index + 1} — the shared page should grow to fit this document.</p>`).join('')
+    const html = `<!doctype html><html><head><title>Long share</title></head><body><h1>Long share</h1>${paragraphs}</body></html>`
+    const created = await fetch('/api/rangka', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Long shared HTML', type: 'html', content: html, visibility: 'public' }),
+    })
+    const { rangka } = await created.json()
+    const share = await fetch(`/api/rangka/${rangka.id}/share`, { method: 'POST' })
+    return (await share.json()).url
+  })
+
+  await page.goto(shareUrl)
+  await page.locator('iframe').waitFor({ timeout: 15000 })
+  await page.waitForFunction(() => {
+    const frame = document.querySelector('iframe')
+    return !!frame && frame.getBoundingClientRect().height > window.innerHeight
+  }, undefined, { timeout: 15000 })
+
+  const previewFrame = page.frames().find(frame => frame.url().includes('/api/share/'))
+  assert.ok(previewFrame, 'the shared HTML frame must be available')
+  let inner
+  for (let attempt = 0; attempt < 30; attempt++) {
+    inner = await previewFrame.evaluate(() => ({
+      scrollHeight: document.documentElement.scrollHeight,
+      clientHeight: document.documentElement.clientHeight,
+    }))
+    if (inner.scrollHeight <= inner.clientHeight + 1) break
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+  assert.ok(inner.scrollHeight <= inner.clientHeight + 1, `the frame must not scroll: ${inner.scrollHeight} > ${inner.clientHeight}`)
+
+  const layout = await page.evaluate(() => {
+    const header = document.querySelector('header')
+    const frame = document.querySelector('iframe')
+    const footer = document.querySelector('footer')
+    const frameRect = frame.getBoundingClientRect()
+    const footerRect = footer.getBoundingClientRect()
+    return {
+      viewport: innerHeight,
+      pageHeight: document.documentElement.scrollHeight,
+      frame: { top: frameRect.top, bottom: frameRect.bottom, height: frameRect.height },
+      headerBottom: header.getBoundingClientRect().bottom,
+      footerTop: footerRect.top,
+    }
+  })
+
+  assert.equal(Math.round(layout.frame.top), Math.round(layout.headerBottom))
+  assert.ok(layout.frame.height > layout.viewport, `frame height ${layout.frame.height}`)
+  assert.ok(layout.footerTop >= layout.frame.bottom - 1, `footer top ${layout.footerTop} vs frame bottom ${layout.frame.bottom}`)
+  // The page owns the only scrollbar; the footer follows the document.
+  assert.ok(layout.pageHeight > layout.frame.height, `page ${layout.pageHeight} vs frame ${layout.frame.height}`)
+})
+
+test('viewport-sized shared HTML keeps a bounded frame with its own scroll', async () => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  const shareUrl = await page.evaluate(async () => {
+    const html = '<!doctype html><html><head><title>App share</title>'
+      + '<meta name="serangkai-presentation" content="app">'
+      + '<style>html,body{margin:0;height:100%}main{height:160vh;background:#eef}</style>'
+      + '</head><body><main><h1>App</h1></main></body></html>'
+    const created = await fetch('/api/rangka', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'App shared HTML', type: 'html', content: html, visibility: 'public' }),
+    })
+    const { rangka } = await created.json()
+    const share = await fetch(`/api/rangka/${rangka.id}/share`, { method: 'POST' })
+    return (await share.json()).url
+  })
+
+  await page.goto(shareUrl)
+  await page.locator('iframe').waitFor({ timeout: 15000 })
+  const heights = []
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await page.waitForTimeout(350)
+    heights.push(await page.evaluate(() => Math.round(document.querySelector('iframe').getBoundingClientRect().height)))
+  }
+  assert.ok(heights.every(height => Math.abs(height - heights[0]) <= 2), `heights ${heights.join(', ')}`)
+
+  const previewFrame = page.frames().find(frame => frame.url().includes('/api/share/'))
+  assert.ok(previewFrame, 'the shared HTML frame must be available')
+  const inner = await previewFrame.evaluate(() => ({
+    scrollHeight: document.documentElement.scrollHeight,
+    clientHeight: document.documentElement.clientHeight,
+  }))
+  // The app opts out of height reporting: the frame stays bounded and keeps
+  // its own scrollbar instead of growing the outer page.
+  assert.ok(inner.scrollHeight > inner.clientHeight, `app frame should scroll internally: ${inner.scrollHeight} <= ${inner.clientHeight}`)
+
+  const layout = await page.evaluate(() => {
+    const header = document.querySelector('header')
+    const frame = document.querySelector('iframe')
+    const footer = document.querySelector('footer')
+    return {
+      viewport: innerHeight,
+      frameHeight: frame.getBoundingClientRect().height,
+      frameTop: frame.getBoundingClientRect().top,
+      headerBottom: header.getBoundingClientRect().bottom,
+      footerBottom: footer.getBoundingClientRect().bottom,
+      windowScrolls: document.documentElement.scrollHeight > innerHeight,
+    }
+  })
+  assert.ok(layout.frameHeight < layout.viewport, `bounded frame height ${layout.frameHeight}`)
+  assert.equal(Math.round(layout.frameTop), Math.round(layout.headerBottom))
+  assert.equal(layout.windowScrolls, false)
+  assert.ok(Math.abs(layout.footerBottom - layout.viewport) < 1, `footer bottom ${layout.footerBottom}`)
 })
 
 test('shared source files use the full page, with the footer at the end', async () => {

@@ -139,6 +139,21 @@ Use `color-scheme: light dark` and `light-dark()`. To pin one scheme:
 <meta name="color-scheme" content="only light">
 ```
 
+### Presentation mode
+
+The shared reader sizes HTML to its content, so the page owns the scrollbar and
+the footer follows the document.
+
+Full-viewport applications that manage their own layout and scrolling should
+opt into a bounded frame instead:
+
+```html
+<meta name="serangkai-presentation" content="app">
+```
+
+The iframe then fills the space between the shared header and footer and scrolls
+internally. Document-style HTML (the default) needs no marker.
+
 ### Sandbox
 
 The frame is sandboxed, cannot reach the app origin, and has

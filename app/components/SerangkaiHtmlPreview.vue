@@ -29,7 +29,9 @@ const props = withDefaults(defineProps<{
   /**
    * Resize the frame to the document height reported by the injected preview
    * bridge, so the page owns the scrollbar instead of the iframe. Used by the
-   * rangka detail view; the share reader keeps a full-viewport frame.
+   * rangka detail view and the shared HTML reader. A rangka that manages its
+   * own viewport-sized layout opts out with the `serangkai-presentation` meta,
+   * which leaves the frame bounded and scrolling internally.
    */
   autoHeight?: boolean
   /**
@@ -39,9 +41,10 @@ const props = withDefaults(defineProps<{
   flush?: boolean
 }>(), { height: '70vh', autoHeight: false, flush: false })
 
-// Keep this in sync with MAX_PREVIEW_HEIGHT in the server bridge. The frame
-// still has the panel's 70vh floor, so a failed report degrades to a scrollable
-// preview rather than a collapsed one.
+// Keep this in sync with MAX_PREVIEW_HEIGHT in the server bridge. The detail
+// panel keeps its 70vh floor and the share reader fills the row between the
+// header and footer, so a failed report degrades to a bounded frame rather
+// than a collapsed one.
 const MAX_HEIGHT = 50_000
 // The bordered preview uses 1px on each edge; without this the frame's content
 // viewport is 2px shorter than the reported document and always has a tiny

@@ -1,14 +1,20 @@
 /**
- * Preview height bridge for the authenticated HTML preview.
+ * Preview height bridge for sandboxed HTML delivery.
  *
- * The owner preview is framed with `sandbox allow-scripts` and no same-origin
- * access, so the parent cannot measure the document directly. This bootstrap
- * reports the document's content height to the framing app, which then sizes
- * the iframe to match. Document-style rangka scroll with the page instead of
- * trapping their overflow inside the frame.
+ * Both the owner preview and the public share reader frame HTML with
+ * `sandbox allow-scripts` and no same-origin access, so the parent cannot
+ * measure the document directly. This bootstrap reports the document's content
+ * height to the framing app, which then sizes the iframe to match. Document
+ * rangka scroll with the page instead of trapping their overflow inside the
+ * frame.
  *
- * Only `/api/rangka/:id/preview` injects this. The public share reader keeps
- * its full-viewport frame, and PDFs keep the browser's own viewer.
+ * A full-viewport application that intentionally manages its own scrolling can
+ * opt out without changing the delivery route:
+ *
+ *   <meta name="serangkai-presentation" content="app">
+ *
+ * The bridge then stays silent and the reader keeps a bounded frame. PDFs keep
+ * the browser's own viewer.
  */
 export const MAX_PREVIEW_HEIGHT = 50_000
 
@@ -22,7 +28,17 @@ const BOOTSTRAP = `(function () {
   var scheduled = false;
   var forceNext = false;
 
+  // Apps that set their own viewport-sized layout are not documents: growing
+  // the frame to their reported height would fight their internal scrolling.
+  // The meta is checked on every measure so it wins even when declared late.
+  function usesBoundedFrame() {
+    var meta = doc.querySelector('meta[name="serangkai-presentation"]');
+    var value = meta ? String(meta.getAttribute('content') || '').trim().toLowerCase() : '';
+    return value === 'app';
+  }
+
   function measure() {
+    if (usesBoundedFrame()) return;
     var body = doc.body;
     var height = Math.max(
       root ? root.scrollHeight : 0,

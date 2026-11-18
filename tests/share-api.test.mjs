@@ -95,6 +95,27 @@ test('HTML shares get the opt-in chart runtime without widening the CSP', async 
   assert.doesNotMatch(plainHtml, /data-serangkai-runtime/)
 })
 
+test('public HTML shares carry the preview height bridge', async () => {
+  const created = await fetch(`${base}/api/rangka`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      title: 'Height bridge share',
+      type: 'html',
+      content: '<!doctype html><html><head><title>Bridge</title></head><body><p>Document</p></body></html>',
+      visibility: 'public',
+    }),
+  })
+  const shared = (await created.json()).rangka
+  const response = await fetch(`${base}/api/share/${shared.slug}`)
+  assert.equal(response.status, 200)
+  const html = await response.text()
+  // The bridge lets the public reader size the frame to the document; app-style
+  // HTML opts out inside the document itself.
+  assert.match(html, /data-serangkai-preview-height/)
+  assert.match(html, /serangkai-presentation/)
+})
+
 test('the workspace list exposes preview URLs only for shared rangka', async () => {
   const create = async (title, visibility) => {
     const response = await fetch(`${base}/api/rangka`, {
