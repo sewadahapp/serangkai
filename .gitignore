@@ -24,6 +24,12 @@ logs
 .fleet
 .idea
 
+# Demo media is hosted as GitHub attachments, not committed
+docs/media/*.mp4
+docs/media/*.mov
+docs/media/*.webm
+docs/media/*.jpg
+
 # Local agent/skill installs (kept out of the repository)
 .opencode/
 .agents/
