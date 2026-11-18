@@ -548,6 +548,42 @@ test('long HTML previews size to the document and scroll with the page', async (
   assert.ok(Math.abs(short.height - short.viewport * 0.7) <= 3, `short frame height ${short.height} at ${short.viewport}`)
 })
 
+test('small HTML growth does not leave the preview scrollable', async () => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  const rangkaId = await page.evaluate(async () => {
+    const content = '<!doctype html><html><head><title>Growing preview</title>'
+      + '<style>body{margin:0}#grow{height:600px;background:#eef}</style></head>'
+      + '<body><div id="grow"></div><script>setTimeout(() => { document.getElementById("grow").style.height = "601px" }, 700)</script></body></html>'
+    const res = await fetch('/api/rangka', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Growing preview rangka', type: 'html', content }),
+    })
+    return (await res.json()).rangka.id
+  })
+
+  await page.goto(`${base}/rangka/${rangkaId}`)
+  await page.locator('section[aria-label="Rangka content"] iframe').waitFor({ timeout: 15000 })
+  const previewFrame = page.frames().find(frame => frame.url().includes('/preview'))
+  assert.ok(previewFrame, 'the preview frame must be available')
+  await previewFrame.waitForFunction(() => {
+    const box = document.getElementById('grow')
+    return !!box && box.getBoundingClientRect().height >= 601
+  }, undefined, { timeout: 5000 })
+  // Let the bridge report the 1px growth and the parent decide what to do.
+  await page.waitForTimeout(1200)
+
+  const inner = await previewFrame.evaluate(() => ({
+    scrollHeight: document.documentElement.scrollHeight,
+    clientHeight: document.documentElement.clientHeight,
+    boxHeight: document.getElementById('grow').getBoundingClientRect().height,
+  }))
+  assert.equal(inner.boxHeight, 601)
+  // A 1px overflow still makes the iframe a scroll target: macOS overlay
+  // scrollbars then scroll the document before the page. The frame needs slack.
+  assert.ok(inner.scrollHeight <= inner.clientHeight, `preview must not scroll: ${inner.scrollHeight} > ${inner.clientHeight}`)
+})
+
 test('viewport-sized HTML previews do not grow in a feedback loop', async () => {
   const rangkaId = await page.evaluate(async () => {
     const content = '<!doctype html><html><head><style>html,body{height:100%;margin:0}main{height:100vh;display:grid;place-items:center}</style></head><body><main><h1>Slide</h1></main></body></html>'

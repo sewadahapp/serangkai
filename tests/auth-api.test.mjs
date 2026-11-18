@@ -173,6 +173,8 @@ test('the login page asks for username and exposes no registration link', async 
   assert.match(html, /Username/)
   assert.match(html, /Password/)
   assert.doesNotMatch(html, /Register|Create your workspace/i)
+  // The page must not point visitors at server-side environment variables.
+  assert.doesNotMatch(html, /ADMIN_USERNAME|ADMIN_PASSWORD/)
 })
 
 test('an expired or forged token never falls back to the browser session', async () => {

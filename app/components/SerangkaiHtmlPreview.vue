@@ -50,13 +50,21 @@ const MAX_HEIGHT = 50_000
 // viewport is 2px shorter than the reported document and always has a tiny
 // scrollbar. `box-sizing: border-box` is global.
 const VERTICAL_BORDER = 2
+// Leave a little slack below the reported content. A 1px residual overflow is
+// enough to make the iframe a scroll target, so on macOS with overlay
+// scrollbars the document scrolls first and the page only afterwards. The
+// parent's guard ignores corrections that small, so the frame would otherwise
+// keep that sliver forever. The share reader's flush frame accidentally had the
+// same slack because it still added VERTICAL_BORDER; make it explicit for both.
+const HEIGHT_HEADROOM = 2
 const colorMode = useColorMode()
 const frame = ref<HTMLIFrameElement>()
 const reportedHeight = ref<number | null>(null)
 
 const resolvedHeight = computed(() => {
   if (!props.autoHeight || reportedHeight.value === null) return props.height
-  return `${reportedHeight.value + VERTICAL_BORDER}px`
+  const chrome = (props.flush ? 0 : VERTICAL_BORDER) + HEIGHT_HEADROOM
+  return `${reportedHeight.value + chrome}px`
 })
 
 // Resolve "system" to the concrete mode the rangka should render in.
