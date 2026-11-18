@@ -1,6 +1,10 @@
 <template>
-  <article class="selaras-prose max-w-none">
-    <ComarkMarkdownDocument :value="body" :components="components" />
+  <article class="max-w-none">
+    <ComarkMarkdownDocument
+      :value="body"
+      :components="components"
+      class="selaras-prose"
+    />
   </article>
 </template>
 
@@ -19,6 +23,11 @@ import SerangkaiTable from './SerangkaiTable.vue'
  * The server parses and sanitizes the document; this component only maps the
  * trusted tag vocabulary to Vue components. No parser or plugin code ships to
  * the browser for rangka rendering.
+ *
+ * `selaras-prose` belongs on Comark's root wrapper because that wrapper holds
+ * the rendered block elements. Selaras spaces blocks with a direct-child
+ * selector, so putting the class on the outer <article> leaves Markdown blocks
+ * with heading margins but no sibling rhythm.
  */
 defineProps<{ body: Record<string, any> }>()
 
