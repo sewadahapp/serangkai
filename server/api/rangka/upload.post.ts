@@ -4,7 +4,8 @@ import { getRequestDatabase } from '../../db/adapter'
 import { requireScope } from '../../utils/require-auth'
 import { rangkaTypes, inferRangkaType, reserveSlug, MAX_UPLOAD_BYTES } from '../../utils/rangka'
 import { isSlugConflict } from '../../db/migrations'
-import { extractBundle } from '../../utils/bundles'
+import { deleteBundle, extractBundle } from '../../utils/bundles'
+import { assertStorageAvailable, storageWriteRefusal } from '../../utils/storage-quota'
 import { and, eq } from 'drizzle-orm'
 import { writeRangka } from '../../utils/rangka-storage'
 
@@ -42,12 +43,25 @@ export default defineEventHandler(async (event) => {
   if (file.type && !allowedMimeTypes.has(file.type) && !file.type.startsWith('image/')) throw createError({ statusCode: 415, message: 'Unsupported file type' })
   if (type === 'image' && !file.type?.startsWith('image/')) throw createError({ statusCode: 415, message: 'Image uploads require an image MIME type' })
 
+  await assertStorageAvailable(db, user.id, file.data.length)
+
   const id = nanoid()
   const slug = await reserveSlug(db, title)
   const contentPath = `${user.id}/${id}/content`
+  let storedBytes = file.data.length
   if (type === 'bundle') {
-    try { await extractBundle(file.data, `${user.id}/${id}/bundle`) }
+    const prefix = `${user.id}/${id}/bundle`
+    let unpacked: { bytes: number }
+    try { unpacked = await extractBundle(file.data, prefix) as { bytes: number } }
     catch (error: any) { throw createError({ statusCode: 400, message: error.message || 'Invalid static bundle' }) }
+    // The unpacked size is only known after reading the archive, so check the
+    // full footprint again and remove the files if it does not fit.
+    storedBytes += unpacked.bytes
+    const refusal = await storageWriteRefusal(db, user.id, storedBytes)
+    if (refusal) {
+      await deleteBundle(prefix).catch(() => {})
+      throw createError({ statusCode: 507, message: refusal })
+    }
     await writeRangka(contentPath, file.data)
   } else {
     await writeRangka(contentPath, file.data)
@@ -62,6 +76,6 @@ export default defineEventHandler(async (event) => {
     if (isSlugConflict(error)) throw createError({ statusCode: 409, message: 'That share identifier is already in use. Retry the upload.' })
     throw error
   }
-  await db.insert(rangkaVersions).values({ id: nanoid(), rangkaId: id, version: 1, contentPath, metadata: {}, createdAt: new Date() })
+  await db.insert(rangkaVersions).values({ id: nanoid(), rangkaId: id, version: 1, contentPath, metadata: {}, storedBytes, createdAt: new Date() })
   return { rangka: { id, slug, title, type, visibility, folderId, size: file.data.length } }
 })

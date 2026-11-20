@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import * as schema from './schema'
 import { BOOTSTRAP_SQL } from './bootstrap'
-import { ensureGlobalSlugUniqueness, ensureOAuthSchema, ensureUserSchema, ensureRangkaSchema, recoverEmptyRangkaTables } from './migrations'
+import { ensureGlobalSlugUniqueness, ensureOAuthSchema, ensureStorageSchema, ensureUserSchema, ensureRangkaSchema, recoverEmptyRangkaTables } from './migrations'
 import { getServerConfig } from '../utils/config'
 
 /**
@@ -30,6 +30,7 @@ async function createDatabase() {
     await ensureUserSchema(db)
     await ensureGlobalSlugUniqueness(db)
     await ensureOAuthSchema(db)
+    await ensureStorageSchema(db)
     return db
   }
 
@@ -44,6 +45,7 @@ async function createDatabase() {
   await ensureUserSchema(db)
   await ensureGlobalSlugUniqueness(db)
   await ensureOAuthSchema(db)
+  await ensureStorageSchema(db)
   return db
 }
 

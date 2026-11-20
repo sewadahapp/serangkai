@@ -157,7 +157,26 @@ export const rangkaVersions = sqliteTable('rangka_versions', {
   version: integer('version').notNull(),
   contentPath: text('content_path').notNull(),
   metadata: text('metadata', { mode: 'json' }).$type<Record<string, any>>().default({}),
+  /**
+   * Bytes this version put in storage (its content, plus unpacked files for a
+   * bundle). Null until measured: rows written before storage accounting are
+   * filled in by the backfill in utils/storage-quota.
+   */
+  storedBytes: integer('stored_bytes'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
+})
+
+/**
+ * Per-account workspace settings. Keyed by user so a hosted deployment can
+ * hold one row per account; a self-hosted install has exactly one.
+ */
+export const workspaceSettings = sqliteTable('workspace_settings', {
+  userId: text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  /** Owner-chosen storage limit in bytes; null means no owner limit. */
+  storageLimitBytes: integer('storage_limit_bytes'),
+  /** What happens at the limit: 'warn' only, or 'reject' writes that exceed it. */
+  storageMode: text('storage_mode', { enum: ['warn', 'reject'] }).notNull().default('warn'),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
 })
 
 export type User = typeof users.$inferSelect

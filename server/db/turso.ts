@@ -2,7 +2,7 @@ import { createClient, type Client } from '@libsql/client/web'
 import { drizzle } from 'drizzle-orm/libsql/web'
 import * as schema from './schema'
 import { BOOTSTRAP_STATEMENTS } from './bootstrap'
-import { ensureGlobalSlugUniqueness, ensureOAuthSchema, ensureUserSchema, ensureRangkaSchema } from './migrations'
+import { ensureGlobalSlugUniqueness, ensureOAuthSchema, ensureStorageSchema, ensureUserSchema, ensureRangkaSchema } from './migrations'
 import { getServerConfig } from '../utils/config'
 
 /** Use the network-only client so Node, Bun and Workers need no native libSQL binary. */
@@ -15,6 +15,7 @@ export async function createTursoDatabase(client: Client) {
   await ensureUserSchema(db)
   await ensureGlobalSlugUniqueness(db)
   await ensureOAuthSchema(db)
+  await ensureStorageSchema(db)
   return db
 }
 

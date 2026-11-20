@@ -7,6 +7,7 @@ import { and, eq } from 'drizzle-orm'
 import { isSlugConflict } from '../../db/migrations'
 import { checkTextRangka, reserveSlug } from '../../utils/rangka'
 import { writeRangka } from '../../utils/rangka-storage'
+import { assertStorageAvailable, byteLength } from '../../utils/storage-quota'
 
 const schema = z.object({
   title: z.string().min(1),
@@ -45,6 +46,9 @@ export default defineEventHandler(async (event) => {
     }
   }
   
+  const storedBytes = byteLength(content)
+  await assertStorageAvailable(db, user.id, storedBytes)
+
   const rangkaId = nanoid()
   const contentKey = `${user.id}/${rangkaId}/content`
   await writeRangka(contentKey, content)
@@ -76,6 +80,7 @@ export default defineEventHandler(async (event) => {
     version: 1,
     contentPath: contentKey,
     metadata: storedMetadata,
+    storedBytes,
     createdAt: new Date(),
   })
   

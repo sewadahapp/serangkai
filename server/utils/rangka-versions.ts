@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import { rangkaVersions } from '../db/schema'
 import { isVersionConflict } from '../db/migrations'
 import { writeRangka } from './rangka-storage'
+import { byteLength } from './storage-quota'
 
 export interface AppendVersionInput {
   rangkaId: string
@@ -28,6 +29,7 @@ export async function appendVersion(db: any, input: AppendVersionInput): Promise
       version: input.version,
       contentPath: input.contentPath,
       metadata: input.metadata,
+      storedBytes: byteLength(input.content),
       createdAt: new Date(),
     })
   } catch (error) {

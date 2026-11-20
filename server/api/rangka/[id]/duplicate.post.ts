@@ -6,6 +6,7 @@ import { makeSlug } from '../../../utils/rangka'
 import { isSlugConflict } from '../../../db/migrations'
 import { and, eq } from 'drizzle-orm'
 import { readRangkaBytes, writeRangka } from '../../../utils/rangka-storage'
+import { assertStorageAvailable } from '../../../utils/storage-quota'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
@@ -21,9 +22,12 @@ export default defineEventHandler(async (event) => {
   const requestedTitle = typeof body?.title === 'string' ? body.title.trim() : ''
   const title = requestedTitle || `${source.title} (copy)`
 
+  const content = await readRangkaBytes(source.contentPath)
+  await assertStorageAvailable(db, user.id, content.byteLength)
+
   const duplicateId = nanoid()
   const contentPath = `${user.id}/${duplicateId}/content`
-  await writeRangka(contentPath, await readRangkaBytes(source.contentPath))
+  await writeRangka(contentPath, content)
 
   const now = new Date()
   let slug = ''
@@ -52,7 +56,7 @@ export default defineEventHandler(async (event) => {
   }
   await db.insert(rangkaVersions).values({
     id: nanoid(), rangkaId: duplicateId, version: 1, contentPath,
-    metadata: source.metadata || {}, createdAt: now,
+    metadata: source.metadata || {}, storedBytes: content.byteLength, createdAt: now,
   })
 
   return { rangka: { id: duplicateId, slug, title, type: source.type, visibility: 'private', folderId: source.folderId } }

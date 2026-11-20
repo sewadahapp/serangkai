@@ -4,6 +4,7 @@ import { requireScope } from '../../../../../utils/require-auth'
 import { and, eq, max } from 'drizzle-orm'
 import { readRangkaBytes } from '../../../../../utils/rangka-storage'
 import { appendVersion } from '../../../../../utils/rangka-versions'
+import { assertStorageAvailable } from '../../../../../utils/storage-quota'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
@@ -29,6 +30,7 @@ export default defineEventHandler(async (event) => {
   const version = Number(latest?.value || 0) + 1
   const contentPath = `${user.id}/${rangka.id}/versions/${version}`
   const content = await readRangkaBytes(source.contentPath)
+  await assertStorageAvailable(db, user.id, content.byteLength)
   const claimed = await appendVersion(db, {
     rangkaId: rangka.id, version, contentPath, metadata: source.metadata || {}, content,
   })

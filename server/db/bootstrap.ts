@@ -52,8 +52,15 @@ export const BOOTSTRAP_STATEMENTS = [
     version INTEGER NOT NULL,
     content_path TEXT NOT NULL,
     metadata TEXT DEFAULT '{}',
+    stored_bytes INTEGER,
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     UNIQUE(rangka_id, version)
+  )`,
+  `CREATE TABLE IF NOT EXISTS workspace_settings (
+    user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    storage_limit_bytes INTEGER,
+    storage_mode TEXT NOT NULL DEFAULT 'warn',
+    updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
   )`,
   `CREATE TABLE IF NOT EXISTS oauth_clients (
     id TEXT PRIMARY KEY NOT NULL,

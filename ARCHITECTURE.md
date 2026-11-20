@@ -119,6 +119,24 @@ filesystem layout and all existing rangka remain compatible.
   not contain `:`, and the S3 driver refuses `.`/`..` key segments (the fs
   driver already does) so a key can never resolve to another object.
 
+#### Storage accounting and limits
+Every version row records the bytes it stored in `rangka_versions.stored_bytes`
+(content, plus unpacked files for a bundle's first version), so usage is one
+`SUM` per account and drops when a rangka is deleted. Rows written before
+accounting existed are measured once, a batch per request, from driver metadata
+(`server/utils/storage-quota.ts`).
+
+- Owner limit and mode live in `workspace_settings` (per account), edited in
+  Settings over a browser session only, so an agent token cannot raise its own
+  limit. `warn` reports; `reject` refuses writes that would exceed the limit
+  with HTTP 507 (an MCP tool error for agents). Deletes are always allowed.
+- `STORAGE_LIMIT` is the operator cap: always enforced, and the owner limit
+  cannot be set above it. A hosted deployment can later move it per account.
+- Object stores (R2, B2, S3) expose no capacity, so only the local driver
+  reports real disk size (`statfs` on `STORAGE_PATH`).
+- Checks are not transactional; two writes racing at the limit can overshoot
+  by at most one request.
+
 `server/plugins/storage.ts` mounts the driver once at startup, and
 `server/utils/rangka-storage.ts` is the single read/write surface. The S3
 driver (`server/utils/s3-driver.ts`) is a small unstorage adapter over
