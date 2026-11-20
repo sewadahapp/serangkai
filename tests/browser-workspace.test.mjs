@@ -126,6 +126,8 @@ test('human browser workflow logs in and creates a rangka', async () => {
 
   await page.getByRole('link', { name: 'Agents' }).first().click()
   await page.waitForURL('**/agent')
+  // Endpoints live in the Manual setup tab; the agent prompt is the default.
+  await page.getByRole('tab', { name: 'Manual setup', exact: true }).click()
   await assert.doesNotReject(() => page.getByRole('textbox', { name: 'MCP endpoint', exact: true }).waitFor())
   assert.match(await page.getByRole('textbox', { name: 'MCP endpoint', exact: true }).inputValue(), /\/api\/mcp$/)
   assert.match(await page.getByRole('textbox', { name: 'REST endpoint', exact: true }).inputValue(), /\/api\/rangka$/)
@@ -610,6 +612,9 @@ test('read-only values offer a working copy button', async () => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base })
 
   await page.goto(`${base}/agent`)
+  await page.getByRole('button', { name: 'Copy setup prompt', exact: true }).click()
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^Connect to my Serangkai workspace over MCP\./)
+  await page.getByRole('tab', { name: 'Manual setup', exact: true }).click()
   const mcpCopy = page.getByRole('button', { name: 'Copy MCP endpoint' })
   await assert.doesNotReject(() => mcpCopy.waitFor())
   await assert.doesNotReject(() => page.getByRole('button', { name: 'Copy REST endpoint' }).waitFor())
@@ -1198,7 +1203,7 @@ test('workspace stays usable on narrow screens with long names and pagination', 
     await mobile.getByRole('button', { name: 'Next', exact: true }).click()
     await mobile.getByText('Page 2 of 2').waitFor()
     await mobile.getByRole('button', { name: 'Browse folders' }).click()
-    const foldersPanel = mobile.getByRole('dialog', { name: 'Folders' })
+    const foldersPanel = mobile.getByRole('dialog', { name: 'Navigation' })
     await foldersPanel.waitFor()
     await mobile.waitForFunction(() => { const panel = document.querySelector('[role=dialog]'); return panel && Math.abs(panel.getBoundingClientRect().left) < 2 })
     for (const folder of folders.slice(0, -1)) {
@@ -1220,7 +1225,7 @@ test('workspace stays usable on narrow screens with long names and pagination', 
   }
 })
 
-test('mobile account navigation opens from the right and closes after navigation', async () => {
+test('mobile navigation drawer opens from the left and closes after navigation', async () => {
   const context = await browser.newContext({ viewport: { width: 375, height: 720 } })
   const mobile = await context.newPage()
   try {
@@ -1229,15 +1234,15 @@ test('mobile account navigation opens from the right and closes after navigation
     await mobile.getByLabel('Password').fill(adminPassword)
     await mobile.getByRole('button', { name: 'Log in' }).click()
     await mobile.waitForURL(/\/(?:workspace)?$/)
-    const trigger = mobile.getByRole('button', { name: `Account menu for ${adminUsername}` })
+    const trigger = mobile.getByRole('button', { name: 'Open navigation', exact: true })
     await trigger.waitFor()
-    assert.match(await trigger.innerText(), new RegExp(adminUsername))
     assert.equal(await mobile.getByRole('navigation', { name: 'Workspace sections' }).count(), 0)
     await trigger.click()
     const dialog = mobile.getByRole('dialog', { name: 'Navigation' })
     await dialog.waitFor()
-    assert.match(await dialog.innerText(), new RegExp(`Signed in as ${adminUsername}`))
-    await mobile.waitForFunction(() => { const panel = document.querySelector('[role=dialog]'); if (!panel) return false; const rect = panel.getBoundingClientRect(); return Math.abs(rect.right - innerWidth) < 2 })
+    await dialog.getByText(adminUsername, { exact: true }).waitFor()
+    await dialog.getByRole('button', { name: `Account menu for ${adminUsername}`, exact: true }).waitFor()
+    await mobile.waitForFunction(() => { const panel = document.querySelector('[role=dialog]'); if (!panel) return false; return Math.abs(panel.getBoundingClientRect().left) < 2 })
     await dialog.getByRole('link', { name: 'Agents', exact: true }).click()
     await mobile.waitForURL('**/agent')
     await dialog.waitFor({ state: 'hidden' })
@@ -1248,7 +1253,7 @@ test('mobile account navigation opens from the right and closes after navigation
     await mobile.setViewportSize({ width: 1280, height: 720 })
     assert.equal(await trigger.isVisible(), false)
     await mobile.getByRole('complementary', { name: 'Workspace sidebar' }).getByText(adminUsername, { exact: true }).waitFor()
-    await mobile.getByRole('button', { name: 'Log out', exact: true }).waitFor()
+    await mobile.getByRole('complementary', { name: 'Workspace sidebar' }).getByRole('button', { name: `Account menu for ${adminUsername}`, exact: true }).waitFor()
     await mobile.getByRole('link', { name: 'Workspace', exact: true }).first().waitFor()
   } finally {
     await context.close()
@@ -1264,6 +1269,7 @@ test('agent connection reference fits narrow viewports and keeps copy controls a
     await mobile.getByLabel('Password').fill(adminPassword)
     await mobile.getByRole('button', { name: 'Log in', exact: true }).click()
     await mobile.getByRole('heading', { name: 'Connect an agent' }).waitFor()
+    await mobile.getByRole('tab', { name: 'Manual setup', exact: true }).click()
     for (const width of [320, 375, 768, 1280]) {
       await mobile.setViewportSize({ width, height: 720 })
       const sizes = await mobile.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
@@ -1282,7 +1288,7 @@ test('agent connection reference fits narrow viewports and keeps copy controls a
     assert.ok(introBox && snippetBox && snippetBox.y > introBox.y + introBox.height + 10, 'MCP snippet should have space below its description')
     await mobile.getByRole('tab', { name: 'REST API', exact: true }).click()
     await mobile.getByRole('heading', { name: 'REST examples', exact: true }).waitFor()
-    assert.match(await mobile.getByRole('tabpanel').innerText(), /\/api\/rangka/)
+    assert.match(await mobile.getByRole('tabpanel', { name: 'REST API', exact: true }).innerText(), /\/api\/rangka/)
     await mobile.getByRole('tab', { name: 'Browser sign-in', exact: true }).click()
     await mobile.getByRole('heading', { name: 'Connect with browser sign-in', exact: true }).waitFor()
     await mobile.getByRole('button', { name: 'MCP tools', exact: true }).click()

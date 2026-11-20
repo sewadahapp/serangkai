@@ -1,9 +1,10 @@
 <template>
   <div class="settings-page">
-    <header class="settings-heading">
-      <div><h1>Settings</h1><p>Appearance, API tokens, and agent access.</p></div>
-      <SButton to="/agent" variant="ghost" color="neutral" icon="lucide:book-open">Connection guide</SButton>
-    </header>
+    <SerangkaiPageHeader title="Settings" description="Appearance, API tokens, and agent access." class="!mb-0">
+      <template #actions>
+        <SButton to="/agent" variant="ghost" color="neutral" icon="lucide:book-open">Connection guide</SButton>
+      </template>
+    </SerangkaiPageHeader>
 
     <STabs v-model="activeSection" :items="settingsSections" variant="underline" :ui="{ list: { 'aria-label': 'Settings sections' }, content: 'pt-6' }">
       <template #appearance>
@@ -295,10 +296,8 @@ onMounted(() => { if (loggedIn.value) { loadTokens(); loadClients() } })
 </script>
 
 <style scoped>
-.settings-page { display: flex; min-width: 0; flex-direction: column; gap: 1.75rem; max-width: 60rem; margin-inline: auto; overflow-wrap: anywhere; }
-.settings-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
-.settings-heading h1 { font-size: 1.875rem; font-weight: 700; line-height: 1.2; letter-spacing: -.035em; }
-.settings-heading p { margin-top: .65rem; color: var(--selaras-resolved-text-muted); font-size: .9rem; line-height: 1.65; }
+/* Same left edge and header-to-content gap as Workspace and Agents. */
+.settings-page { display: flex; min-width: 0; flex-direction: column; gap: 2rem; overflow-wrap: anywhere; }
 .settings-section { display: flex; min-width: 0; flex-direction: column; gap: 1.5rem; }
 .settings-section-heading { display: flex; min-width: 0; align-items: start; justify-content: space-between; gap: 1rem; }
 .settings-section-title { font-size: 1rem; font-weight: 650; line-height: 1.5; letter-spacing: -.02em; }

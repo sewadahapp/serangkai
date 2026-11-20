@@ -60,6 +60,9 @@ html {
   color-scheme: light;
   /* Match the canvas so overscroll and short pages never show white. */
   background-color: var(--selaras-resolved-surface-canvas);
+  /* Reserve the scrollbar's space on every page so content never shifts
+     sideways between short and long pages. */
+  scrollbar-gutter: stable;
 }
 
 html.dark {
@@ -1501,7 +1504,8 @@ html.serangkai-editor-fullscreen-open body {
 
 /* Shared canvas texture for app pages, public readers, and error screens. */
 .serangkai-canvas-pattern {
-  background-image: radial-gradient(circle, color-mix(in srgb, var(--selaras-resolved-text-muted) 24%, transparent) 1px, transparent 1.1px);
+  /* Dimmed so body text and code chips stay legible on top of it. */
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--selaras-resolved-text-muted) 12%, transparent) 1px, transparent 1.1px);
   background-size: 24px 24px;
   background-attachment: fixed;
 }

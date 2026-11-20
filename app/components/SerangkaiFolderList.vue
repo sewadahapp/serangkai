@@ -21,7 +21,7 @@
           <SIcon :name="selected || branchOpen ? 'lucide:folder-open' : 'lucide:folder'" class="size-4 shrink-0" aria-hidden="true" />
           <STooltip :text="(item as FolderNode).folder.path.replaceAll('/', ' / ')"><span class="min-w-0 flex-1 truncate">{{ item.label }}</span></STooltip>
           <span class="serangkai-tabular shrink-0 text-xs text-[var(--selaras-resolved-text-muted)]">{{ count((item as FolderNode).value) }}</span>
-          <span class="inline-flex shrink-0" @click.stop @pointerdown.stop @keydown.stop>
+          <span class="folder-actions inline-flex shrink-0" @click.stop @pointerdown.stop @keydown.stop>
             <STooltip :text="`Actions for ${item.label}`"><span class="inline-flex min-w-0"><SDropdown :positioning="{ align: 'end', collisionPadding: 12 }" :items="actions((item as FolderNode).folder)" :adaptive="true"><SButton variant="ghost" color="neutral" size="sm" icon="lucide:ellipsis" :aria-label="`Actions for ${item.label}`" /></SDropdown></span></STooltip>
           </span>
         </span>
@@ -112,6 +112,15 @@ const treeUi = {
 .folder-tree :deep([aria-level="4"]) { padding-inline-start: 3.375rem !important; }
 .folder-branch, .folder-guide { position: absolute; inset-block: -.25rem; inset-inline-start: -1.75rem; border-inline-start: 1px solid var(--selaras-resolved-border-default); pointer-events: none; }
 .folder-branch { width: .75rem; }
+/* Desktop pointers: reveal each folder's menu on hover or keyboard focus to
+   keep the tree calm. Touch devices have no hover, so they always show it. */
+@media (hover: hover) and (pointer: fine) {
+  .folder-actions { opacity: 0; transition: opacity 100ms; }
+  .folder-tree :deep(.folder-tree-row:hover) .folder-actions,
+  .folder-tree :deep(.folder-tree-row:focus-visible) .folder-actions,
+  .folder-actions:focus-within,
+  .folder-actions:has([data-state='open']) { opacity: 1; }
+}
 .folder-branch::after { position: absolute; top: 50%; width: 100%; border-top: 1px solid var(--selaras-resolved-border-default); content: ''; }
 .folder-branch-last { bottom: 50%; }
 .folder-branch-last::after { top: 100%; }
