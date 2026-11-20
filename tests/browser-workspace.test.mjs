@@ -113,7 +113,6 @@ test('human browser workflow logs in and creates a rangka', async () => {
 
   await page.getByRole('link', { name: 'Settings' }).click()
   await page.waitForURL('**/settings')
-  await page.getByRole('tab', { name: 'Tokens', exact: true }).click()
   await page.getByRole('button', { name: 'Create token', exact: true }).click()
   await page.getByLabel('Name').fill('Browser token')
   await page.getByRole('dialog', { name: 'Create token', exact: true }).getByRole('button', { name: 'Create token', exact: true }).click()

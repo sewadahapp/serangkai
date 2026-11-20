@@ -90,15 +90,15 @@
       <p class="agent-prompt">{{ starterPrompt }}</p>
     </SCard>
 
-    <section class="agent-reference" aria-labelledby="reference-title">
-      <div class="flex flex-wrap items-center justify-between gap-3">
+    <section class="serangkai-card" aria-labelledby="reference-title">
+      <header class="serangkai-card-head">
         <div>
           <h2 id="reference-title" class="agent-section-title">Reference</h2>
           <p class="agent-description mt-0.5">Tools, permissions, and authoring conventions.</p>
         </div>
         <SerangkaiCopyButton :value="referenceForAgent" label="all for agent" text="Copy all for agent" variant="outline" color="neutral" />
-      </div>
-      <SAccordion :items="referenceSections" type="multiple" color="neutral" class="mt-3" :ui="{ contentInner: 'pb-5', trigger: 'py-4' }">
+      </header>
+      <SAccordion :items="referenceSections" type="multiple" color="neutral" :ui="{ item: 'px-5 max-sm:px-4', contentInner: 'pb-5', trigger: 'py-4' }">
         <template #tools>
           <dl class="agent-reference-list">
             <div v-for="tool in toolList" :key="tool.name"><dt><code>{{ tool.name }}</code></dt><dd>{{ tool.hint }}</dd></div>
@@ -299,7 +299,6 @@ curl -X POST -H "Authorization: Bearer $SERANGKAI_TOKEN" \\
 .agent-instructions h4 { padding-top: .125rem; font-size: .875rem; font-weight: 600; }
 .agent-instructions p { margin-top: .25rem; color: var(--selaras-resolved-text-muted); font-size: .875rem; line-height: 1.7; }
 .agent-prompt { margin-top: .5rem; font-size: .875rem; line-height: 1.75; }
-.agent-reference { min-width: 0; padding-top: .5rem; }
 .agent-reference-list { display: grid; gap: .875rem; font-size: .875rem; }
 .agent-reference-list > div { display: grid; min-width: 0; gap: .375rem; }
 .agent-reference-list dd { color: var(--selaras-resolved-text-muted); line-height: 1.6; }

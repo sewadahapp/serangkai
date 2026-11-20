@@ -1503,6 +1503,29 @@ html.serangkai-editor-fullscreen-open body {
 }
 
 /* Shared canvas texture for app pages, public readers, and error screens. */
+/* Section card: the shared container for page sections (Settings cards,
+   the Agents reference). A header holds the title, description and an
+   optional action that wraps below on narrow cards. */
+.serangkai-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--selaras-resolved-border-default);
+  border-radius: var(--selaras-resolved-radius-lg);
+  background: var(--selaras-resolved-surface-default);
+}
+.serangkai-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem 1rem;
+  padding: 1.125rem 1.25rem;
+  border-bottom: 1px solid var(--selaras-resolved-border-muted);
+}
+.serangkai-card-head > :first-child { flex: 1 1 15rem; min-width: 0; }
+@media (max-width: 639px) { .serangkai-card-head { padding-inline: 1rem; } }
+
 .serangkai-canvas-pattern {
   /* Dimmed so body text and code chips stay legible on top of it. */
   background-image: radial-gradient(circle, color-mix(in srgb, var(--selaras-resolved-text-muted) 12%, transparent) 1px, transparent 1.1px);

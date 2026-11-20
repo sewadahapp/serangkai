@@ -130,9 +130,9 @@ const workspaceLinks = [
 const navigationItems = computed(() => workspaceLinks.map(link => ({ ...link, active: link.to === '/' ? isWorkspace.value : route.path.startsWith(link.to) })))
 const accountInitial = computed(() => Array.from(user.value?.username?.trim() || '?')[0]?.toLocaleUpperCase() || '?')
 const logout = async () => { await clear(); await navigateTo('/auth/login') }
+// Settings is a main sidebar section, so it isn't repeated here.
 const accountMenu = [
-  [{ label: 'Settings', icon: 'lucide:settings', to: '/settings' }],
-  [{ label: 'Log out', icon: 'lucide:log-out', onSelect: () => { void logout() } }],
+  [{ label: 'Log out', icon: 'lucide:log-out', destructive: true, onSelect: () => { void logout() } }],
 ]
 
 // Mirrors DashboardGroup's own breakpoint so the drawer can close itself
