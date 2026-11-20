@@ -348,7 +348,7 @@ onMounted(async () => {
 .settings-theme-description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: .25rem; color: var(--selaras-resolved-text-muted); font-size: .75rem; line-height: 1.5; }
 
 /* Credential rows (agents and tokens) share one shape. */
-.settings-credentials { max-height: 32rem; overflow-y: auto; }
+.settings-credentials { max-height: 32rem; overflow-y: auto; overscroll-behavior: contain; }
 .settings-credential { display: flex; align-items: center; gap: .875rem; padding: .875rem 1.25rem; }
 .settings-credential + .settings-credential { border-top: 1px solid var(--selaras-resolved-border-muted); }
 .settings-credential-icon { display: grid; width: 2rem; height: 2rem; flex-shrink: 0; place-items: center; border-radius: var(--selaras-resolved-radius-md); background: var(--selaras-resolved-surface-elevated); color: var(--selaras-resolved-text-muted); }

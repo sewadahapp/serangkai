@@ -31,14 +31,23 @@
               <NuxtLink to="/" class="app-brand" aria-label="Serangkai home"><span class="app-logo">S</span></NuxtLink>
             </STooltip>
             <NuxtLink v-else to="/" class="app-brand" aria-label="Serangkai home"><span class="app-logo">S</span>Serangkai</NuxtLink>
-            <!-- The mobile drawer has its own close button. -->
-            <STooltip v-if="!isNarrow" :text="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'" :content="{ side: 'right' }">
-              <SDashboardSidebarToggle :aria-label="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'" class="app-sidebar-toggle" />
-            </STooltip>
           </div>
         </template>
 
         <template #default="{ isCollapsed }">
+          <!-- Opens the command palette; shows the shortcut so it's discoverable. -->
+          <SDashboardSidebarToggle v-slot="{ toggle }">
+            <STooltip v-if="isCollapsed" text="Search" :content="{ side: 'right' }">
+              <button type="button" class="app-search app-search-collapsed" aria-label="Search" aria-keyshortcuts="Meta+K Control+K" @click="openPalette()">
+                <SIcon name="lucide:search" class="size-4" aria-hidden="true" />
+              </button>
+            </STooltip>
+            <button v-else type="button" class="app-search" aria-label="Search" aria-keyshortcuts="Meta+K Control+K" @click="openPalette(isNarrow ? toggle : undefined)">
+              <SIcon name="lucide:search" class="size-4 shrink-0" aria-hidden="true" />
+              <span class="app-search-label">Search…</span>
+              <span class="app-search-keys" aria-hidden="true"><SKbd value="mod" size="sm" /><SKbd value="K" size="sm" /></span>
+            </button>
+          </SDashboardSidebarToggle>
           <SNavigationMenu
             :items="navigationItems"
             orientation="vertical"
@@ -79,14 +88,32 @@
       <SDashboardResizeHandle class="app-resize-handle" />
 
       <SDashboardPanel :ui="{ root: 'app-panel' }">
+        <!-- Collapse/expand sits on the divider, outside the sidebar, at the
+             logo's height; it stays put in both states (only the arrow flips).
+             Desktop only: below 1024px the sidebar is a drawer with its own
+             close button. -->
+        <div class="app-sidebar-edge">
+          <SDashboardSidebarToggle v-slot="{ toggle, isCollapsed }">
+            <STooltip :text="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'" :content="{ side: 'right' }">
+              <button type="button" class="app-sidebar-edge-button" :aria-label="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'" :aria-expanded="!isCollapsed" @click="toggle()">
+                <SIcon :name="isCollapsed ? 'lucide:chevron-right' : 'lucide:chevron-left'" class="size-3.5" aria-hidden="true" />
+              </button>
+            </STooltip>
+          </SDashboardSidebarToggle>
+        </div>
         <header class="app-topbar app-topbar-private">
           <NuxtLink to="/" class="app-brand" aria-label="Serangkai home"><span class="app-logo">S</span>Serangkai</NuxtLink>
-          <SDashboardSidebarToggle v-slot="{ toggle }">
-            <SButton variant="ghost" color="neutral" icon="lucide:menu" aria-label="Open navigation" @click="toggle()" />
-          </SDashboardSidebarToggle>
+          <div class="flex items-center gap-1">
+            <SButton variant="ghost" color="neutral" icon="lucide:search" aria-label="Search" @click="openPalette()" />
+            <SDashboardSidebarToggle v-slot="{ toggle }">
+              <SButton variant="ghost" color="neutral" icon="lucide:menu" aria-label="Open navigation" @click="toggle()" />
+            </SDashboardSidebarToggle>
+          </div>
         </header>
         <main id="main" class="app-main" :class="mainClass"><slot /></main>
       </SDashboardPanel>
+
+      <SerangkaiCommandPalette />
 
       <SDashboardSidebarToggle v-slot="{ toggle, isCollapsed }">
         <SerangkaiDrawerAutoClose :toggle="toggle" :open="isNarrow && !isCollapsed" />
@@ -130,6 +157,14 @@ const workspaceLinks = [
 const navigationItems = computed(() => workspaceLinks.map(link => ({ ...link, active: link.to === '/' ? isWorkspace.value : route.path.startsWith(link.to) })))
 const accountInitial = computed(() => Array.from(user.value?.username?.trim() || '?')[0]?.toLocaleUpperCase() || '?')
 const logout = async () => { await clear(); await navigateTo('/auth/login') }
+
+// Command palette (also bound to Cmd/Ctrl+K by Selaras). From the mobile
+// drawer, close the drawer first so the two overlays don't stack.
+const palette = useCommandPalette()
+const openPalette = (closeDrawer?: () => void) => {
+  closeDrawer?.()
+  palette.open()
+}
 // Settings is a main sidebar section, so it isn't repeated here.
 const accountMenu = [
   [{ label: 'Log out', icon: 'lucide:log-out', destructive: true, onSelect: () => { void logout() } }],
@@ -158,16 +193,33 @@ onBeforeUnmount(() => narrowQuery?.removeEventListener('change', updateNarrow))
 .app-frame :deep(.app-dashboard) { height: auto !important; min-height: 100dvh; overflow: visible !important; }
 .app-frame :deep(.app-sidebar) { position: sticky; top: 0; align-self: flex-start; height: 100dvh; }
 .app-frame :deep(.app-panel) { min-width: 0; overflow: visible !important; }
+/* The sidebar's own scroll stops at its edges instead of moving the page. */
+.app-frame :deep(.app-sidebar [data-reka-scroll-area-viewport]) { overscroll-behavior: contain; }
 .app-frame :deep(.app-sidebar-header) { padding: 1rem .75rem .75rem; }
 .app-frame :deep(.app-sidebar-body) { padding: .25rem .75rem .75rem; }
 .app-frame :deep(.app-sidebar-footer) { padding: 0 .75rem .75rem; border-top: 0; }
 
 .app-sidebar-head { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: .5rem; padding-left: .25rem; }
-.app-sidebar-head-collapsed { flex-direction: column; justify-content: flex-start; gap: .5rem; padding-left: 0; }
+.app-sidebar-head-collapsed { justify-content: center; padding-left: 0; }
 .app-brand { display: flex; align-items: center; gap: .6rem; min-width: 0; font-size: .95rem; font-weight: 700; letter-spacing: -.025em; white-space: nowrap; }
 .app-logo { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; flex-shrink: 0; border-radius: .5rem; background: var(--selaras-resolved-color-primary-fill); color: var(--selaras-resolved-color-primary-on-fill); font-size: .85rem; }
-.app-sidebar-toggle { flex-shrink: 0; color: var(--selaras-resolved-text-muted); }
+.app-sidebar-edge { display: none; }
+.app-sidebar-edge-button { position: absolute; top: 0; left: 0; display: grid; width: 1.5rem; height: 1.5rem; place-items: center; transform: translateX(-50%); border: 1px solid var(--selaras-resolved-border-default); border-radius: 9999px; background: var(--selaras-resolved-surface-default); color: var(--selaras-resolved-text-muted); box-shadow: 0 1px 2px rgb(0 0 0 / .08); transition: color 100ms, border-color 100ms; }
+.app-sidebar-edge-button:hover { border-color: var(--selaras-resolved-border-hover); color: var(--selaras-resolved-text-default); }
+.app-sidebar-edge-button:focus-visible { outline: 2px solid var(--selaras-resolved-color-primary-border); outline-offset: 2px; }
+@media (min-width: 1024px) {
+  /* Zero-height sticky strip at the panel's left edge (the divider), centred
+     on the logo: header padding 1rem + half the 1.75rem logo - half the
+     1.5rem button. Above the resize handle so it stays clickable. */
+  .app-sidebar-edge { position: sticky; top: 1.125rem; z-index: 25; display: block; height: 0; }
+}
 
+.app-search { display: flex; width: 100%; min-width: 0; align-items: center; gap: .5rem; height: 2.25rem; margin-bottom: .75rem; padding: 0 .5rem 0 .625rem; border: 1px solid var(--selaras-resolved-border-default); border-radius: var(--selaras-resolved-radius-md); background: var(--selaras-resolved-surface-default); font-size: .875rem; color: var(--selaras-resolved-text-muted); transition: border-color 100ms, color 100ms; }
+.app-search:hover { border-color: var(--selaras-resolved-border-hover); color: var(--selaras-resolved-text-default); }
+.app-search:focus-visible { outline: 2px solid var(--selaras-resolved-color-primary-border); outline-offset: 2px; }
+.app-search-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.app-search-keys { display: flex; flex-shrink: 0; gap: .125rem; }
+.app-search-collapsed { justify-content: center; width: 2.5rem; height: 2.5rem; margin-inline: auto; padding: 0; border-color: transparent; background: transparent; }
 .app-sidebar-folders { margin-top: 1.5rem; }
 .app-sidebar-label { margin: 0 .625rem .75rem; font-size: .6rem; font-weight: 700; letter-spacing: .12em; color: var(--selaras-resolved-text-muted); }
 .app-sidebar-foot { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: .75rem; }

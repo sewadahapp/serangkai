@@ -344,18 +344,7 @@ const visibilityOptions = [
   { label: 'Public', value: 'public' },
 ]
 
-const rangkaTypeMeta: Record<string, { icon: string; label: string }> = {
-  markdown: { icon: 'lucide:file-text', label: 'Markdown' },
-  html: { icon: 'lucide:code-xml', label: 'HTML' },
-  json: { icon: 'lucide:braces', label: 'JSON' },
-  javascript: { icon: 'lucide:file-code-2', label: 'JavaScript' },
-  image: { icon: 'lucide:image', label: 'Image' },
-  pdf: { icon: 'lucide:file-type-2', label: 'PDF' },
-  bundle: { icon: 'lucide:package', label: 'Bundle' },
-}
-
-const rangkaIcon = (type: string) => rangkaTypeMeta[type]?.icon || 'lucide:file'
-const rangkaTypeLabel = (type: string) => rangkaTypeMeta[type]?.label || type
+// rangkaIcon / rangkaTypeLabel come from utils/rangka-types (shared with the command palette).
 const visibilityLabel = (visibility: string) => visibility.charAt(0).toUpperCase() + visibility.slice(1)
 
 const folderOption = (row: Folder & { depth: number }) => ({ label: `${'— '.repeat(row.depth)}${row.name}`, value: row.id })
@@ -576,6 +565,17 @@ const FolderPanel = markRaw(defineComponent({
   }),
 }))
 onMounted(() => { workspaceSidebar.value = FolderPanel })
+
+// Upload / New folder requested from the command palette on any page.
+const pendingAction = useWorkspaceAction()
+const runPendingAction = () => {
+  const action = pendingAction.value
+  if (!action || loadingWorkspace.value) return
+  pendingAction.value = null
+  if (action === 'upload') openUpload()
+  else openNewFolder()
+}
+watch([pendingAction, loadingWorkspace], runPendingAction)
 onBeforeUnmount(() => { if (workspaceSidebar.value === FolderPanel) workspaceSidebar.value = null })
 
 onMounted(async () => {

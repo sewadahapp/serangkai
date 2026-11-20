@@ -286,7 +286,7 @@ curl -X POST -H "Authorization: Bearer $SERANGKAI_TOKEN" \\
 .agent-path { min-width: 0; }
 .agent-path-agent { border-color: var(--selaras-resolved-color-primary-border); }
 .agent-path-kicker { display: inline-flex; align-items: center; gap: .375rem; font-size: .75rem; font-weight: 600; color: var(--selaras-resolved-color-primary-text); }
-.agent-prompt-box { margin-top: 1rem; max-height: 20rem; overflow: auto; padding: .875rem 1rem; border: 1px solid var(--selaras-resolved-border-default); border-radius: var(--selaras-resolved-radius-md); background: var(--selaras-resolved-surface-elevated); font-family: var(--font-mono); font-size: .75rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--selaras-resolved-text-default); }
+.agent-prompt-box { margin-top: 1rem; max-height: 20rem; overflow: auto; overscroll-behavior: contain; padding: .875rem 1rem; border: 1px solid var(--selaras-resolved-border-default); border-radius: var(--selaras-resolved-radius-md); background: var(--selaras-resolved-surface-elevated); font-family: var(--font-mono); font-size: .75rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--selaras-resolved-text-default); }
 .agent-prompt-box:focus-visible { outline: 2px solid var(--selaras-resolved-color-primary-border); outline-offset: 2px; }
 .agent-link { color: var(--selaras-resolved-text-default); text-decoration: underline; text-underline-offset: 3px; }
 .agent-description { color: var(--selaras-resolved-text-muted); font-size: .875rem; line-height: 1.75; }

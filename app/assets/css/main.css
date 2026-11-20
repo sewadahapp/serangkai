@@ -63,6 +63,8 @@ html {
   /* Reserve the scrollbar's space on every page so content never shifts
      sideways between short and long pages. */
   scrollbar-gutter: stable;
+  /* App feel: no rubber-band bounce past the top or bottom of the page. */
+  overscroll-behavior: none;
 }
 
 html.dark {
