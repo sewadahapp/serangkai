@@ -46,7 +46,9 @@ test('workspace is the private home and uses a responsive app sidebar', async ()
         await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, type, content }) })
       }
     })
-    await page.reload()
+    // Creating a folder selects it (and the URL keeps it), so go back to all
+    // rangka where the root-level documents are listed.
+    await page.goto(`${base}/`)
     await page.getByRole('link', { name: /^Research notes/ }).waitFor()
     await page.screenshot({ path: '/tmp/serangkai-shell-desktop.png' })
     for (const width of [320, 375, 768]) {
@@ -402,10 +404,13 @@ test('integrated add and edit screens retain navigation and protect unsaved draf
         viewport: document.documentElement.clientWidth,
         content: document.documentElement.scrollWidth,
         editorLeft: document.querySelector('.serangkai-editor-workspace').getBoundingClientRect().left,
+        sidebarRight: document.querySelector('.app-sidebar')?.getBoundingClientRect().right ?? 0,
         statusBottom: document.querySelector('.serangkai-editor-status').getBoundingClientRect().bottom,
       }))
       assert.ok(layout.content <= layout.viewport, `add screen overflows at ${width}px`)
-      assert.equal(layout.editorLeft, width >= 1024 ? 256 : 0)
+      // The sidebar is resizable, so the editor starts at its edge (the
+      // splitter can land on half a pixel) rather than at a fixed 256px.
+      assert.ok(Math.abs(layout.editorLeft - (width >= 1024 ? layout.sidebarRight : 0)) <= 1, `editor starts at the sidebar edge at ${width}px: ${JSON.stringify(layout)}`)
       assert.ok(layout.statusBottom <= 901, 'editor footer stays within the viewport')
       if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/serangkai-add-${width}.png` })
     }
@@ -606,6 +611,9 @@ test('Markdown code tokens switch palettes in dark mode in both readers', async 
     await page.waitForFunction(() => document.documentElement.classList.contains('dark'))
     await assertTokenPalette(true)
     await page.goto(`${base}/agent`)
+    // Code on the Agents page sits in collapsed reference sections; open one
+    // so there is highlighted code to check.
+    await page.getByRole('button', { name: 'Publishing & version history', exact: true }).click()
     await assertTokenPalette(true)
   } finally { await context.close() }
 })

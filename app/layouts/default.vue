@@ -3,13 +3,16 @@
     <a class="serangkai-skip" href="#main">Skip to content</a>
 
     <!-- Signed-in shell: a resizable, collapsible sidebar (Selaras dashboard
-         composite). Below 1024px it becomes a left drawer that holds both the
-         sections and, on the workspace, the folder tree. The page itself keeps
-         scrolling on the window so sticky headers inside pages still work. -->
+         composite). The group stays in its desktop mode at every width: its
+         mobile mode swaps the page into a different parent and remounts it,
+         which would close dialogs and drop unsaved drafts when a window is
+         resized across the breakpoint. Below 1024px the sidebar is hidden and
+         the drawer underneath takes over. The page keeps scrolling on the
+         window so sticky headers inside pages still work. -->
     <SDashboardGroup
       v-if="appShell"
       auto-save-id="serangkai-sidebar"
-      :mobile-breakpoint="SIDEBAR_BREAKPOINT"
+      :mobile-breakpoint="1"
       :ui="{ root: 'app-dashboard' }"
     >
       <SDashboardSidebar
@@ -23,65 +26,17 @@
       >
         <template #header="{ isCollapsed }">
           <div class="app-sidebar-head" :class="{ 'app-sidebar-head-collapsed': isCollapsed }">
-            <!-- Names the mobile drawer for screen readers (and Reka's
-                 required title); the inline desktop sidebar is named by its
-                 complementary landmark instead. -->
-            <DrawerTitle v-if="isNarrow" class="sr-only">Navigation</DrawerTitle>
             <STooltip v-if="isCollapsed" text="Serangkai" :content="{ side: 'right' }">
               <NuxtLink to="/" class="app-brand" aria-label="Serangkai home"><span class="app-logo">S</span></NuxtLink>
             </STooltip>
             <NuxtLink v-else to="/" class="app-brand" aria-label="Serangkai home"><span class="app-logo">S</span>Serangkai</NuxtLink>
           </div>
         </template>
-
         <template #default="{ isCollapsed }">
-          <!-- Opens the command palette; shows the shortcut so it's discoverable. -->
-          <SDashboardSidebarToggle v-slot="{ toggle }">
-            <STooltip v-if="isCollapsed" text="Search" :content="{ side: 'right' }">
-              <button type="button" class="app-search app-search-collapsed" aria-label="Search" aria-keyshortcuts="Meta+K Control+K" @click="openPalette()">
-                <SIcon name="lucide:search" class="size-4" aria-hidden="true" />
-              </button>
-            </STooltip>
-            <button v-else type="button" class="app-search" aria-label="Search" aria-keyshortcuts="Meta+K Control+K" @click="openPalette(isNarrow ? toggle : undefined)">
-              <SIcon name="lucide:search" class="size-4 shrink-0" aria-hidden="true" />
-              <span class="app-search-label">Search…</span>
-              <span class="app-search-keys" aria-hidden="true"><SKbd value="mod" size="sm" /><SKbd value="K" size="sm" /></span>
-            </button>
-          </SDashboardSidebarToggle>
-          <SNavigationMenu
-            :items="navigationItems"
-            orientation="vertical"
-            color="neutral"
-            :collapsed="isCollapsed"
-            tooltip
-            aria-label="Workspace sections"
-          />
-          <div v-if="isWorkspace && folderPanel && !isCollapsed" class="app-sidebar-folders">
-            <p class="app-sidebar-label">FOLDERS</p>
-            <component :is="folderPanel" />
-          </div>
+          <SerangkaiSidebarNav :collapsed="isCollapsed" @search="openPalette" />
         </template>
-
         <template #footer="{ isCollapsed }">
-          <!-- Common dashboard footer: a small promo card, then the account
-               row whose menu holds account actions (Log out included). -->
-          <div class="app-sidebar-foot">
-            <SerangkaiSelarasCredit v-if="!isCollapsed" />
-            <div class="app-account" :class="{ 'app-account-collapsed': isCollapsed }">
-              <SDropdown :items="accountMenu" :positioning="isCollapsed ? { side: 'right', align: 'end', sideOffset: 8 } : { side: 'top', align: 'start', sideOffset: 6 }" :ui="{ content: isCollapsed ? undefined : 'min-w-[var(--reka-dropdown-menu-trigger-width)]' }">
-                <button type="button" class="app-account-trigger" :aria-label="`Account menu for ${user?.username || 'account'}`">
-                  <SAvatar :text="accountInitial" color="primary" size="md" class="app-account-avatar" aria-hidden="true" />
-                  <template v-if="!isCollapsed">
-                    <span class="app-account-text">
-                      <span class="app-account-name">{{ user?.username }}</span>
-                      <span class="app-account-role">Workspace owner</span>
-                    </span>
-                    <SIcon name="lucide:chevrons-up-down" class="app-account-chevron" aria-hidden="true" />
-                  </template>
-                </button>
-              </SDropdown>
-            </div>
-          </div>
+          <SerangkaiSidebarAccount :collapsed="isCollapsed" />
         </template>
       </SDashboardSidebar>
 
@@ -90,8 +45,7 @@
       <SDashboardPanel :ui="{ root: 'app-panel' }">
         <!-- Collapse/expand sits on the divider, outside the sidebar, at the
              logo's height; it stays put in both states (only the arrow flips).
-             Desktop only: below 1024px the sidebar is a drawer with its own
-             close button. -->
+             Desktop only. -->
         <div class="app-sidebar-edge">
           <SDashboardSidebarToggle v-slot="{ toggle, isCollapsed }">
             <STooltip :text="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'" :content="{ side: 'right' }">
@@ -104,23 +58,24 @@
         <header class="app-topbar app-topbar-private">
           <NuxtLink to="/" class="app-brand" aria-label="Serangkai home"><span class="app-logo">S</span>Serangkai</NuxtLink>
           <div class="flex items-center gap-1">
-            <SButton variant="ghost" color="neutral" icon="lucide:search" aria-label="Search" @click="openPalette()" />
-            <SDashboardSidebarToggle v-slot="{ toggle }">
-              <SButton variant="ghost" color="neutral" icon="lucide:menu" aria-label="Open navigation" @click="toggle()" />
-            </SDashboardSidebarToggle>
+            <SButton variant="ghost" color="neutral" icon="lucide:search" aria-label="Search" @click="openPalette" />
+            <SButton variant="ghost" color="neutral" icon="lucide:menu" aria-label="Open navigation" @click="navDrawer = true" />
           </div>
         </header>
         <main id="main" class="app-main" :class="mainClass"><slot /></main>
       </SDashboardPanel>
 
       <SerangkaiCommandPalette />
-
-      <SDashboardSidebarToggle v-slot="{ toggle, isCollapsed }">
-        <SerangkaiDrawerAutoClose :toggle="toggle" :open="isNarrow && !isCollapsed" />
-      </SDashboardSidebarToggle>
     </SDashboardGroup>
 
-    <template v-else>
+    <!-- Mobile navigation (below 1024px): the same sidebar contents in a left
+         drawer, opened from the top bar or the workspace's Browse folders. -->
+    <SSlideover v-if="appShell" v-model:open="navDrawer" side="left" title="Navigation">
+      <template #body><SerangkaiSidebarNav @search="openPalette" /></template>
+      <template #footer><SerangkaiSidebarAccount /></template>
+    </SSlideover>
+
+    <template v-if="!appShell">
       <header class="app-topbar">
         <NuxtLink to="/" class="app-brand" aria-label="Serangkai home"><span class="app-logo">S</span>Serangkai</NuxtLink>
         <div class="flex min-w-0 items-center gap-1.5">
@@ -135,52 +90,32 @@
 </template>
 
 <script setup lang="ts">
-import { DrawerTitle } from 'reka-ui'
-
-// Keep in step with the CSS guard below and the `lg` breakpoint pages use.
-const SIDEBAR_BREAKPOINT = 1024
-
-const { loggedIn, user, ready, clear } = useUserSession()
+const { loggedIn, ready } = useUserSession()
 const route = useRoute()
-const folderPanel = useWorkspaceSidebar()
 const appShell = computed(() => loggedIn.value && !route.path.startsWith('/share/'))
-const isWorkspace = computed(() => route.path === '/' || route.path === '/workspace')
 const mainClass = computed(() => ({
   'app-main-login': route.path === '/auth/login',
   'app-main-document': route.path.startsWith('/rangka/') || route.path === '/workspace/new',
 }))
-const workspaceLinks = [
-  { to: '/', label: 'Workspace', icon: 'lucide:layers' },
-  { to: '/agent', label: 'Agents', icon: 'lucide:bot' },
-  { to: '/settings', label: 'Settings', icon: 'lucide:settings' },
-]
-const navigationItems = computed(() => workspaceLinks.map(link => ({ ...link, active: link.to === '/' ? isWorkspace.value : route.path.startsWith(link.to) })))
-const accountInitial = computed(() => Array.from(user.value?.username?.trim() || '?')[0]?.toLocaleUpperCase() || '?')
-const logout = async () => { await clear(); await navigateTo('/auth/login') }
 
-// Command palette (also bound to Cmd/Ctrl+K by Selaras). From the mobile
-// drawer, close the drawer first so the two overlays don't stack.
+// Mobile drawer: closes after any navigation (including choosing a folder,
+// which only changes the query) so the user lands on what they picked.
+const navDrawer = useNavDrawer()
+watch(() => route.fullPath, () => { navDrawer.value = false })
+
+// Command palette (also bound to Cmd/Ctrl+K by Selaras). Close the drawer
+// first so the two overlays don't stack.
 const palette = useCommandPalette()
-const openPalette = (closeDrawer?: () => void) => {
-  closeDrawer?.()
+const openPalette = () => {
+  navDrawer.value = false
   palette.open()
 }
-// Settings is a main sidebar section, so it isn't repeated here.
-const accountMenu = [
-  [{ label: 'Log out', icon: 'lucide:log-out', destructive: true, onSelect: () => { void logout() } }],
-]
 
-// Mirrors DashboardGroup's own breakpoint so the drawer can close itself
-// after navigation without ever collapsing the desktop sidebar.
-const isNarrow = ref(false)
-let narrowQuery: MediaQueryList | undefined
-const updateNarrow = () => { isNarrow.value = narrowQuery?.matches ?? false }
-onMounted(() => {
-  narrowQuery = window.matchMedia(`(max-width: ${SIDEBAR_BREAKPOINT - 1}px)`)
-  updateNarrow()
-  narrowQuery.addEventListener('change', updateNarrow)
-})
-onBeforeUnmount(() => narrowQuery?.removeEventListener('change', updateNarrow))
+// Storage meter: load once the shell is up, and refresh on navigation so it
+// reflects rangka created or deleted on other pages.
+const storage = useStorageStatus()
+onMounted(() => { if (appShell.value) void storage.refresh() })
+watch(() => route.path, () => { if (appShell.value) void storage.refresh() })
 </script>
 
 <style scoped>
@@ -214,25 +149,6 @@ onBeforeUnmount(() => narrowQuery?.removeEventListener('change', updateNarrow))
   .app-sidebar-edge { position: sticky; top: 1.125rem; z-index: 25; display: block; height: 0; }
 }
 
-.app-search { display: flex; width: 100%; min-width: 0; align-items: center; gap: .5rem; height: 2.25rem; margin-bottom: .75rem; padding: 0 .5rem 0 .625rem; border: 1px solid var(--selaras-resolved-border-default); border-radius: var(--selaras-resolved-radius-md); background: var(--selaras-resolved-surface-default); font-size: .875rem; color: var(--selaras-resolved-text-muted); transition: border-color 100ms, color 100ms; }
-.app-search:hover { border-color: var(--selaras-resolved-border-hover); color: var(--selaras-resolved-text-default); }
-.app-search:focus-visible { outline: 2px solid var(--selaras-resolved-color-primary-border); outline-offset: 2px; }
-.app-search-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
-.app-search-keys { display: flex; flex-shrink: 0; gap: .125rem; }
-.app-search-collapsed { justify-content: center; width: 2.5rem; height: 2.5rem; margin-inline: auto; padding: 0; border-color: transparent; background: transparent; }
-.app-sidebar-folders { margin-top: 1.5rem; }
-.app-sidebar-label { margin: 0 .625rem .75rem; font-size: .6rem; font-weight: 700; letter-spacing: .12em; color: var(--selaras-resolved-text-muted); }
-.app-sidebar-foot { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: .75rem; }
-.app-account { padding-top: .75rem; border-top: 1px solid var(--selaras-resolved-border-muted); }
-.app-account-trigger { display: flex; width: 100%; min-width: 0; align-items: center; gap: .625rem; padding: .375rem; border-radius: var(--selaras-resolved-radius-md); text-align: left; transition: background-color 100ms; }
-.app-account-trigger:hover, .app-account-trigger[data-state='open'] { background: var(--selaras-resolved-color-neutral-subtle); }
-.app-account-trigger:focus-visible { outline: 2px solid var(--selaras-resolved-color-primary-border); outline-offset: 2px; }
-.app-account-avatar { flex-shrink: 0; border-radius: var(--selaras-resolved-radius-md); }
-.app-account-text { display: flex; min-width: 0; flex: 1; flex-direction: column; line-height: 1.25; }
-.app-account-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .875rem; font-weight: 600; }
-.app-account-role { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; color: var(--selaras-resolved-text-muted); }
-.app-account-chevron { width: 1rem; height: 1rem; flex-shrink: 0; color: var(--selaras-resolved-text-muted); }
-.app-account-collapsed .app-account-trigger { justify-content: center; padding: .25rem; }
 
 .app-topbar { position: sticky; top: 0; z-index: 20; display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: .5rem; height: 4rem; padding-inline: 1rem; background: var(--selaras-resolved-surface-canvas); border-bottom: 1px solid var(--selaras-resolved-border-muted); }
 .app-main { width: 100%; max-width: 88rem; min-width: 0; margin-inline: auto; padding: 2rem 1rem 4rem; }
@@ -247,9 +163,9 @@ onBeforeUnmount(() => narrowQuery?.removeEventListener('change', updateNarrow))
   .app-topbar-private { display: none; }
   .app-frame-signed-in .app-main { padding-top: 2.5rem; }
 }
-/* Server rendering cannot know the viewport, so DashboardGroup first renders
-   the desktop split and swaps to the drawer after mount. Hide the inline
-   sidebar on narrow screens so phones never flash a 256px column. */
+/* Below 1024px the inline sidebar and its handle are hidden (pure CSS, so
+   nothing remounts and phones never flash a 256px column); the drawer is the
+   navigation there. */
 @media (max-width: 1023px) {
   .app-frame :deep(.app-sidebar), .app-frame :deep(.app-resize-handle) { display: none; }
 }

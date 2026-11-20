@@ -60,11 +60,15 @@ html {
   color-scheme: light;
   /* Match the canvas so overscroll and short pages never show white. */
   background-color: var(--selaras-resolved-surface-canvas);
-  /* Reserve the scrollbar's space on every page so content never shifts
-     sideways between short and long pages. */
-  scrollbar-gutter: stable;
   /* App feel: no rubber-band bounce past the top or bottom of the page. */
   overscroll-behavior: none;
+}
+
+/* Signed-in sections reserve the scrollbar's space so the page column never
+   shifts sideways between short and long pages. Public pages (share, login)
+   do not: a full-bleed shared rangka must use the whole width. */
+html:has(.app-frame-signed-in) {
+  scrollbar-gutter: stable;
 }
 
 html.dark {

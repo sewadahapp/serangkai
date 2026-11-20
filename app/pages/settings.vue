@@ -49,6 +49,57 @@
       </div>
     </section>
 
+    <section id="storage" class="serangkai-card settings-card" aria-labelledby="storage-title">
+      <header class="serangkai-card-head">
+        <div class="min-w-0">
+          <h2 id="storage-title" class="settings-section-title">Storage</h2>
+          <p class="settings-description">How much space your rangka use, and what happens at your limit.</p>
+        </div>
+      </header>
+      <div class="settings-card-body">
+        <div class="settings-row settings-row-stacked">
+          <div v-if="storageMeterView" class="settings-storage-meter">
+            <div class="settings-storage-numbers">
+              <span class="settings-row-title">{{ storageMeterView.summary }}</span>
+              <span class="settings-description" :class="{ 'settings-storage-warning': storageMeterView.color === 'warning', 'settings-storage-danger': storageMeterView.color === 'danger' }">{{ storageMeterView.remaining }}</span>
+            </div>
+            <SProgress v-if="storageMeterView.percent !== null" :model-value="storageMeterView.percent" :color="storageMeterView.color" aria-label="Storage used" />
+            <p class="settings-metadata">
+              <span v-if="storage?.measuring">Measuring older files…</span>
+              <span v-if="storage?.operatorLimitBytes">Server cap {{ formatByteSize(storage.operatorLimitBytes) }}</span>
+              <span v-if="storage?.disk">Disk {{ formatByteSize(storage.disk.freeBytes) }} free of {{ formatByteSize(storage.disk.totalBytes) }}</span>
+              <span v-if="!storage?.disk && !storage?.limitBytes">Object storage reports no capacity; set a limit to track it.</span>
+            </p>
+          </div>
+          <SSkeleton v-else class="h-14 w-full rounded-md" />
+        </div>
+
+        <form id="storage-form" class="contents" @submit.prevent="saveStorage">
+          <div class="settings-row">
+            <div class="min-w-0">
+              <h3 id="storage-limit-label" class="settings-row-title">Storage limit</h3>
+              <p class="settings-description">{{ storage?.operatorLimitBytes ? `Up to ${formatByteSize(storage.operatorLimitBytes)} on this server. ` : '' }}Leave empty for no limit.</p>
+            </div>
+            <div class="settings-storage-limit" role="group" aria-labelledby="storage-limit-label">
+              <SInput v-model="limitAmount" inputmode="decimal" placeholder="No limit" aria-label="Limit amount" class="w-28" :invalid="!!limitProblem" />
+              <SSelect v-model="limitUnit" :items="limitUnits" aria-label="Limit unit" class="w-24" />
+            </div>
+          </div>
+          <div class="settings-row settings-row-stacked">
+            <div class="min-w-0">
+              <h3 class="settings-row-title">When the limit is reached</h3>
+              <p class="settings-description">Block new writes if going over would cost you, for example on a plan that bills overuse.</p>
+            </div>
+            <SRadioGroup v-model="storageModeChoice" :items="storageModeOptions" aria-label="When the limit is reached" />
+          </div>
+        </form>
+      </div>
+      <div class="settings-card-foot settings-storage-foot">
+        <SAlert v-if="limitProblem || storageError" color="danger" variant="subtle" :title="limitProblem || storageError" class="flex-1" />
+        <SButton type="submit" form="storage-form" size="sm" :loading="savingStorage" :disabled="!storageDirty || !!limitProblem || savingStorage">Save storage settings</SButton>
+      </div>
+    </section>
+
     <section id="connected-agents" class="serangkai-card settings-card" aria-labelledby="connected-clients">
       <header class="serangkai-card-head">
         <div class="min-w-0">
@@ -111,6 +162,7 @@
 import type { DateValue } from '@internationalized/date'
 import { getLocalTimeZone } from '@internationalized/date'
 import { isThemeId, themes } from '#shared/themes'
+import { formatByteSize, parseByteSize } from '#shared/byte-size'
 
 useHead({ title: 'Settings' })
 
@@ -118,7 +170,7 @@ const route = useRoute()
 
 // Settings used to be tabs; existing links (?tab=tokens, ?tab=agents from
 // the Agents page and elsewhere) now scroll to the matching section card.
-const sectionForTab: Record<string, string> = { appearance: 'appearance', tokens: 'api-tokens', agents: 'connected-agents' }
+const sectionForTab: Record<string, string> = { appearance: 'appearance', storage: 'storage', tokens: 'api-tokens', agents: 'connected-agents' }
 const scrollToRequestedSection = () => {
   const id = sectionForTab[String(route.query.tab || '')]
   if (id && id !== 'appearance') document.getElementById(id)?.scrollIntoView({ block: 'start' })
@@ -138,6 +190,58 @@ const setColorMode = (value: string | string[]) => {
   if (value === 'light' || value === 'dark' || value === 'system') colorMode.preference = value
 }
 const formatDate = (value: string) => new Date(value).toLocaleDateString()
+
+// Storage: the meter plus the owner's limit and warn/block choice. The server
+// re-checks everything (cap, session-only), so this form is a convenience.
+const { status: storage, refresh: refreshStorage } = useStorageStatus()
+const { add: toast } = useToast()
+const storageMeterView = computed(() => storage.value ? storageMeter(storage.value) : null)
+const limitUnits = ['MB', 'GB', 'TB']
+const limitAmount = ref('')
+const limitUnit = ref('GB')
+const storageModeChoice = ref<'warn' | 'reject'>('warn')
+const storageModeOptions = [
+  { value: 'warn', label: 'Warn only', description: 'Keep saving. The meter turns amber at 80% and red at 95%.' },
+  { value: 'reject', label: 'Block new writes', description: 'Refuse uploads, new rangka, and versions that would go over. Deleting always works.' },
+]
+const savingStorage = ref(false)
+const storageError = ref('')
+
+const syncStorageForm = (value: typeof storage.value) => {
+  if (!value) return
+  storageModeChoice.value = value.mode
+  const bytes = value.ownerLimitBytes
+  if (!bytes) { limitAmount.value = ''; return }
+  const unit = bytes >= 1e12 ? 'TB' : bytes >= 1e9 ? 'GB' : 'MB'
+  limitUnit.value = unit
+  limitAmount.value = String(Number((bytes / ({ MB: 1e6, GB: 1e9, TB: 1e12 } as Record<string, number>)[unit]!).toFixed(2)))
+}
+watch(storage, (value, previous) => { if (!previous) syncStorageForm(value) }, { immediate: true })
+
+const parsedLimit = computed(() => limitAmount.value.trim() ? parseByteSize(`${limitAmount.value.trim()}${limitUnit.value}`) : null)
+const limitProblem = computed(() => {
+  if (limitAmount.value.trim() && parsedLimit.value === null) return 'Enter the limit as a number, like 10 or 2.5.'
+  const cap = storage.value?.operatorLimitBytes
+  if (cap && parsedLimit.value && parsedLimit.value > cap) return `The limit can be at most ${formatByteSize(cap)} on this server.`
+  return ''
+})
+const storageDirty = computed(() => !!storage.value && (parsedLimit.value !== storage.value.ownerLimitBytes || storageModeChoice.value !== storage.value.mode))
+
+const saveStorage = async () => {
+  if (!storageDirty.value || limitProblem.value || savingStorage.value) return
+  savingStorage.value = true
+  storageError.value = ''
+  try {
+    const res = await $fetch<{ storage: NonNullable<typeof storage.value> }>('/api/storage', { method: 'PUT', body: { limitBytes: parsedLimit.value, mode: storageModeChoice.value } })
+    storage.value = res.storage
+    syncStorageForm(res.storage)
+    toast({ title: 'Storage settings saved', color: 'success' })
+  } catch (e: any) {
+    storageError.value = e?.data?.message || 'Could not save storage settings.'
+  } finally {
+    savingStorage.value = false
+  }
+}
 
 const theme = useAppTheme()
 const themeOptions = themes.map(({ id, label, description }) => ({ value: id, label, description }))
@@ -314,6 +418,7 @@ const revokeToken = async (token: any) => {
 
 onMounted(async () => {
   nextTick(scrollToRequestedSection)
+  void refreshStorage()
   if (!loggedIn.value) return
   // Lists change height once loaded; land on the requested card again.
   await Promise.all([loadTokens(), loadClients()])
@@ -355,6 +460,12 @@ onMounted(async () => {
 .settings-credential-name { overflow-wrap: anywhere; font-size: .875rem; font-weight: 600; }
 .settings-metadata { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .75rem; margin-top: .25rem; color: var(--selaras-resolved-text-muted); font-size: .75rem; line-height: 1.5; }
 .settings-scope { padding: 0 .375rem; border: 1px solid var(--selaras-resolved-border-default); border-radius: var(--selaras-resolved-radius-sm); font-family: var(--font-mono); font-size: .6875rem; color: var(--selaras-resolved-text-default); }
+.settings-storage-meter { display: flex; flex-direction: column; gap: .5rem; }
+.settings-storage-numbers { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .25rem 1rem; font-variant-numeric: tabular-nums; }
+.settings-storage-warning { color: var(--selaras-resolved-color-warning-text); font-weight: 600; }
+.settings-storage-danger { color: var(--selaras-resolved-color-danger-text); font-weight: 600; }
+.settings-storage-limit { display: flex; gap: .5rem; }
+.settings-storage-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .75rem; padding-top: 1rem; border-top: 1px solid var(--selaras-resolved-border-muted); }
 .settings-scope-full { border-color: var(--selaras-resolved-color-warning-border); background: var(--selaras-resolved-color-warning-subtle); color: var(--selaras-resolved-color-warning-text); }
 .settings-empty { display: flex; align-items: flex-start; flex-direction: column; gap: .375rem; padding: 1.25rem; }
 .settings-empty h3 { font-size: .875rem; font-weight: 600; }

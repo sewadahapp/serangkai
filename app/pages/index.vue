@@ -56,9 +56,7 @@
           <div class="workspace-scope">
             <!-- Folders live in the sidebar; on narrow screens that is the
                  navigation drawer, so this opens the same drawer. -->
-            <SDashboardSidebarToggle v-slot="{ toggle }">
-              <SButton variant="ghost" color="neutral" size="sm" icon="lucide:panel-left" class="workspace-folders-trigger lg:hidden" @click="toggle()">Browse folders</SButton>
-            </SDashboardSidebarToggle>
+            <SButton variant="ghost" color="neutral" size="sm" icon="lucide:panel-left" class="workspace-folders-trigger lg:hidden" @click="navDrawer = true">Browse folders</SButton>
             <p v-if="selectedFolderParents.length && !appliedQuery" class="workspace-scope-path">
               <template v-for="parent in selectedFolderParents" :key="parent.id">
                 <button type="button" class="workspace-scope-crumb" @click="selectFolder(parent.id)">{{ parent.name }}</button><span aria-hidden="true">/</span>
@@ -68,7 +66,7 @@
               <h2 id="rangka-list" class="workspace-list-title">{{ appliedQuery ? 'Search results' : selectedFolder ? selectedFolder.name : 'All rangka' }}</h2>
               <p class="workspace-scope-count" role="status">
                 <template v-if="searchPending">Searching…</template>
-                <template v-else-if="appliedQuery">{{ totalRangka }} found {{ selectedFolder ? `in ${selectedFolder.name}` : 'across all folders' }}</template>
+                <template v-else-if="appliedQuery">{{ totalRangka }} found {{ selectedFolder ? `in ${selectedFolder.name} and its subfolders` : 'across all folders' }}</template>
                 <template v-else>{{ totalRangka }} rangka</template>
               </p>
             </div>
@@ -279,6 +277,10 @@ let searchSequence = 0
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 
 const { confirm } = useConfirm()
+// Opens the shared mobile navigation drawer, which holds the folder tree.
+const navDrawer = useNavDrawer()
+// Keeps the sidebar storage meter current after uploads, copies, and deletes.
+const { refresh: refreshStorage } = useStorageStatus()
 const { add: toast } = useToast()
 
 const showNewFolder = ref(false)
@@ -491,6 +493,9 @@ const revealFolder = (folderId: string | null) => {
 }
 
 const selectFolder = (folderId: string | null) => {
+  // Close the mobile drawer even when the folder is already selected (the URL
+  // does not change then, so the layout's close-on-navigation does not fire).
+  navDrawer.value = false
   // Reveal the path when selecting a newly created or moved folder, while
   // preserving manual collapses through searches and list refreshes.
   revealFolder(folderId)
@@ -702,6 +707,7 @@ const duplicateFromList = async (item: Rangka) => {
   try {
     await $fetch(`/api/rangka/${item.id}/duplicate`, { method: 'POST' })
     toast({ title: 'Rangka duplicated', color: 'success' })
+    void refreshStorage()
     await search()
   } catch (e: any) { toast({ title: e?.data?.message || 'Could not duplicate rangka.', color: 'danger' }) }
   finally { rangkaBusy.value = null }
@@ -714,6 +720,7 @@ const deleteFromList = async (item: Rangka) => {
   try {
     await $fetch(`/api/rangka/${item.id}`, { method: 'DELETE' })
     toast({ title: 'Rangka deleted', color: 'success' })
+    void refreshStorage()
     await search()
   } catch (e: any) { toast({ title: e?.data?.message || 'Could not delete rangka.', color: 'danger' }) }
   finally { rangkaBusy.value = null }
@@ -774,6 +781,7 @@ const uploadRangka = async () => {
     uploadError.value = ''
     uploadTitle.value = ''
     await loadWorkspace()
+    void refreshStorage()
     toast({ title: 'Rangka uploaded', color: 'success' })
   } catch (e: any) {
     error.value = e.data?.message || 'Could not upload rangka'
