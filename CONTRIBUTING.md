@@ -5,10 +5,9 @@ make and easy to review. This document covers the practical details.
 
 ## What Serangkai is
 
-An open-source, self-hosted alternative to Claude-style Artifacts: a workspace
-where you and your AI agents create interactive documents — HTML apps, charts,
-and diagrams — that you own. Agents write into the same workspace through MCP
-with scoped, revocable permissions.
+A self-hosted workspace where people and AI agents publish interactive work:
+reports, dashboards, HTML apps, diagrams, and charts. See the
+[README](README.md) for the full picture.
 
 ## Before you start
 
@@ -121,11 +120,12 @@ so it can be fixed before details are public.
 
 When writing code, treat these as hard rules:
 
-- Reads and writes require auth; scoped API tokens are for agents.
+- Writes always require auth; scoped API tokens are for agents. Reads of
+  private rangka require auth or permission, and only explicitly shared rangka
+  are public.
 - A browser session must never authorize MCP, and a bearer token must never
   fall back to a session.
 - Never add public registration. The single owner comes from the environment.
-- Private rangka must not be reachable without auth or permission.
 - Isolate untrusted HTML/JS execution with sandboxed iframes and CSP.
 - Markdown is sanitized server-side; never evaluate author expressions.
 - No secrets in code or logs.
