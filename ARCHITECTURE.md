@@ -133,6 +133,8 @@ archive before anything is written:
   executables on the Serangkai domain. Extensionless files are served as plain
   text.
 - OS junk (`__MACOSX/`, dotfiles, `Thumbs.db`, `desktop.ini`) is skipped.
+- Entry names with `..`, `.`, empty segments, `:` or a leading `/` refuse the
+  upload.
 - Limits: 500 files, 100 MB unpacked, 25 MiB archive.
 
 Every bundle is extracted under its own `userId/rangkaId/bundle/` prefix, so
@@ -144,7 +146,8 @@ browser sends no session cookie with the bundle's own requests and relative
 links drop a `?k=` query. The access key therefore leads the path:
 `/api/share/<slug>/~<key>/index.html`. Unlisted bundles use their share key;
 the owner's browser session gets a 12-hour view key from `GET /api/rangka/:id`
-(`bundleUrl`) and the reader. API tokens never receive a view key. Bundle
+(`bundleUrl`) and the reader. API tokens never receive a view key, and an
+owner's token reads bundle files only with `read` or `full` scope. Bundle
 responses send `Referrer-Policy: no-referrer` so the key does not leak. Their
 documents get the same sandbox policy as HTML rangka (inline styles and
 scripts allowed, no network, no same-origin access), and

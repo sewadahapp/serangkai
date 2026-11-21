@@ -144,3 +144,31 @@ test('duplicating a bundle gives the copy its own files', async () => {
   assert.equal((await fetch(`${base}/api/rangka/${source.id}`, { method: 'DELETE', headers: { cookie } })).status, 200)
   assert.equal((await fetch(`${base}${bundleUrl}`)).status, 200)
 })
+
+test('bundle files follow token scopes like every other read', async () => {
+  const entries = [['index.html', '<h1>Scoped</h1>']]
+  const mint = async scopes => (await (await fetch(`${base}/api/tokens`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ name: `bundle ${scopes}`, scopes }) })).json()).token
+  const writeOnly = await mint(['write'])
+  const reader = await mint(['read'])
+  const as = token => ({ headers: { authorization: `Bearer ${token}` } })
+
+  const priv = (await (await uploadZip(entries, { title: 'Scoped private' })).json()).rangka
+  const refused = await fetch(`${base}/api/share/${priv.slug}/index.html`, as(writeOnly))
+  assert.equal(refused.status, 403)
+  assert.match((await refused.json()).message, /read scope/)
+  assert.equal((await fetch(`${base}/api/share/${priv.slug}/index.html`, as(reader))).status, 200)
+
+  const unlisted = (await (await uploadZip(entries, { visibility: 'unlisted', title: 'Scoped unlisted' })).json()).rangka
+  assert.equal((await fetch(`${base}/api/share/${unlisted.slug}/index.html`, as(writeOnly))).status, 404)
+  assert.equal((await fetch(`${base}/api/share/${unlisted.slug}/index.html`, as(reader))).status, 200)
+})
+
+test('archive entries with "." or empty path segments are refused', async () => {
+  for (const name of ['site/./index.html', 'site//index.html', './index.html']) {
+    const response = await uploadZip([[name, '<h1>odd</h1>']])
+    assert.equal(response.status, 400, name)
+    assert.match((await response.json()).message, /unsafe path/, name)
+  }
+  // Ordinary nested folders still work.
+  assert.equal((await uploadZip([['index.html', 'ok'], ['assets/img/logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>']])).status, 200)
+})

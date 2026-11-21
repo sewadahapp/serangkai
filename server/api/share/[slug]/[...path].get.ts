@@ -24,10 +24,15 @@ export default defineEventHandler(async (event) => {
   if (path === '' || getRequestURL(event).pathname.endsWith('/')) path = path ? `${path.replace(/\/+$/, '')}/index.html` : 'index.html'
 
   const user = event.context.user
-  const isOwner = !!user && user.id === rangka.userId
+  // The owner's session, or one of the owner's API tokens that may read, like
+  // every other read endpoint (requireScope). A write-only token may not.
+  const token = (event.context as any).apiToken
+  const tokenMayRead = !token || token.scopes.includes('read') || token.scopes.includes('full')
+  const isOwner = !!user && user.id === rangka.userId && tokenMayRead
   const viaViewKey = isValidBundleViewKey(rangka.id, key)
   if (rangka.visibility === 'private' && !isOwner && !viaViewKey) {
-    throw createError(user ? { statusCode: 403, message: 'Forbidden' } : { statusCode: 401, message: 'Unauthorized' })
+    if (!user) throw createError({ statusCode: 401, message: 'Unauthorized' })
+    throw createError({ statusCode: 403, message: user.id === rangka.userId ? 'API token requires read scope' : 'Forbidden' })
   }
   if (rangka.visibility === 'unlisted' && !isOwner && !viaViewKey && !isValidShareKey(rangka.id, key)) {
     throw createError({ statusCode: 404, message: 'Bundle not found' })

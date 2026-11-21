@@ -61,8 +61,11 @@ function safeEntryName(name: string) {
   // `:` is a storage key separator (and covers Windows drive letters), so an
   // entry like `..:..:other` must not reach `writeRangka`.
   if (!name || name.includes('\0') || name.includes(':') || name.startsWith('/')) return false
-  const clean = name.replaceAll('\\', '/')
-  return clean !== '..' && !clean.startsWith('../') && !clean.split('/').includes('..')
+  // Directory entries end in `/`; apart from that, every segment must be a real
+  // name: no `..`, and no `.` or empty segment, which storage drivers refuse or
+  // fold into another path.
+  const clean = name.replaceAll('\\', '/').replace(/\/$/, '')
+  return clean.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..')
 }
 
 /**
