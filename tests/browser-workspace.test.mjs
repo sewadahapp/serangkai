@@ -122,7 +122,9 @@ test('human browser workflow logs in and creates a rangka', async () => {
   await page.getByRole('button', { name: 'Actions for version 3', exact: true }).click()
   assert.equal(await page.getByRole('menuitem', { name: 'Delete version' }).count(), 0)
   await page.keyboard.press('Escape')
-  await page.keyboard.press('Escape')
+  const history = page.getByRole('dialog', { name: 'Version history', exact: true })
+  await history.getByRole('button', { name: 'Close', exact: true }).click()
+  await history.waitFor({ state: 'hidden' })
 
   await page.getByRole('link', { name: 'Settings' }).click()
   await page.waitForURL('**/settings')
