@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process'
 import { test, before, after } from 'node:test'
 import { adminEnv, adminPassword, adminUsername, login } from './helpers/auth.mjs'
 import { startS3Mock } from './helpers/s3-mock.mjs'
+import { ZipFile } from 'yazl'
 
 /**
  * The Backblaze B2 deployment path on the Workers runtime: the built Worker
@@ -160,6 +161,32 @@ test('B2-style storage works on Workers with D1 and no R2 binding', { timeout: 9
   assert.doesNotMatch(output, /ephemeral memory storage/)
   assert.doesNotMatch(output, /R2 binding/)
 })
+
+test('storage usage and private bundles work on Workers with S3', { timeout: 90000 }, async () => {
+  const { cookie } = await login(base)
+
+  // Workers have no local disk: usage is reported without a disk size.
+  const status = await fetch(`${base}/api/storage`, { headers: { cookie } })
+  assert.equal(status.status, 200, await status.clone().text())
+  const { storage } = await status.json()
+  assert.ok(storage.usedBytes > 0)
+  assert.equal(storage.disk, null)
+
+  // A zipped folder unpacks through the S3 driver and its assets load with
+  // the path key, without a cookie.
+  const archive = await new Promise((resolve, reject) => { const z = new ZipFile(); const chunks = []; z.outputStream.on('data', c => chunks.push(c)).on('end', () => resolve(Buffer.concat(chunks))).on('error', reject); z.addBuffer(Buffer.from('<link rel="stylesheet" href="style.css"><h1>Worker site</h1>'), 'site/index.html'); z.addBuffer(Buffer.from('h1{color:red}'), 'site/style.css'); z.end() })
+  const form = new FormData()
+  form.append('file', new Blob([archive], { type: 'application/zip' }), 'site.zip')
+  const uploaded = await fetch(`${base}/api/rangka/upload`, { method: 'POST', headers: { cookie }, body: form })
+  assert.equal(uploaded.status, 200, await uploaded.clone().text())
+  const { rangka } = await uploaded.json()
+  const { bundleUrl } = await (await fetch(`${base}/api/rangka/${rangka.id}`, { headers: { cookie } })).json()
+  assert.match(await (await fetch(`${base}${bundleUrl}`)).text(), /Worker site/)
+  const css = await fetch(`${base}${bundleUrl.replace('index.html', 'style.css')}`)
+  assert.equal(css.status, 200)
+  assert.equal(await css.text(), 'h1{color:red}')
+})
+
 
 test('a misconfigured S3 endpoint fails storage loudly instead of using Worker memory', { timeout: 90000 }, async () => {
   // Backblaze displays its endpoint as a bare hostname; deploying it without

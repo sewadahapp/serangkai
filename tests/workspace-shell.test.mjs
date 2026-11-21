@@ -12,6 +12,9 @@ import { adminEnv, adminUsername, adminPassword } from './helpers/auth.mjs'
 const port = 4200 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
 let child, dataDir, browser
+// A click that lands while the login page is still hydrating can be lost on a
+// loaded CI runner; wait until the Vue app has mounted before submitting.
+const hydrated = () => !!document.getElementById('__nuxt')?.__vue_app__
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-shell-'))
   child = spawn(serverRuntime, ['.output/server/index.mjs'], { env: { ...process.env, ...adminEnv(), PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'db.sqlite'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
@@ -31,6 +34,7 @@ test('workspace is the private home and uses a responsive app sidebar', async ()
     await page.waitForURL('**/auth/login')
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     await page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor()
@@ -178,6 +182,7 @@ test('rangka grid and list preserve filtering, pagination, and the chosen view',
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     await page.evaluate(async () => {
@@ -224,6 +229,7 @@ test('rangka menus support management from list and grid on desktop and mobile',
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const id = await page.evaluate(async () => {
@@ -283,6 +289,7 @@ test('Selaras tooltips describe actions and preserve dropdown triggers', async (
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const create = page.getByRole('button', { name: 'New folder', exact: true })
@@ -313,6 +320,7 @@ test('anchored rangka menus leave space at the viewport edges', async () => {
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     await page.evaluate(async () => {
@@ -344,6 +352,7 @@ test('Markdown readers use wider centered content and an independent contents ra
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const item = await page.evaluate(async () => {
@@ -545,6 +554,7 @@ test('color mode lives in Settings and the desktop account label has a direct lo
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' })
@@ -592,6 +602,7 @@ test('Markdown code tokens switch palettes in dark mode in both readers', async 
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const item = await page.evaluate(async () => {
@@ -626,6 +637,7 @@ test('a rangka shows its folder path, returns to the folder view, and edits its 
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const { parent, child, id } = await page.evaluate(async () => {
@@ -684,6 +696,7 @@ test('a private bundle renders with its own assets on the rangka page', async ()
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const id = await page.evaluate(async b64 => {
@@ -709,6 +722,7 @@ test('Edit in a list row opens the editor for text rangka only', async () => {
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const id = await page.evaluate(async () => {
