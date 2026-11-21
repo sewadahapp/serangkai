@@ -672,3 +672,32 @@ test('a rangka shows its folder path, returns to the folder view, and edits its 
     assert.equal(errors.length, 0, errors.join('\n'))
   } finally { await context.close() }
 })
+
+test('a private bundle renders with its own assets on the rangka page', async () => {
+  const { ZipFile } = await import('yazl')
+  const archive = await new Promise((resolve, reject) => { const z = new ZipFile(); const chunks = []; z.outputStream.on('data', c => chunks.push(c)).on('end', () => resolve(Buffer.concat(chunks))).on('error', reject); z.addBuffer(Buffer.from('<link rel="stylesheet" href="style.css"><h1>Kit</h1>'), 'kit/index.html'); z.addBuffer(Buffer.from('h1{color:rgb(255, 0, 0)}'), 'kit/style.css'); z.end() })
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  const blocked = []
+  page.on('requestfailed', request => { if (request.url().includes('/api/share/')) blocked.push(`${request.url()} ${request.failure()?.errorText}`) })
+  try {
+    await page.goto(`${base}/auth/login`)
+    await page.getByLabel('Username').fill(adminUsername)
+    await page.getByLabel('Password').fill(adminPassword)
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await page.waitForURL(`${base}/`)
+    const id = await page.evaluate(async b64 => {
+      const form = new FormData(); form.append('file', new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], { type: 'application/zip' }), 'kit.zip'); form.append('title', 'Logo kit')
+      return (await (await fetch('/api/rangka/upload', { method: 'POST', body: form })).json()).rangka.id
+    }, archive.toString('base64'))
+    await page.goto(`${base}/rangka/${id}`)
+    const frame = page.frameLocator('iframe[title="Logo kit website"]')
+    await frame.getByRole('heading', { name: 'Kit' }).waitFor()
+    await assert.doesNotReject(() => frame.locator('h1').evaluate(h => new Promise((resolve, reject) => {
+      const started = Date.now()
+      const check = () => getComputedStyle(h).color === 'rgb(255, 0, 0)' ? resolve() : Date.now() - started > 5000 ? reject(new Error(getComputedStyle(h).color)) : setTimeout(check, 100)
+      check()
+    })))
+    assert.equal(blocked.length, 0, blocked.join('\n'))
+  } finally { await context.close() }
+})

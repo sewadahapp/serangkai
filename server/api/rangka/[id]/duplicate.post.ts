@@ -6,7 +6,8 @@ import { makeSlug } from '../../../utils/rangka'
 import { isSlugConflict } from '../../../db/migrations'
 import { and, eq } from 'drizzle-orm'
 import { readRangkaBytes, writeRangka } from '../../../utils/rangka-storage'
-import { assertStorageAvailable } from '../../../utils/storage-quota'
+import { assertStorageAvailable, storageWriteRefusal } from '../../../utils/storage-quota'
+import { deleteBundle, extractBundle } from '../../../utils/bundles'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
@@ -27,6 +28,15 @@ export default defineEventHandler(async (event) => {
 
   const duplicateId = nanoid()
   const contentPath = `${user.id}/${duplicateId}/content`
+  // A bundle is served from its unpacked files, so the copy gets its own.
+  let storedBytes = content.byteLength
+  if (source.type === 'bundle') {
+    const prefix = `${user.id}/${duplicateId}/bundle`
+    try { storedBytes += (await extractBundle(content, prefix)).bytes }
+    catch (error: any) { await deleteBundle(prefix).catch(() => {}); throw createError({ statusCode: 400, message: error?.message || 'Could not copy this bundle' }) }
+    const refusal = await storageWriteRefusal(db, user.id, storedBytes)
+    if (refusal) { await deleteBundle(prefix).catch(() => {}); throw createError({ statusCode: 507, message: refusal }) }
+  }
   await writeRangka(contentPath, content)
 
   const now = new Date()
@@ -56,7 +66,7 @@ export default defineEventHandler(async (event) => {
   }
   await db.insert(rangkaVersions).values({
     id: nanoid(), rangkaId: duplicateId, version: 1, contentPath,
-    metadata: source.metadata || {}, storedBytes: content.byteLength, createdAt: now,
+    metadata: source.metadata || {}, storedBytes, createdAt: now,
   })
 
   return { rangka: { id: duplicateId, slug, title, type: source.type, visibility: 'private', folderId: source.folderId } }

@@ -119,6 +119,39 @@ filesystem layout and all existing rangka remain compatible.
   not contain `:`, and the S3 driver refuses `.`/`..` key segments (the fs
   driver already does) so a key can never resolve to another object.
 
+#### Static bundles
+
+A bundle is a static website uploaded as a ZIP. `planBundle` checks the
+archive before anything is written:
+
+- It needs an `index.html` at the top level, or inside the single top-level
+  folder that "compress folder" produces. That folder is removed from every
+  path, so its `index.html` is the front page.
+- Only web file types are allowed (HTML, CSS, JS, JSON, source maps, web app
+  manifests, images, fonts, audio, video, PDF, text, XML). Any other file
+  refuses the upload and the error names it, so a shared bundle cannot host
+  executables on the Serangkai domain. Extensionless files are served as plain
+  text.
+- OS junk (`__MACOSX/`, dotfiles, `Thumbs.db`, `desktop.ini`) is skipped.
+- Limits: 500 files, 100 MB unpacked, 25 MiB archive.
+
+Every bundle is extracted under its own `userId/rangkaId/bundle/` prefix, so
+bundles never share or overwrite files. Duplicating a bundle extracts it again
+under the copy's prefix.
+
+Bundles are framed with `sandbox="allow-scripts"`, an opaque origin, so the
+browser sends no session cookie with the bundle's own requests and relative
+links drop a `?k=` query. The access key therefore leads the path:
+`/api/share/<slug>/~<key>/index.html`. Unlisted bundles use their share key;
+the owner's browser session gets a 12-hour view key from `GET /api/rangka/:id`
+(`bundleUrl`) and the reader. API tokens never receive a view key. Bundle
+responses send `Referrer-Policy: no-referrer` so the key does not leak. Their
+documents get the same sandbox policy as HTML rangka (inline styles and
+scripts allowed, no network, no same-origin access), and
+only allowed types are served, including from bundles uploaded before these
+rules. Older bundles that still contain their top-level folder are read from
+inside it.
+
 #### Storage accounting and limits
 Every version row records the bytes it stored in `rangka_versions.stored_bytes`
 (content, plus unpacked files for a bundle's first version), so usage is one

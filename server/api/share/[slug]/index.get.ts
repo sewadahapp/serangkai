@@ -4,6 +4,7 @@ import { withPreviewHeight } from '../../../utils/rangka-preview-height'
 import { withRangkaRuntime } from '../../../utils/rangka-runtime'
 import { withDocumentTheme, readerTheme } from '../../../utils/rangka-theme'
 import { loadSharedRangka } from '../../../utils/share-access'
+import { bundleEntryUrl } from '../../../utils/share'
 import { readRangkaBytes } from '../../../utils/rangka-storage'
 
 /**
@@ -68,10 +69,8 @@ export default defineEventHandler(async (event) => {
       return { ...base, content: content.toString() }
     }
 
-    const rawPath = rangka.type === 'bundle'
-      ? `/api/share/${rangka.slug}/index.html`
-      : `/api/share/${rangka.slug}`
-    return { ...base, rawUrl: `${rawPath}${suffix}` }
+    if (rangka.type === 'bundle') return { ...base, rawUrl: bundleEntryUrl(event, rangka, key) }
+    return { ...base, rawUrl: `/api/share/${rangka.slug}${suffix}` }
   }
 
   // Markdown has no raw use case, so it always redirects to the reader. The

@@ -53,7 +53,10 @@ export default defineEventHandler(async (event) => {
     const prefix = `${user.id}/${id}/bundle`
     let unpacked: { bytes: number }
     try { unpacked = await extractBundle(file.data, prefix) as { bytes: number } }
-    catch (error: any) { throw createError({ statusCode: 400, message: error.message || 'Invalid static bundle' }) }
+    catch (error: any) {
+      await deleteBundle(prefix).catch(() => {})
+      throw createError({ statusCode: 400, message: error.message || 'Invalid static bundle' })
+    }
     // The unpacked size is only known after reading the archive, so check the
     // full footprint again and remove the files if it does not fit.
     storedBytes += unpacked.bytes

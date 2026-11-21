@@ -82,6 +82,13 @@
               auto-height
               class="min-h-[70vh]"
             />
+            <!-- A bundle fills the reading area and scrolls inside its frame. -->
+            <SerangkaiHtmlPreview
+              v-else-if="rangka.type === 'bundle' && bundleUrl"
+              :src="bundleUrl"
+              :title="`${rangka.title} website`"
+              height="calc(100dvh - 9rem)"
+            />
             <div v-else-if="rangka.type === 'markdown'" class="min-w-0 w-full">
               <MarkdownDocument :body="contentBody" />
             </div>
@@ -171,6 +178,7 @@ const requestFetch = useRequestFetch()
 const rangka = ref<any>(null)
 const content = ref('')
 const contentBody = ref<Record<string, unknown> | null>(null)
+const bundleUrl = ref<string | null>(null)
 const editing = ref(false)
 const sharingOpen = ref(false)
 const movingOpen = ref(false)
@@ -495,6 +503,7 @@ const applyRangka = (res: any) => {
   rangka.value = res.rangka
   content.value = res.content
   contentBody.value = res.body || null
+  bundleUrl.value = res.bundleUrl || null
   draftTitle.value = res.rangka.title
   draftContent.value = res.content
   draftVisibility.value = res.rangka.visibility

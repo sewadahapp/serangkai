@@ -23,7 +23,7 @@
         <form id="upload-form" class="space-y-4" @submit.prevent="uploadRangka">
           <div>
             <p class="text-sm font-medium">File <span class="text-[var(--selaras-resolved-color-danger-text)]">*</span></p>
-            <p class="mt-0.5 text-sm text-[var(--selaras-resolved-text-muted)]">Markdown, HTML, JS, JSON, PDF, images, or a ZIP bundle. Up to 25 MiB.</p>
+            <p class="mt-0.5 text-sm text-[var(--selaras-resolved-text-muted)]">Markdown, HTML, JS, JSON, PDF, images, or a zipped website with an index.html. Up to 25 MiB.</p>
             <SFileUpload v-model="uploadFiles" :accept="acceptTypes" :max-size="MAX_UPLOAD_BYTES" class="mt-2" @error="onUploadError" />
           </div>
           <SFormField label="Title"><SInput v-model="uploadTitle" placeholder="Optional" class="w-full" /></SFormField>
