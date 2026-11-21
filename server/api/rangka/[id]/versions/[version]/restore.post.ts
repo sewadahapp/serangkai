@@ -5,6 +5,7 @@ import { and, eq, max } from 'drizzle-orm'
 import { readRangkaBytes } from '../../../../../utils/rangka-storage'
 import { appendVersion } from '../../../../../utils/rangka-versions'
 import { assertStorageAvailable } from '../../../../../utils/storage-quota'
+import { autoPruneVersions } from '../../../../../utils/version-pruning'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
@@ -41,6 +42,7 @@ export default defineEventHandler(async (event) => {
   const now = new Date()
   await db.update(rangkaItems).set({ contentPath, updatedAt: now })
     .where(and(eq(rangkaItems.id, rangka.id), eq(rangkaItems.userId, user.id)))
+  await autoPruneVersions(db, user.id, rangka.id)
 
   return { version, restoredFrom: source.version, rangka: { ...rangka, contentPath, updatedAt: now } }
 })

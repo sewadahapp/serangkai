@@ -92,6 +92,13 @@
             </div>
             <SRadioGroup v-model="storageModeChoice" :items="storageModeOptions" aria-label="When the limit is reached" />
           </div>
+          <div class="settings-row">
+            <div class="min-w-0">
+              <h3 id="keep-versions-label" class="settings-row-title">Version history</h3>
+              <p class="settings-description">How many versions each rangka keeps. When a save goes past this, the oldest versions are deleted. History protects you from bad edits, so keep enough to recover.</p>
+            </div>
+            <SSelect v-model="keepVersionsChoice" :items="keepVersionsOptions" aria-labelledby="keep-versions-label" class="w-36" />
+          </div>
         </form>
       </div>
       <div class="settings-card-foot settings-storage-foot">
@@ -204,12 +211,24 @@ const storageModeOptions = [
   { value: 'warn', label: 'Warn only', description: 'Keep saving. The meter turns amber at 80% and red at 95%.' },
   { value: 'reject', label: 'Block new writes', description: 'Refuse uploads, new rangka, and versions that would go over. Deleting always works.' },
 ]
+const keepVersionsChoice = ref('all')
+// Presets, plus a value set through the API that is not one, so it still shows.
+const keepVersionsOptions = computed(() => {
+  const counts = new Set([100, 50, 20, 10, 5])
+  if (storage.value?.keepVersions) counts.add(storage.value.keepVersions)
+  return [
+    { value: 'all', label: 'Keep all' },
+    ...[...counts].sort((a, b) => b - a).map(count => ({ value: String(count), label: `Last ${count}` })),
+  ]
+})
+const parsedKeepVersions = computed(() => keepVersionsChoice.value === 'all' ? null : Number(keepVersionsChoice.value))
 const savingStorage = ref(false)
 const storageError = ref('')
 
 const syncStorageForm = (value: typeof storage.value) => {
   if (!value) return
   storageModeChoice.value = value.mode
+  keepVersionsChoice.value = value.keepVersions ? String(value.keepVersions) : 'all'
   const bytes = value.ownerLimitBytes
   if (!bytes) { limitAmount.value = ''; return }
   const unit = bytes >= 1e12 ? 'TB' : bytes >= 1e9 ? 'GB' : 'MB'
@@ -225,14 +244,14 @@ const limitProblem = computed(() => {
   if (cap && parsedLimit.value && parsedLimit.value > cap) return `The limit can be at most ${formatByteSize(cap)} on this server.`
   return ''
 })
-const storageDirty = computed(() => !!storage.value && (parsedLimit.value !== storage.value.ownerLimitBytes || storageModeChoice.value !== storage.value.mode))
+const storageDirty = computed(() => !!storage.value && (parsedLimit.value !== storage.value.ownerLimitBytes || storageModeChoice.value !== storage.value.mode || parsedKeepVersions.value !== storage.value.keepVersions))
 
 const saveStorage = async () => {
   if (!storageDirty.value || limitProblem.value || savingStorage.value) return
   savingStorage.value = true
   storageError.value = ''
   try {
-    const res = await $fetch<{ storage: NonNullable<typeof storage.value> }>('/api/storage', { method: 'PUT', body: { limitBytes: parsedLimit.value, mode: storageModeChoice.value } })
+    const res = await $fetch<{ storage: NonNullable<typeof storage.value> }>('/api/storage', { method: 'PUT', body: { limitBytes: parsedLimit.value, mode: storageModeChoice.value, keepVersions: parsedKeepVersions.value } })
     storage.value = res.storage
     syncStorageForm(res.storage)
     toast({ title: 'Storage settings saved', color: 'success' })

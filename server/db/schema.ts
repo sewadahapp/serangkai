@@ -176,6 +176,8 @@ export const workspaceSettings = sqliteTable('workspace_settings', {
   storageLimitBytes: integer('storage_limit_bytes'),
   /** What happens at the limit: 'warn' only, or 'reject' writes that exceed it. */
   storageMode: text('storage_mode', { enum: ['warn', 'reject'] }).notNull().default('warn'),
+  /** Keep at most this many versions per rangka, pruning older ones on save; null keeps all. */
+  keepVersions: integer('keep_versions'),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
 })
 

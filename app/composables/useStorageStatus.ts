@@ -4,6 +4,7 @@ export interface StorageStatus {
   ownerLimitBytes: number | null
   operatorLimitBytes: number | null
   mode: 'warn' | 'reject'
+  keepVersions: number | null
   disk: { totalBytes: number; freeBytes: number } | null
   measuring: boolean
 }

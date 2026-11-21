@@ -33,6 +33,8 @@ export interface StorageStatus {
   ownerLimitBytes: number | null
   operatorLimitBytes: number | null
   mode: StorageMode
+  /** Versions kept per rangka before older ones are pruned on save; null keeps all. */
+  keepVersions: number | null
   /** Local/Docker storage only: the real filesystem behind STORAGE_PATH. */
   disk: { totalBytes: number; freeBytes: number } | null
   /** True while older versions are still being measured, so usage may read low. */
@@ -111,16 +113,23 @@ async function usedBytes(db: any, userId: string): Promise<number> {
   return Number(row?.used || 0)
 }
 
-export async function getStorageSettings(db: any, userId: string): Promise<{ ownerLimitBytes: number | null; mode: StorageMode }> {
+export interface StorageSettings {
+  ownerLimitBytes: number | null
+  mode: StorageMode
+  keepVersions: number | null
+}
+
+export async function getStorageSettings(db: any, userId: string): Promise<StorageSettings> {
   const row = await db.select().from(workspaceSettings).where(eq(workspaceSettings.userId, userId)).get()
   return {
     ownerLimitBytes: row?.storageLimitBytes ?? null,
     mode: row?.storageMode === 'reject' ? 'reject' : 'warn',
+    keepVersions: row?.keepVersions ?? null,
   }
 }
 
-export async function saveStorageSettings(db: any, userId: string, settings: { ownerLimitBytes: number | null; mode: StorageMode }) {
-  const values = { storageLimitBytes: settings.ownerLimitBytes, storageMode: settings.mode, updatedAt: new Date() }
+export async function saveStorageSettings(db: any, userId: string, settings: StorageSettings) {
+  const values = { storageLimitBytes: settings.ownerLimitBytes, storageMode: settings.mode, keepVersions: settings.keepVersions, updatedAt: new Date() }
   await db.insert(workspaceSettings).values({ userId, ...values })
     .onConflictDoUpdate({ target: workspaceSettings.userId, set: values })
 }
@@ -159,6 +168,7 @@ export async function getStorageStatus(db: any, userId: string, options: { disk?
     ownerLimitBytes: settings.ownerLimitBytes,
     operatorLimitBytes,
     mode: settings.mode,
+    keepVersions: settings.keepVersions,
     disk,
     measuring: remaining > 0,
   }

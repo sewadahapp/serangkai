@@ -60,6 +60,7 @@ export const BOOTSTRAP_STATEMENTS = [
     user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     storage_limit_bytes INTEGER,
     storage_mode TEXT NOT NULL DEFAULT 'warn',
+    keep_versions INTEGER,
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
   )`,
   `CREATE TABLE IF NOT EXISTS oauth_clients (

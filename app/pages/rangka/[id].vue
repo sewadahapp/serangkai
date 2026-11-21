@@ -118,7 +118,10 @@
 
       <SSlideover v-model:open="historyOpen" side="right" title="Version history" description="Browse and restore saved versions.">
         <template #body>
-            <p class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ versionTotal }} {{ versionTotal === 1 ? 'version' : 'versions' }}</p>
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <p class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ versionTotal }} {{ versionTotal === 1 ? 'version' : 'versions' }}</p>
+              <SButton v-if="versionTotal > 1" variant="ghost" color="danger" size="sm" icon="lucide:eraser" :loading="clearingHistory" :disabled="historyBusy" @click="clearOlderVersions">Clear older versions</SButton>
+            </div>
             <p v-if="historyLoading" class="mt-4 text-sm text-[var(--selaras-resolved-text-muted)]" role="status">Loading history…</p>
             <template v-else>
               <ul v-if="versions.length" class="mt-3 divide-y divide-[var(--selaras-resolved-border-muted)]">
@@ -129,7 +132,8 @@
                   </div>
                   <div class="mt-1 flex flex-wrap gap-1">
                     <SButton variant="ghost" size="sm" icon="lucide:eye" @click="viewVersion(item.version)">View</SButton>
-                    <SButton v-if="item.version !== latestVersion" variant="ghost" size="sm" icon="lucide:history" :loading="restoring === item.version" :disabled="restoring !== null" @click="restoreVersion(item.version)">Restore</SButton>
+                    <SButton v-if="item.version !== latestVersion" variant="ghost" size="sm" icon="lucide:history" :loading="restoring === item.version" :disabled="historyBusy" @click="restoreVersion(item.version)">Restore</SButton>
+                    <SButton v-if="item.version !== latestVersion" variant="ghost" color="danger" size="sm" icon="lucide:trash-2" :loading="deletingVersion === item.version" :disabled="historyBusy" :aria-label="`Delete version ${item.version}`" @click="removeVersion(item.version)">Delete</SButton>
                   </div>
                 </li>
               </ul>
@@ -172,6 +176,7 @@ import { NO_FOLDER, folderIdFromSelection, folderSelection } from '~/utils/folde
 import type { EditorLanguage } from '~/utils/editor'
 import { onBeforeRouteLeave } from 'vue-router'
 import { rangkaTypeLabel } from '~/utils/rangka-types'
+import { formatByteSize } from '#shared/byte-size'
 
 const route = useRoute()
 const requestFetch = useRequestFetch()
@@ -382,12 +387,62 @@ const viewVersion = async (version: number) => {
 
 const closeViewing = () => { viewing.value = null }
 
+// Deleting history. The server refuses the current version and only accepts a
+// browser session, so agents cannot erase the history that protects you.
+const { refresh: refreshStorage } = useStorageStatus()
+const deletingVersion = ref<number | null>(null)
+const clearingHistory = ref(false)
+const historyBusy = computed(() => restoring.value !== null || deletingVersion.value !== null || clearingHistory.value)
+
+const removeVersion = async (version: number) => {
+  const ok = await confirm({ title: `Delete version ${version}?`, description: 'This version and its stored content are removed. It cannot be undone.', confirmLabel: 'Delete version', confirmColor: 'danger', icon: 'lucide:trash-2' })
+  if (!ok) return
+  deletingVersion.value = version; versionMessage.value = ''
+  try {
+    const res = await $fetch<{ freedBytes: number }>(`/api/rangka/${route.params.id}/versions/${version}`, { method: 'DELETE' })
+    versionMessage.value = `Deleted version ${version}, freeing ${formatByteSize(res.freedBytes)}.`
+    await loadVersions(versionPage.value)
+    void refreshStorage()
+  } catch (e: any) {
+    versionMessage.value = e.data?.message || `Could not delete version ${version}`
+  } finally {
+    deletingVersion.value = null
+  }
+}
+
+const clearOlderVersions = async () => {
+  const older = versionTotal.value - 1
+  const ok = await confirm({ title: 'Clear older versions?', description: `Only the current version is kept. ${older} older ${older === 1 ? 'version is' : 'versions are'} removed. This cannot be undone.`, confirmLabel: 'Clear older versions', confirmColor: 'danger', icon: 'lucide:eraser' })
+  if (!ok) return
+  clearingHistory.value = true; versionMessage.value = ''
+  let deleted = 0
+  let freedBytes = 0
+  try {
+    // The server removes a batch per request so large histories stay within
+    // edge runtime limits; keep going until nothing is left.
+    for (let round = 0; round < 200; round++) {
+      const res = await $fetch<{ deleted: number; freedBytes: number; remaining: number }>(`/api/rangka/${route.params.id}/versions`, { method: 'DELETE' })
+      deleted += res.deleted
+      freedBytes += res.freedBytes
+      if (!res.remaining || !res.deleted) break
+    }
+    versionMessage.value = `Deleted ${deleted} older ${deleted === 1 ? 'version' : 'versions'}, freeing ${formatByteSize(freedBytes)}.`
+  } catch (e: any) {
+    versionMessage.value = e.data?.message || 'Could not clear older versions.'
+  } finally {
+    clearingHistory.value = false
+    await loadVersions(1)
+    void refreshStorage()
+  }
+}
+
 const restoreVersion = async (version: number) => {
   restoring.value = version; versionMessage.value = ''
   try {
     const res = await $fetch(`/api/rangka/${route.params.id}/versions/${version}/restore`, { method: 'POST' })
     versionMessage.value = `Restored version ${version} as version ${res.version}.`
     await reloadRangka()
+    void refreshStorage()
   } catch (e: any) {
     versionMessage.value = e.data?.message || `Could not restore version ${version}`
   } finally {

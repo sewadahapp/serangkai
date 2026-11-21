@@ -150,8 +150,22 @@ export async function ensureStorageSchema(db: any) {
     user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     storage_limit_bytes INTEGER,
     storage_mode TEXT NOT NULL DEFAULT 'warn',
+    keep_versions INTEGER,
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
   )`))
+  // Version retention arrived after the settings table; add it in place.
+  let hasKeepVersions = false
+  try {
+    const columns = await db.all<{ name: string }>(sql`PRAGMA table_info(workspace_settings)`)
+    hasKeepVersions = columns.some(column => String(column.name) === 'keep_versions')
+  } catch {}
+  if (!hasKeepVersions) {
+    try {
+      await db.run(sql`ALTER TABLE workspace_settings ADD COLUMN keep_versions INTEGER`)
+    } catch (error) {
+      if (!/duplicate column|already exists/i.test(errorText(error))) throw error
+    }
+  }
 }
 
 function errorText(error: any) {

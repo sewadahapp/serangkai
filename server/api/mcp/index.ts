@@ -11,6 +11,7 @@ import { readRangkaBytes, writeRangka } from '../../utils/rangka-storage'
 import { checkTextRangka, reserveSlug } from '../../utils/rangka'
 import { appendVersion } from '../../utils/rangka-versions'
 import { byteLength, storageWriteRefusal } from '../../utils/storage-quota'
+import { autoPruneVersions } from '../../utils/version-pruning'
 import { isSlugConflict } from '../../db/migrations'
 import { findGrantByApiTokenId, resourceMatches } from '../../utils/oauth'
 import { mcpResourceUrl, protectedResourceMetadataUrl } from '../../utils/oauth-urls'
@@ -303,6 +304,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
     await db.update(rangkaItems).set({ ...(title === undefined ? {} : { title }), ...(rangkaVisibility === undefined ? {} : { visibility: rangkaVisibility }), ...(folderId === undefined ? {} : { folderId }), ...(content === undefined ? {} : { contentPath, metadata }), updatedAt: new Date() }).where(eq(rangkaItems.id, id))
 
     const versionCreated = contentPath !== row.contentPath
+    if (versionCreated) await autoPruneVersions(db, userId, id)
     return structuredResult({
       id,
       title: title || row.title,
