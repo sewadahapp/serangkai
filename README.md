@@ -1,10 +1,45 @@
 # Serangkai
 
-A production-minded, open-source, self-hosted rangka and knowledge workspace for AI agents and humans.
+**An open-source, self-hosted alternative to Claude Artifacts.**
 
-A **rangka** is a document, file, or interactive work saved in Serangkai. The name
-is the same in the UI, REST API, and MCP tools: ask an agent to “create a rangka
-in Serangkai” to identify the intended workspace.
+Create interactive HTML apps, charts, and diagrams in a workspace you own —
+then give your AI agents an MCP endpoint so they can create and update those
+documents too, with scoped and revocable permissions.
+
+[▶ Try the live demo](https://serangkai.onrender.com) ·
+[Quick start](#quick-start-with-docker) ·
+[Connect an AI agent](#connect-an-ai-agent) ·
+[Authoring docs](docs/authoring/README.md)
+
+> The demo uses shared public credentials and a disposable sandbox. Please
+> don't store anything sensitive there. First load may take a moment on
+> Render's free tier.
+
+## Who is it for?
+
+- **People who like Claude Artifacts but not the lock-in** — the same kind of
+  living, interactive documents, running on your own server.
+- **Anyone building with AI agents** who wants a place agents can read and
+  write, with real auth (OAuth 2.1, PKCE, scoped and revocable tokens) instead
+  of a screen-scraping hack.
+- **People who want a knowledge workspace they actually own** — one container,
+  SQLite + local files by default, no external dependencies required.
+
+## Why Serangkai?
+
+Artifacts are great, but they live inside someone else's product. Serangkai
+brings the idea to a workspace you host: HTML, JavaScript, Mermaid, and
+declarative charts render as first-class rangka, with no CSS or JavaScript
+written by the author and no dependency on a hosted service.
+
+It is also designed so an **agent can be an author**, not just a human: MCP is
+built in, every write is authenticated and scoped, and agents discover the
+full API through `get_rangka_capabilities` and `serangkai://guides/*`
+resources.
+
+A **rangka** is a document, file, or interactive work saved in Serangkai. The
+name is the same in the UI, REST API, and MCP tools: ask an agent to “create a
+rangka in Serangkai” to identify the intended workspace.
 
 ## Demo
 
