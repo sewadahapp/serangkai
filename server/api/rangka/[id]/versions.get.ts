@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   const rangka = await db.select().from(rangkaItems)
     .where(and(eq(rangkaItems.id, id || ''), eq(rangkaItems.userId, user.id))).get()
   if (!rangka) throw createError({ statusCode: 404, message: 'Rangka not found' })
-  const fields = { id: rangkaVersions.id, version: rangkaVersions.version, metadata: rangkaVersions.metadata, createdAt: rangkaVersions.createdAt }
+  const fields = { id: rangkaVersions.id, version: rangkaVersions.version, metadata: rangkaVersions.metadata, storedBytes: rangkaVersions.storedBytes, createdAt: rangkaVersions.createdAt }
   const query = getQuery(event)
   // Preserve the existing unpaginated response for API consumers.
   if (query.page === undefined) {
