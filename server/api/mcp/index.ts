@@ -21,6 +21,7 @@ import { selarasTokensGuide } from '../../../shared/selaras-tokens'
 // Text content only. Bundles and PDFs are binary and go through the multipart
 // upload; `image` is accepted as SVG markup (see `checkTextRangka`).
 const rangkaType = z.enum(['markdown', 'html', 'javascript', 'json', 'image'])
+const visibility = z.enum(['private', 'public', 'unlisted'])
 const guideResources = [
   { name: 'Markdown authoring guide', uri: 'serangkai://guides/markdown', description: 'Comark Markdown, Selaras components, Mermaid, charts, and security limits.', text: markdownGuide },
   { name: 'HTML authoring guide', uri: 'serangkai://guides/html', description: 'Self-styled HTML, the optional Selaras document theme, markers, and sandbox rules.', text: htmlGuide },
@@ -28,11 +29,40 @@ const guideResources = [
   { name: 'Selaras design tokens', uri: 'serangkai://tokens/selaras', description: 'Theme-aware CSS custom properties for HTML rangka: surfaces, text, borders, primary/accent/secondary, radius, elevation.', text: selarasTokensGuide() },
 ] as const
 const templateResources = Object.entries(templates).map(([name, text]) => ({ name: `Template: ${name}`, uri: `serangkai://templates/${name}`, description: `Starting ${name} rangka.`, text }))
-const visibility = z.enum(['private', 'public', 'unlisted'])
 
-function textResult(value: unknown) {
-  return { content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }] }
+// Successful results carry the same JSON twice: as `structuredContent`, which
+// the SDK validates against the tool's `outputSchema`, and as text for clients
+// that predate structured output. The round trip turns Dates into ISO strings,
+// which is what crosses the wire either way.
+function structuredResult<T extends Record<string, unknown>>(value: T) {
+  const structuredContent = JSON.parse(JSON.stringify(value)) as Record<string, unknown>
+  return { structuredContent, content: [{ type: 'text' as const, text: JSON.stringify(structuredContent, null, 2) }] }
 }
+
+// Output schemas describe what each tool returns so clients can generate typed
+// APIs from them (for example, clients that let the model call tools from code).
+const timestamp = z.string().describe('ISO 8601 timestamp')
+const folderOutput = z.object({
+  id: z.string(),
+  userId: z.string(),
+  parentId: z.string().nullable(),
+  name: z.string(),
+  path: z.string(),
+  createdAt: timestamp,
+  updatedAt: timestamp,
+})
+const rangkaOutput = z.object({
+  id: z.string(),
+  userId: z.string(),
+  folderId: z.string().nullable(),
+  slug: z.string(),
+  title: z.string(),
+  type: z.enum(['markdown', 'html', 'javascript', 'pdf', 'image', 'json', 'bundle']),
+  visibility,
+  metadata: z.record(z.string(), z.unknown()).nullable(),
+  createdAt: timestamp,
+  updatedAt: timestamp,
+})
 
 function createMcpServer(userId: string, canWrite: boolean, db: any) {
   const server = new McpServer({ name: 'serangkai', version: '0.1.0' }, { maxToolInputElements: 100, instructions: 'Rangka are documents, files, and interactive content stored in the connected Serangkai workspace. Use create_rangka to create them in Serangkai and get_rangka/update_rangka to read or revise them. The workspace owns persistence, versions, folders, and sharing.' })
@@ -43,23 +73,26 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
     title: 'Get authoring capabilities',
     description: 'Discover supported rangka types, Markdown/HTML authoring, Selaras components, Mermaid, TanStack chart schema, and security limits. Use this before creating a rich rangka.',
     inputSchema: {},
+    outputSchema: z.looseObject({ version: z.number() }),
     annotations: { readOnlyHint: true },
-  }, async () => textResult(capabilities))
+  }, async () => structuredResult(capabilities))
 
   server.registerTool('list_folders', {
     title: 'List folders',
     description: 'List folders owned by the authenticated Serangkai user.',
     inputSchema: {},
+    outputSchema: { folders: z.array(folderOutput) },
     annotations: { readOnlyHint: true },
   }, async () => {
     const rows = await db.select().from(folders).where(eq(folders.userId, userId))
-    return textResult(rows)
+    return structuredResult({ folders: rows })
   })
 
   server.registerTool('search', {
     title: 'Search workspace',
     description: 'Search rangka and folders by title, name, or slug.',
     inputSchema: { query: z.string().min(1), folderId: z.string().optional() },
+    outputSchema: { rangka: z.array(rangkaOutput), folders: z.array(folderOutput) },
     annotations: { readOnlyHint: true },
   }, async ({ query, folderId }) => {
     const pattern = `%${query}%`
@@ -88,7 +121,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
       }
       scopedRangka = matchedRangka.filter(rangka => rangka.folderId && scope.has(rangka.folderId))
     }
-    return textResult({
+    return structuredResult({
       rangka: scopedRangka.map(({ contentPath: _contentPath, ...row }) => row),
       folders: matchedFolders,
     })
@@ -98,6 +131,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
     title: 'Create folder',
     description: 'Create a folder, optionally nested under an existing folder.',
     inputSchema: { name: z.string().min(1).max(120), parentId: z.string().optional() },
+    outputSchema: { id: z.string(), name: z.string(), parentId: z.string().nullable(), path: z.string() },
     annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
   }, async ({ name, parentId }) => {
     if (!canWrite) return { isError: true, content: [{ type: 'text', text: 'This API token requires write scope.' }] }
@@ -109,24 +143,35 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
     }
     const id = nanoid()
     await db.insert(folders).values({ id, userId, parentId: parentId || null, name, path, createdAt: new Date(), updatedAt: new Date() })
-    return textResult({ id, name, parentId: parentId || null, path })
+    return structuredResult({ id, name, parentId: parentId || null, path })
   })
 
   server.registerTool('list_rangka', {
     title: 'List rangka',
     description: 'List rangka owned by the authenticated Serangkai user.',
     inputSchema: { query: z.string().optional() },
+    outputSchema: { rangka: z.array(rangkaOutput) },
     annotations: { readOnlyHint: true },
   }, async ({ query }) => {
     const rows = await db.select().from(rangkaItems).where(eq(rangkaItems.userId, userId))
     const filtered = query ? rows.filter(row => `${row.title} ${row.slug}`.toLowerCase().includes(query.toLowerCase())) : rows
-    return textResult(filtered.map(({ contentPath: _contentPath, ...row }) => row))
+    return structuredResult({ rangka: filtered.map(({ contentPath: _contentPath, ...row }) => row) })
   })
 
   server.registerTool('get_rangka', {
     title: 'Read rangka',
     description: 'Read the source of a rangka in the Serangkai workspace by id or slug.',
     inputSchema: { id: z.string().optional(), slug: z.string().optional() },
+    outputSchema: {
+      id: z.string(),
+      slug: z.string(),
+      title: z.string(),
+      type: rangkaOutput.shape.type,
+      visibility,
+      folderId: z.string().nullable(),
+      currentVersion: z.number().int(),
+      content: z.string(),
+    },
     annotations: { readOnlyHint: true },
   }, async ({ id, slug }) => {
     if (!id && !slug) return { isError: true, content: [{ type: 'text', text: 'Provide id or slug.' }] }
@@ -139,7 +184,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
     // the current one. Omitting it here made the documented workflow impossible.
     const versionRows = await db.select({ version: rangkaVersions.version }).from(rangkaVersions).where(eq(rangkaVersions.rangkaId, row.id))
     const currentVersion = Math.max(0, ...versionRows.map(item => item.version))
-    return textResult({ id: row.id, slug: row.slug, title: row.title, type: row.type, visibility: row.visibility, folderId: row.folderId, currentVersion, content })
+    return structuredResult({ id: row.id, slug: row.slug, title: row.title, type: row.type, visibility: row.visibility, folderId: row.folderId, currentVersion, content })
   })
 
   server.registerTool('create_rangka', {
@@ -152,6 +197,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
       folderId: z.string().optional(),
       visibility: visibility.default('private'),
     },
+    outputSchema: { id: z.string(), slug: z.string(), title: z.string(), type: rangkaType, visibility, folderId: z.string().nullable() },
     annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
   }, async ({ title, type, content, folderId, visibility: rangkaVisibility }) => {
     if (!canWrite) return { isError: true, content: [{ type: 'text', text: 'This API token requires write scope.' }] }
@@ -172,7 +218,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
       throw error
     }
     await db.insert(rangkaVersions).values({ id: nanoid(), rangkaId: id, version: 1, contentPath, metadata: checked.metadata, storedBytes, createdAt: new Date() })
-    return textResult({ id, slug, title, type, visibility: rangkaVisibility, folderId: folderId || null })
+    return structuredResult({ id, slug, title, type, visibility: rangkaVisibility, folderId: folderId || null })
   })
 
   server.registerTool('update_rangka', {
@@ -185,6 +231,15 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
       visibility: visibility.optional(),
       folderId: z.string().nullable().optional(),
       baseVersion: z.number().int().positive().optional(),
+    },
+    outputSchema: {
+      id: z.string(),
+      title: z.string(),
+      visibility,
+      folderId: z.string().nullable(),
+      contentPath: z.string(),
+      versionCreated: z.boolean(),
+      version: z.number().int(),
     },
     annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
   }, async ({ id, title, content, visibility: rangkaVisibility, folderId, baseVersion }) => {
@@ -248,7 +303,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
     await db.update(rangkaItems).set({ ...(title === undefined ? {} : { title }), ...(rangkaVisibility === undefined ? {} : { visibility: rangkaVisibility }), ...(folderId === undefined ? {} : { folderId }), ...(content === undefined ? {} : { contentPath, metadata }), updatedAt: new Date() }).where(eq(rangkaItems.id, id))
 
     const versionCreated = contentPath !== row.contentPath
-    return textResult({
+    return structuredResult({
       id,
       title: title || row.title,
       visibility: rangkaVisibility || row.visibility,

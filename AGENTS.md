@@ -3,7 +3,7 @@
 Guidelines for AI agents working on Serangkai.
 
 ## Project
-Serangkai is a production-minded, open-source, self-hosted rangka and knowledge workspace for AI agents and humans. It combines the organization of Notion, the interactive rangka capabilities of Claude Artifacts, and simplicity of lightweight self-hosted apps.
+Serangkai is a production-minded, open-source, self-hosted workspace where people and AI agents publish interactive work: reports, dashboards, HTML apps, diagrams, and charts. Agents write through MCP and REST with scoped, revocable permissions; humans browse, organize, edit, and share from the web UI. It is not a general note-taking or wiki app: each rangka is a self-contained, renderable piece of work.
 
 ## Technology Stack
 - **Framework**: Nuxt 4 + TypeScript, running on **Nitro 2 / H3 v1**
