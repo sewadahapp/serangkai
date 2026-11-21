@@ -1,6 +1,11 @@
 <template>
-  <div class="workspace-page space-y-6">
-    <div class="workspace-heading"><h1>Rangka</h1></div>
+  <div class="workspace-page">
+    <SerangkaiPageHeader title="Rangka" description="Everything you and your agents publish.">
+      <template #actions>
+        <SButton variant="outline" color="neutral" icon="lucide:upload" @click="openUpload">Upload</SButton>
+        <SButton icon="lucide:plus" @click="openNewRangka">New rangka</SButton>
+      </template>
+    </SerangkaiPageHeader>
 
     <SModal v-model:open="showNewFolder" title="Create folder" description="Nest it under a folder or keep it at the top level." :dismissible="!saving" :close="!saving">
       <template #body>
@@ -18,7 +23,7 @@
         <form id="upload-form" class="space-y-4" @submit.prevent="uploadRangka">
           <div>
             <p class="text-sm font-medium">File <span class="text-[var(--selaras-resolved-color-danger-text)]">*</span></p>
-            <p class="mt-0.5 text-sm text-[var(--selaras-resolved-text-muted)]">Markdown, HTML, JS, JSON, PDF, images, or a ZIP bundle. Up to 25 MiB.</p>
+            <p class="mt-0.5 text-sm text-[var(--selaras-resolved-text-muted)]">Markdown, HTML, JS, JSON, PDF, images, or a zipped website with an index.html. Up to 25 MiB.</p>
             <SFileUpload v-model="uploadFiles" :accept="acceptTypes" :max-size="MAX_UPLOAD_BYTES" class="mt-2" @error="onUploadError" />
           </div>
           <SFormField label="Title"><SInput v-model="uploadTitle" placeholder="Optional" class="w-full" /></SFormField>
@@ -43,36 +48,28 @@
       @retry="retryWorkspace"
     />
 
-    <SerangkaiWorkspaceSkeleton v-else-if="loadingWorkspace" />
+    <SerangkaiWorkspaceSkeleton v-else-if="loadingWorkspace" :view="rangkaView" />
 
     <div v-else class="workspace-shell">
-      <ClientOnly>
-        <Teleport to="#workspace-folder-navigation">
-          <SerangkaiFolderList v-model:expanded="expandedFolderIds" :rows="folderRows" :selected-id="selectedFolderId" :total="workspaceTotal" :count="folderRangkaCount" :actions="folderActions" @select="selectFolder" />
-        </Teleport>
-      </ClientOnly>
-
       <section class="workspace-content" aria-labelledby="rangka-list">
-        <SSlideover v-model:open="folderPanelOpen" side="left" title="Folders" description="Choose a folder to browse its rangka.">
-          <template #default>
-            <SButton variant="outline" icon="lucide:panel-left" class="mb-4 lg:hidden">Browse folders</SButton>
-          </template>
-          <template #body>
-            <SerangkaiFolderList v-model:expanded="expandedFolderIds" :rows="folderRows" :selected-id="selectedFolderId" :total="workspaceTotal" :count="folderRangkaCount" :actions="folderActions" @select="selectFolder" />
-          </template>
-        </SSlideover>
-        <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 id="rangka-list" class="workspace-list-title">
-              {{ appliedQuery ? 'Search results' : selectedFolder ? selectedFolder.name : 'All rangka' }}
-            </h2>
-            <p class="mt-0.5 text-sm text-[var(--selaras-resolved-text-muted)]">
-              <template v-if="searchPending">Searching…</template>
-              <template v-else-if="appliedQuery">
-                {{ selectedFolder ? `In ${selectedFolder.name} and its subfolders` : 'Across all rangka and folders' }} · {{ totalRangka }} found
+        <div class="workspace-toolbar">
+          <div class="workspace-scope">
+            <!-- Folders live in the sidebar; on narrow screens that is the
+                 navigation drawer, so this opens the same drawer. -->
+            <SButton variant="ghost" color="neutral" size="sm" icon="lucide:panel-left" class="workspace-folders-trigger lg:hidden" @click="navDrawer = true">Browse folders</SButton>
+            <p v-if="selectedFolderParents.length && !appliedQuery" class="workspace-scope-path">
+              <template v-for="parent in selectedFolderParents" :key="parent.id">
+                <button type="button" class="workspace-scope-crumb" @click="selectFolder(parent.id)">{{ parent.name }}</button><span aria-hidden="true">/</span>
               </template>
-              <template v-else>{{ totalRangka }} {{ totalRangka === 1 ? 'rangka' : 'rangka' }}</template>
             </p>
+            <div class="workspace-scope-title">
+              <h2 id="rangka-list" class="workspace-list-title">{{ appliedQuery ? 'Search results' : selectedFolder ? selectedFolder.name : 'All rangka' }}</h2>
+              <p class="workspace-scope-count" role="status">
+                <template v-if="searchPending">Searching…</template>
+                <template v-else-if="appliedQuery">{{ totalRangka }} found {{ selectedFolder ? `in ${selectedFolder.name} and its subfolders` : 'across all folders' }}</template>
+                <template v-else>{{ totalRangka }} rangka</template>
+              </p>
+            </div>
           </div>
 
           <div class="workspace-list-controls">
@@ -80,24 +77,21 @@
               :model-value="searchQuery"
               type="search"
               aria-label="Search rangka and folders"
+              aria-keyshortcuts="/"
               placeholder="Search rangka and folders…"
               icon="lucide:search"
               clearable
-              class="w-full"
+              class="workspace-search w-full"
               @update:model-value="updateSearch"
             />
             <SToggleGroup :model-value="rangkaView" :items="viewOptions" color="neutral" size="sm" aria-label="Rangka view" @update:model-value="setRangkaView">
               <template #item="{ item }"><SIcon :name="item.icon!" class="size-4" aria-hidden="true" /><span class="sr-only">{{ item.label }}</span></template>
             </SToggleGroup>
-            <div class="workspace-actions">
-              <STooltip text="New folder"><SButton variant="ghost" color="neutral" icon="lucide:folder-plus" aria-label="New folder" @click="openNewFolder" /></STooltip>
-              <STooltip text="Upload"><SButton variant="ghost" color="neutral" icon="lucide:upload" aria-label="Upload" @click="openUpload" /></STooltip>
-              <STooltip text="New rangka"><SButton variant="ghost" color="neutral" icon="lucide:plus" aria-label="New rangka" @click="openNewRangka" /></STooltip>
-            </div>
+            <STooltip text="New folder"><SButton variant="ghost" color="neutral" icon="lucide:folder-plus" aria-label="New folder" @click="openNewFolder" /></STooltip>
           </div>
         </div>
 
-        <div v-if="visibleRangka.length" class="workspace-rangka-collection" :class="{ 'workspace-rangka-grid': rangkaView === 'grid' }">
+        <div v-if="visibleRangka.length" class="workspace-rangka-collection" :class="rangkaView === 'grid' ? 'workspace-rangka-grid' : 'workspace-rangka-list'">
           <div
             v-for="rangka in visibleRangka"
             :key="rangka.id"
@@ -108,25 +102,27 @@
               class="workspace-rangka-link flex min-w-0 flex-1 items-center gap-3 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--selaras-resolved-color-primary-focus)]"
             >
               <div v-if="rangkaView === 'grid'" class="workspace-card-cover" :class="`workspace-card-${rangka.type}`" aria-hidden="true">
-                <div class="workspace-card-sheet"><SIcon :name="rangkaIcon(rangka.type)" class="size-7" /><span>{{ rangkaTypeLabel(rangka.type) }}</span><i /><i /><i /></div>
+                <div class="workspace-card-sheet"><SIcon :name="rangkaIcon(rangka.type)" class="size-5" /><span>{{ rangkaTypeLabel(rangka.type) }}</span><i /><i /></div>
               </div>
               <span
-                class="workspace-rangka-icon grid size-10 shrink-0 place-items-center rounded-md transition-colors"
+                class="workspace-rangka-icon grid size-9 shrink-0 place-items-center rounded-md transition-colors"
                 aria-hidden="true"
               >
-                <SIcon :name="rangkaIcon(rangka.type)" class="size-5" />
+                <SIcon :name="rangkaIcon(rangka.type)" class="size-[1.125rem]" />
               </span>
               <div class="workspace-rangka-details min-w-0">
-                <div class="flex min-w-0 items-center gap-2">
-                  <STooltip :text="rangka.title"><h3 class="min-w-0 truncate font-medium group-hover:underline group-hover:underline-offset-4">{{ rangka.title }}</h3></STooltip>
-                  <STooltip :text="visibilityLabel(rangka.visibility)"><SIcon :name="rangka.visibility === 'private' ? 'lucide:lock-keyhole' : rangka.visibility === 'public' ? 'lucide:globe' : 'lucide:link'" class="size-3.5 shrink-0 text-[var(--selaras-resolved-text-muted)]" :aria-label="visibilityLabel(rangka.visibility)" /></STooltip>
-                </div>
-                <div class="workspace-rangka-meta mt-1 flex min-w-0 items-center gap-2 text-xs text-[var(--selaras-resolved-text-muted)]">
-                  <span>{{ rangkaTypeLabel(rangka.type) }}</span>
-                  <span v-if="rangka.folderId" class="min-w-0 truncate">· {{ folderPathLabel(rangka.folderId) }}</span>
+                <STooltip :text="rangka.title"><h3 class="workspace-rangka-title group-hover:underline group-hover:underline-offset-4">{{ rangka.title }}</h3></STooltip>
+                <div class="workspace-rangka-meta">
+                  <SBadge v-if="rangka.visibility !== 'private'" :icon="rangka.visibility === 'public' ? 'lucide:globe' : 'lucide:link'" :label="visibilityLabel(rangka.visibility)" color="primary" variant="subtle" size="sm" class="shrink-0" />
+                  <span v-else class="workspace-rangka-private"><SIcon name="lucide:lock-keyhole" class="size-3" aria-hidden="true" /><span class="sr-only">Private</span></span>
+                  <span class="shrink-0">{{ rangkaTypeLabel(rangka.type) }}</span>
+                  <span v-if="rangka.folderId" class="workspace-rangka-folder"><SIcon name="lucide:folder" class="size-3 shrink-0" aria-hidden="true" /><span class="truncate">{{ folderPathLabel(rangka.folderId) }}</span></span>
+                  <!-- Inline date: grid view, and list view on phones. -->
+                  <STooltip :text="fullDate(rangka.updatedAt)"><time :datetime="rangka.updatedAt" class="workspace-rangka-updated workspace-rangka-updated-inline">{{ formatDate(rangka.updatedAt) }}</time></STooltip>
                 </div>
               </div>
-              <STooltip :text="fullDate(rangka.updatedAt)"><time :datetime="rangka.updatedAt" class="workspace-rangka-updated">{{ formatDate(rangka.updatedAt) }}</time></STooltip>
+              <!-- List view: the date is its own fixed-width column. -->
+              <STooltip v-if="rangkaView === 'list'" :text="fullDate(rangka.updatedAt)"><time :datetime="rangka.updatedAt" class="workspace-rangka-updated workspace-rangka-updated-column">{{ formatDate(rangka.updatedAt) }}</time></STooltip>
             </NuxtLink>
 
             <div class="workspace-item-actions">
@@ -150,11 +146,14 @@
           v-else
           icon="lucide:file-text"
           :title="appliedQuery ? 'No matches' : 'No rangka yet'"
-          :description="appliedQuery ? 'Try another phrase, or clear the search to see everything.' : 'Create a rangka or upload a file to get started.'"
+          :description="appliedQuery ? 'Try another phrase, or clear the search to see everything.' : selectedFolder ? 'This folder is empty. Create a rangka here, or move one in from its actions menu.' : 'Write one here, upload a file, or connect an agent and let it publish for you.'"
         >
           <template #actions>
             <SButton v-if="searchQuery.trim()" variant="outline" icon="lucide:x" @click="clearSearch">Clear search</SButton>
-            <SButton v-else icon="lucide:file-plus" @click="openNewRangka">New rangka</SButton>
+            <template v-else>
+              <SButton icon="lucide:file-plus" @click="openNewRangka">New rangka</SButton>
+              <SButton v-if="!selectedFolder" variant="outline" color="neutral" icon="lucide:bot" to="/agent">Connect an agent</SButton>
+            </template>
           </template>
         </SEmptyState>
         <div v-if="totalPages > 1" class="mt-5 flex flex-wrap items-center justify-between gap-3">
@@ -164,23 +163,17 @@
       </section>
     </div>
 
-    <SModal :open="!!rangkaDialog" :title="rangkaDialog === 'rename' ? 'Rename rangka' : rangkaDialog === 'move' ? 'Move rangka' : 'Share rangka'" :description="actionTarget?.title" :dismissible="!rangkaBusy" :close="!rangkaBusy" @update:open="open => { if (!open) rangkaDialog = null }">
+    <SModal :open="!!rangkaDialog" :title="rangkaDialog === 'rename' ? 'Rename rangka' : 'Move rangka'" :description="actionTarget?.title" :dismissible="!rangkaBusy" :close="!rangkaBusy" @update:open="open => { if (!open) rangkaDialog = null }">
       <template #body>
         <form id="rangka-action-form" class="space-y-4" @submit.prevent="saveRangkaAction">
           <SFormField v-if="rangkaDialog === 'rename'" label="Rangka title" required><SInput v-model="actionTitle" required class="w-full" /></SFormField>
-          <SFormField v-else-if="rangkaDialog === 'move'" v-slot="{ id }" label="Move to"><SSelect :id="id" v-model="actionFolderId" :items="rangkaFolderOptions" class="w-full" /></SFormField>
-          <template v-else>
-            <SFormField v-slot="{ id }" label="Visibility"><SSelect :id="id" v-model="actionVisibility" :items="visibilityOptions" class="w-full" /></SFormField>
-            <p class="text-sm text-[var(--selaras-resolved-text-muted)]">{{ actionVisibility === 'private' ? 'Only you can open this rangka.' : 'Anyone with the share link can read this rangka.' }}</p>
-            <SFormField v-if="actionTarget?.shareUrl && actionVisibility === actionTarget.visibility" label="Share link">
-              <SInput :model-value="actionTarget.shareUrl" readonly class="w-full" aria-label="Share link"><template #trailing="{ buttonSize }"><SerangkaiCopyButton :value="actionTarget.shareUrl" label="share link" :size="buttonSize" /></template></SInput>
-            </SFormField>
-          </template>
+          <SFormField v-else v-slot="{ id }" label="Move to"><SSelect :id="id" v-model="actionFolderId" :items="rangkaFolderOptions" class="w-full" /></SFormField>
           <SAlert v-if="rangkaActionError" color="danger" variant="subtle" :title="rangkaActionError" />
         </form>
       </template>
-      <template #footer><div class="flex gap-2"><SButton variant="ghost" :disabled="!!rangkaBusy" @click="rangkaDialog = null">{{ rangkaDialog === 'share' ? 'Done' : 'Cancel' }}</SButton><SButton type="submit" form="rangka-action-form" :loading="!!rangkaBusy" :disabled="!!rangkaBusy">{{ rangkaDialog === 'share' ? 'Save visibility' : rangkaDialog === 'move' ? 'Move rangka' : 'Save name' }}</SButton></div></template>
+      <template #footer><div class="flex gap-2"><SButton variant="ghost" :disabled="!!rangkaBusy" @click="rangkaDialog = null">Cancel</SButton><SButton type="submit" form="rangka-action-form" :loading="!!rangkaBusy" :disabled="!!rangkaBusy">{{ rangkaDialog === 'move' ? 'Move rangka' : 'Save name' }}</SButton></div></template>
     </SModal>
+    <SerangkaiShareDialog v-model:open="shareOpen" :rangka="shareTarget" @updated="() => { void search() }" />
 
     <SModal v-model:open="showFolderDialog" :title="folderDialogMode === 'rename' ? 'Rename folder' : 'Move folder'" :description="selectedFolder ? `Manage ${selectedFolder.name}` : undefined">
       <template #body>
@@ -206,6 +199,7 @@
 
 <script setup lang="ts">
 import { NO_FOLDER, folderIdFromSelection, folderSelection } from '~/utils/folders'
+import SerangkaiFolderList from '~/components/SerangkaiFolderList.vue'
 
 definePageMeta({ alias: '/workspace' })
 useHead({ title: 'Workspace' })
@@ -230,10 +224,11 @@ interface Rangka {
 const folders = ref<Folder[]>([])
 const rangkaItems = ref<Rangka[]>([])
 const actionTarget = ref<Rangka | null>(null)
-const rangkaDialog = ref<'rename' | 'move' | 'share' | null>(null)
+const rangkaDialog = ref<'rename' | 'move' | null>(null)
+const shareOpen = ref(false)
+const shareTarget = ref<Rangka | null>(null)
 const actionTitle = ref('')
 const actionFolderId = ref<string | undefined>(NO_FOLDER)
-const actionVisibility = ref('private')
 const rangkaBusy = ref<string | null>(null)
 const rangkaActionError = ref('')
 
@@ -263,7 +258,6 @@ const searchPending = ref(false)
 const folderName = ref('')
 const parentFolderId = ref<string | undefined>(NO_FOLDER)
 const selectedFolderId = ref<string | null>(null)
-const folderPanelOpen = ref(false)
 const renameValue = ref('')
 const moveParentId = ref<string | undefined>(NO_FOLDER)
 const saving = ref(false)
@@ -278,6 +272,10 @@ let searchSequence = 0
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 
 const { confirm } = useConfirm()
+// Opens the shared mobile navigation drawer, which holds the folder tree.
+const navDrawer = useNavDrawer()
+// Keeps the sidebar storage meter current after uploads, copies, and deletes.
+const { refresh: refreshStorage } = useStorageStatus()
 const { add: toast } = useToast()
 
 const showNewFolder = ref(false)
@@ -343,18 +341,7 @@ const visibilityOptions = [
   { label: 'Public', value: 'public' },
 ]
 
-const rangkaTypeMeta: Record<string, { icon: string; label: string }> = {
-  markdown: { icon: 'lucide:file-text', label: 'Markdown' },
-  html: { icon: 'lucide:code-xml', label: 'HTML' },
-  json: { icon: 'lucide:braces', label: 'JSON' },
-  javascript: { icon: 'lucide:file-code-2', label: 'JavaScript' },
-  image: { icon: 'lucide:image', label: 'Image' },
-  pdf: { icon: 'lucide:file-type-2', label: 'PDF' },
-  bundle: { icon: 'lucide:package', label: 'Bundle' },
-}
-
-const rangkaIcon = (type: string) => rangkaTypeMeta[type]?.icon || 'lucide:file'
-const rangkaTypeLabel = (type: string) => rangkaTypeMeta[type]?.label || type
+// rangkaIcon / rangkaTypeLabel come from utils/rangka-types (shared with the command palette).
 const visibilityLabel = (visibility: string) => visibility.charAt(0).toUpperCase() + visibility.slice(1)
 
 const folderOption = (row: Folder & { depth: number }) => ({ label: `${'— '.repeat(row.depth)}${row.name}`, value: row.id })
@@ -370,6 +357,19 @@ const rangkaFolderOptions = computed(() => [{ label: 'No folder', value: NO_FOLD
 const moveTargetOptions = computed(() => [{ label: 'Top level', value: NO_FOLDER }, ...moveTargets.value.map(folderOption)])
 
 const selectedFolder = computed(() => selectedFolderId.value ? folderMap.value.get(selectedFolderId.value) || null : null)
+const selectedFolderParents = computed(() => {
+  const parents: Folder[] = []
+  const seen = new Set<string>()
+  let parentId = selectedFolder.value?.parentId
+  while (parentId && !seen.has(parentId)) {
+    seen.add(parentId)
+    const parent = folderMap.value.get(parentId)
+    if (!parent) break
+    parents.unshift(parent)
+    parentId = parent.parentId
+  }
+  return parents
+})
 
 const descendantIds = (folderId: string) => {
   const ids = new Set([folderId])
@@ -446,10 +446,38 @@ watch(uploadFiles, (files) => {
   if (files.length && !uploadTitle.value) uploadTitle.value = files[0].name.replace(/\.[^.]+$/, '')
 })
 
-const selectFolder = (folderId: string | null) => {
-  folderPanelOpen.value = false
-  // Reveal the path when selecting a newly created or moved folder, while
-  // preserving manual collapses through searches and list refreshes.
+// The folder, search, and page live in the URL so reload, Back, and shared
+// links restore the same view. Search typing replaces history; folder and
+// page changes push it.
+const route = useRoute()
+const router = useRouter()
+const queryValue = (value: unknown) => typeof value === 'string' ? value : Array.isArray(value) && typeof value[0] === 'string' ? value[0] : ''
+const readUrlState = () => {
+  const page = Number(queryValue(route.query.page))
+  return {
+    folderId: queryValue(route.query.folder) || null,
+    query: queryValue(route.query.q),
+    page: Number.isSafeInteger(page) && page > 1 ? page : 1,
+  }
+}
+const writeUrlState = (mode: 'push' | 'replace') => {
+  const query: Record<string, string> = {}
+  if (selectedFolderId.value) query.folder = selectedFolderId.value
+  if (searchQuery.value.trim()) query.q = searchQuery.value.trim()
+  if (currentPage.value > 1) query.page = String(currentPage.value)
+  const current = readUrlState()
+  if (current.folderId === (query.folder || null) && current.query === (query.q || '') && current.page === currentPage.value) return
+  void router[mode]({ query })
+}
+const applyUrlState = () => {
+  const state = readUrlState()
+  selectedFolderId.value = state.folderId
+  searchQuery.value = state.query
+  currentPage.value = state.page
+  revealFolder(state.folderId)
+}
+
+const revealFolder = (folderId: string | null) => {
   const expanded = new Set(expandedFolderIds.value)
   let parent = folderId ? folderMap.value.get(folderId)?.parentId : null
   while (parent && folderMap.value.has(parent)) {
@@ -457,12 +485,22 @@ const selectFolder = (folderId: string | null) => {
     parent = folderMap.value.get(parent)?.parentId
   }
   expandedFolderIds.value = [...expanded]
+}
+
+const selectFolder = (folderId: string | null) => {
+  // Close the mobile drawer even when the folder is already selected (the URL
+  // does not change then, so the layout's close-on-navigation does not fire).
+  navDrawer.value = false
+  // Reveal the path when selecting a newly created or moved folder, while
+  // preserving manual collapses through searches and list refreshes.
+  revealFolder(folderId)
   selectedFolderId.value = folderId
   renameValue.value = folderId ? folderMap.value.get(folderId)?.name || '' : ''
   moveParentId.value = folderSelection(folderId ? folderMap.value.get(folderId)?.parentId : null)
   folderMessage.value = ''
   closePanels()
   currentPage.value = 1
+  writeUrlState('push')
   void search()
 }
 
@@ -491,7 +529,9 @@ const workspaceError = (e: any) => (
 )
 
 const retryWorkspace = async () => {
-  if (searchQuery.value.trim()) {
+  // A failed search retries in place; the first load (which may already carry
+  // a query from the URL) always goes through the full loading state.
+  if (searchQuery.value.trim() && !loadingWorkspace.value) {
     await search()
     return
   }
@@ -508,14 +548,67 @@ const retryWorkspace = async () => {
 
 const { loggedIn } = useUserSession()
 
+// Hand the folder tree to the layout's sidebar (inline on desktop, drawer on
+// mobile). It renders nothing until the first load succeeds, as before.
+const workspaceSidebar = useWorkspaceSidebar()
+const FolderPanel = markRaw(defineComponent({
+  name: 'WorkspaceFolderPanel',
+  setup: () => () => loadingWorkspace.value || loadError.value ? null : h(SerangkaiFolderList, {
+    rows: folderRows.value,
+    selectedId: selectedFolderId.value,
+    total: workspaceTotal.value,
+    count: folderRangkaCount,
+    actions: folderActions,
+    expanded: expandedFolderIds.value,
+    'onUpdate:expanded': (ids: string[]) => { expandedFolderIds.value = ids },
+    onSelect: selectFolder,
+  }),
+}))
+onMounted(() => { workspaceSidebar.value = FolderPanel })
+
+// Upload / New folder requested from the command palette on any page.
+const pendingAction = useWorkspaceAction()
+const runPendingAction = () => {
+  const action = pendingAction.value
+  if (!action || loadingWorkspace.value) return
+  pendingAction.value = null
+  if (action === 'upload') openUpload()
+  else openNewFolder()
+}
+watch([pendingAction, loadingWorkspace], runPendingAction)
+onBeforeUnmount(() => { if (workspaceSidebar.value === FolderPanel) workspaceSidebar.value = null })
+
 onMounted(async () => {
   if (!loggedIn.value) {
     await navigateTo('/auth/login')
     return
   }
   restoreFolderExpansion()
+  applyUrlState()
   await retryWorkspace()
+  revealFolder(selectedFolderId.value)
+  window.addEventListener('keydown', focusSearchShortcut)
 })
+
+watch(() => route.query, () => {
+  if (loadingWorkspace.value) return
+  const state = readUrlState()
+  if (state.folderId === selectedFolderId.value && state.query === searchQuery.value.trim() && state.page === currentPage.value) return
+  applyUrlState()
+  void search()
+})
+
+// `/` focuses search, as in most file and docs tools, unless the user is
+// already typing somewhere.
+const focusSearchShortcut = (event: KeyboardEvent) => {
+  if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return
+  const target = event.target instanceof Element ? event.target : null
+  if (target?.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="dialog"]')) return
+  const input = document.querySelector<HTMLInputElement>('.workspace-search input')
+  if (!input) return
+  event.preventDefault()
+  input.focus()
+}
 
 const search = async (throwOnError = false) => {
   clearTimeout(searchTimer)
@@ -537,8 +630,16 @@ const search = async (throwOnError = false) => {
     currentPage.value = result.page
     pageSize.value = result.pageSize
     appliedQuery.value = query
+    if (result.page !== page) writeUrlState('replace')
   } catch (e: any) {
     if (sequence !== searchSequence) return
+    // A stale or shared link can name a folder that no longer exists. Fall
+    // back to all rangka instead of showing an error for the whole page.
+    if (folderId && e?.statusCode === 404) {
+      selectedFolderId.value = null
+      writeUrlState('replace')
+      return search(throwOnError)
+    }
     if (throwOnError) throw e
     loadError.value = workspaceError(e)
   } finally {
@@ -553,20 +654,25 @@ const updateSearch = (value: string) => {
   // Invalidate in-flight results as soon as the input changes.
   searchSequence++
   searchPending.value = true
+  writeUrlState('replace')
   if (!value.trim()) { void search(); return }
   searchTimer = setTimeout(() => { void search() }, 200)
 }
 
 const clearSearch = () => updateSearch('')
-const changePage = (page: number) => { currentPage.value = page; void search() }
+const changePage = (page: number) => { currentPage.value = page; writeUrlState('push'); void search() }
 
-onBeforeUnmount(() => clearTimeout(searchTimer))
+onBeforeUnmount(() => {
+  clearTimeout(searchTimer)
+  window.removeEventListener('keydown', focusSearchShortcut)
+})
 
-const openRangkaAction = (item: Rangka, mode: 'rename' | 'move' | 'share') => {
+const openShare = (item: Rangka) => { shareTarget.value = { ...item }; shareOpen.value = true }
+
+const openRangkaAction = (item: Rangka, mode: 'rename' | 'move') => {
   actionTarget.value = { ...item }
   actionTitle.value = item.title
   actionFolderId.value = folderSelection(item.folderId)
-  actionVisibility.value = item.visibility
   rangkaActionError.value = ''
   rangkaDialog.value = mode
 }
@@ -579,13 +685,10 @@ const saveRangkaAction = async () => {
   rangkaBusy.value = item.id
   rangkaActionError.value = ''
   try {
-    const body = mode === 'rename' ? { title: actionTitle.value.trim() } : mode === 'move' ? { folderId: folderIdFromSelection(actionFolderId.value) } : { visibility: actionVisibility.value }
-    const result = await $fetch<any>(`/api/rangka/${item.id}`, { method: 'PUT', body })
-    if (mode === 'share') {
-      const link = actionVisibility.value === 'private' ? null : await $fetch<any>(`/api/rangka/${item.id}/share`, { method: 'POST' })
-      actionTarget.value = { ...result.rangka, shareUrl: link?.url || null }
-    } else rangkaDialog.value = null
-    toast({ title: mode === 'rename' ? 'Rangka renamed' : mode === 'move' ? 'Rangka moved' : 'Sharing settings saved', color: 'success' })
+    const body = mode === 'rename' ? { title: actionTitle.value.trim() } : { folderId: folderIdFromSelection(actionFolderId.value) }
+    await $fetch<any>(`/api/rangka/${item.id}`, { method: 'PUT', body })
+    rangkaDialog.value = null
+    toast({ title: mode === 'rename' ? 'Rangka renamed' : 'Rangka moved', color: 'success' })
     await search()
   } catch (e: any) { rangkaActionError.value = e?.data?.message || 'Could not update rangka.' }
   finally { rangkaBusy.value = null }
@@ -597,6 +700,7 @@ const duplicateFromList = async (item: Rangka) => {
   try {
     await $fetch(`/api/rangka/${item.id}/duplicate`, { method: 'POST' })
     toast({ title: 'Rangka duplicated', color: 'success' })
+    void refreshStorage()
     await search()
   } catch (e: any) { toast({ title: e?.data?.message || 'Could not duplicate rangka.', color: 'danger' }) }
   finally { rangkaBusy.value = null }
@@ -609,6 +713,7 @@ const deleteFromList = async (item: Rangka) => {
   try {
     await $fetch(`/api/rangka/${item.id}`, { method: 'DELETE' })
     toast({ title: 'Rangka deleted', color: 'success' })
+    void refreshStorage()
     await search()
   } catch (e: any) { toast({ title: e?.data?.message || 'Could not delete rangka.', color: 'danger' }) }
   finally { rangkaBusy.value = null }
@@ -618,14 +723,17 @@ const copyRangkaLink = async (url: string) => {
   try { await navigator.clipboard.writeText(url); toast({ title: 'Share link copied', color: 'success' }) }
   catch { toast({ title: 'Could not copy link.', color: 'danger' }) }
 }
+const EDITABLE_TYPES = ['markdown', 'html', 'json', 'javascript']
 const rangkaMenu = (item: Rangka) => [
   [
-    { label: 'Rename', icon: 'lucide:pencil', disabled: !!rangkaBusy.value, onSelect: () => openRangkaAction(item, 'rename') },
+    // Straight into the editor, for the types it can open.
+    ...(EDITABLE_TYPES.includes(item.type) ? [{ label: 'Edit', icon: 'lucide:square-pen', to: `/rangka/${item.id}?edit` }] : []),
+    { label: 'Rename', icon: 'lucide:text-cursor-input', disabled: !!rangkaBusy.value, onSelect: () => openRangkaAction(item, 'rename') },
     { label: 'Duplicate', icon: 'lucide:copy', disabled: !!rangkaBusy.value, onSelect: () => { void duplicateFromList(item) } },
     { label: 'Move to folder', icon: 'lucide:folder-input', disabled: !!rangkaBusy.value, onSelect: () => openRangkaAction(item, 'move') },
   ],
   [
-    { label: 'Share', icon: 'lucide:share-2', disabled: !!rangkaBusy.value, onSelect: () => openRangkaAction(item, 'share') },
+    { label: 'Share', icon: 'lucide:share-2', disabled: !!rangkaBusy.value, onSelect: () => openShare(item) },
     ...(item.shareUrl ? [{ label: 'Copy share link', icon: 'lucide:link', onSelect: () => { void copyRangkaLink(item.shareUrl!) } }] : []),
     { label: 'Download', icon: 'lucide:download', to: `/api/rangka/${item.id}/download` },
   ],
@@ -669,6 +777,7 @@ const uploadRangka = async () => {
     uploadError.value = ''
     uploadTitle.value = ''
     await loadWorkspace()
+    void refreshStorage()
     toast({ title: 'Rangka uploaded', color: 'success' })
   } catch (e: any) {
     error.value = e.data?.message || 'Could not upload rangka'
@@ -727,6 +836,7 @@ const deleteFolder = async () => {
     toast({ title: 'Folder deleted', color: 'success' })
     selectedFolderId.value = null
     renameValue.value = ''
+    writeUrlState('replace')
     await loadWorkspace()
   } catch (e: any) {
     toast({ title: e.data?.message || 'Could not delete folder', color: 'danger' })
@@ -737,37 +847,84 @@ const deleteFolder = async () => {
 </script>
 
 <style scoped>
-.workspace-page { padding-top: .25rem; }
-.workspace-heading { padding-block: .5rem 1rem; }
-.workspace-heading h1 { font-size: 1.875rem; line-height: 1.2; font-weight: 700; letter-spacing: -.035em; }
-.workspace-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+/* Workspace posture: recede. Titles are the content; colour is reserved for
+   the primary action, selection, and shared visibility. */
 .workspace-shell { display: grid; gap: 1.5rem; }
-.workspace-sidebar { min-width: 0; }
-.workspace-folder-list { border: 1px solid var(--selaras-resolved-border-default); border-radius: var(--selaras-resolved-radius-lg); background: var(--selaras-resolved-surface-default); padding: .5rem; }
-.workspace-sidebar-heading { display: flex; justify-content: space-between; align-items: center; padding: .5rem .5rem 1rem; color: var(--selaras-resolved-text-muted); font-size: .65rem; font-weight: 700; letter-spacing: .12em; }
 .workspace-content { min-width: 0; }
-.workspace-list-title { overflow-wrap: anywhere; font-size: .9rem; line-height: 1.5; font-weight: 700; letter-spacing: -.025em; }
-.workspace-rangka { position: relative; min-width: 0; padding: .75rem; border-radius: .5rem; }.workspace-rangka-link { min-height: 2.5rem; }.workspace-rangka-details { flex: 1; }.workspace-rangka-updated { flex-shrink: 0; font-size: .75rem; color: var(--selaras-resolved-text-muted); }.workspace-item-actions { display: flex; align-items: center; flex-shrink: 0; gap: .125rem; }
-.workspace-rangka:hover { background: var(--selaras-resolved-surface-elevated); }
-.workspace-rangka-icon { background: var(--selaras-resolved-color-primary-subtle); color: var(--selaras-resolved-color-primary-text); }
+
+.workspace-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: .75rem 1rem; margin-bottom: 1rem; }
+.workspace-scope { min-width: 0; }
+.workspace-folders-trigger { margin: 0 0 .5rem -.5rem; }
+.workspace-scope-path { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; margin-bottom: .125rem; font-size: .75rem; color: var(--selaras-resolved-text-muted); }
+.workspace-scope-crumb { border-radius: var(--selaras-resolved-radius-sm); }
+.workspace-scope-crumb:hover { color: var(--selaras-resolved-text-default); text-decoration: underline; text-underline-offset: 3px; }
+.workspace-scope-crumb:focus-visible { outline: 2px solid var(--selaras-resolved-color-primary-border); outline-offset: 2px; }
+.workspace-scope-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .625rem; min-width: 0; }
+.workspace-list-title { overflow-wrap: anywhere; font-size: 1rem; line-height: 1.4; font-weight: 700; letter-spacing: -.02em; }
+.workspace-scope-count { font-size: .8125rem; font-variant-numeric: tabular-nums; color: var(--selaras-resolved-text-muted); }
 
 .workspace-list-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; width: 100%; min-width: 0; }
-.workspace-list-controls > :first-child { min-width: 0; flex: 1 0 100%; }.workspace-actions { margin-left: auto; }
-.workspace-rangka-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+.workspace-list-controls > :first-child { min-width: 0; flex: 1 1 100%; }
+
+/* List view: one card per line, like a list of flights or trains. Each
+   item has its own surface (so text never sits on the dotted canvas), and
+   the date and actions keep fixed widths so they line up card to card
+   whether or not an item has a preview link. */
+.workspace-rangka { position: relative; min-width: 0; }
+.workspace-rangka-list { display: flex; flex-direction: column; gap: .5rem; }
+.workspace-rangka-list .workspace-rangka { padding: .75rem 1rem .75rem .75rem; border: 1px solid var(--selaras-resolved-border-default); border-radius: var(--selaras-resolved-radius-lg); background: var(--selaras-resolved-surface-default); transition: border-color 100ms; }
+.workspace-rangka-list .workspace-rangka:hover { border-color: var(--selaras-resolved-border-hover); }
+.workspace-rangka-list .workspace-rangka-updated-column { width: 5.5rem; margin-left: 0; text-align: right; font-size: .8125rem; }
+.workspace-rangka-list .workspace-rangka-updated-inline { display: none; }
+.workspace-rangka-list .workspace-item-actions { width: 4.75rem; justify-content: flex-end; }
+.workspace-rangka-link { min-height: 2.5rem; }
+.workspace-rangka-details { flex: 1; }
+.workspace-rangka-icon { background: var(--selaras-resolved-color-primary-subtle); color: var(--selaras-resolved-color-primary-text); }
+.workspace-rangka-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: .9375rem; line-height: 1.4; }
+.workspace-rangka-meta { display: flex; min-width: 0; align-items: center; gap: .25rem .625rem; margin-top: .25rem; font-size: .75rem; line-height: 1.25rem; color: var(--selaras-resolved-text-muted); }
+.workspace-rangka-private { display: inline-flex; flex-shrink: 0; }
+.workspace-rangka-folder { display: inline-flex; min-width: 0; align-items: center; gap: .25rem; }
+.workspace-rangka-updated { flex-shrink: 0; margin-left: auto; font-size: .75rem; font-variant-numeric: tabular-nums; color: var(--selaras-resolved-text-muted); }
+.workspace-item-actions { display: flex; align-items: center; flex-shrink: 0; gap: .125rem; }
+
+/* Grid view: a compact cover that names the type, then the same metadata as
+   the list so switching views never hides information. */
+/* Columns follow the page column's width, not the viewport: 3 across at the
+   desktop column width, 2 on tablets, 1 on phones. */
+.workspace-rangka-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: 1rem; }
 .workspace-rangka-grid .workspace-rangka { display: block; padding: 0; overflow: hidden; border: 1px solid var(--selaras-resolved-border-default); border-radius: var(--selaras-resolved-radius-lg); background: var(--selaras-resolved-surface-default); }
-.workspace-rangka-grid .workspace-rangka:hover { border-color: var(--selaras-resolved-border-hover); }
-.workspace-rangka-grid .workspace-rangka-link { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: 100%; }
+.workspace-rangka-grid .workspace-rangka:hover { border-color: var(--selaras-resolved-border-hover); background: var(--selaras-resolved-surface-default); }
+.workspace-rangka-grid .workspace-rangka-link { display: flex; flex-direction: column; align-items: stretch; gap: 0; height: 100%; border-radius: inherit; }
 .workspace-rangka-grid .workspace-rangka-icon { display: none; }
-.workspace-rangka-grid .workspace-rangka-details { padding: 1rem; }
-.workspace-rangka-grid .workspace-item-actions { position: absolute; top: .5rem; right: .5rem; padding: .125rem; border-radius: .5rem; background: var(--selaras-resolved-surface-default); }.workspace-rangka-grid .workspace-rangka-updated { padding: 0 1rem 1rem; }
-.workspace-rangka-grid .workspace-rangka-preview span { display: none; }
-.workspace-card-cover { display: grid; place-items: end center; height: 11rem; overflow: hidden; padding: 1.5rem 2rem 0; border-bottom: 1px solid var(--selaras-resolved-border-muted); background: var(--selaras-resolved-color-primary-subtle); color: var(--selaras-resolved-color-primary-text); }
-.workspace-card-html, .workspace-card-bundle { background: var(--selaras-resolved-color-accent-subtle); color: var(--selaras-resolved-color-accent-text); }
+.workspace-rangka-grid .workspace-rangka-details { display: flex; flex-direction: column; padding: .75rem .875rem .875rem; }
+.workspace-rangka-grid .workspace-rangka-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; min-height: 2.625rem; white-space: normal; overflow-wrap: anywhere; }
+.workspace-rangka-grid .workspace-rangka-meta { flex-wrap: wrap; margin-top: .5rem; }
+.workspace-rangka-grid .workspace-item-actions { position: absolute; top: .375rem; right: .375rem; padding: .125rem; border-radius: var(--selaras-resolved-radius-md); background: var(--selaras-resolved-surface-default); box-shadow: 0 0 0 1px var(--selaras-resolved-border-muted); }
+.workspace-card-cover { display: flex; align-items: flex-end; height: 5.5rem; overflow: hidden; padding: 0 .875rem; border-bottom: 1px solid var(--selaras-resolved-border-muted); background: var(--selaras-resolved-color-primary-subtle); color: var(--selaras-resolved-color-primary-text); }
+.workspace-card-html, .workspace-card-bundle, .workspace-card-javascript { background: var(--selaras-resolved-color-accent-subtle); color: var(--selaras-resolved-color-accent-text); }
 .workspace-card-image, .workspace-card-pdf { background: var(--selaras-resolved-color-secondary-subtle); color: var(--selaras-resolved-color-secondary-text); }
-.workspace-card-sheet { display: grid; gap: .5rem; width: 100%; max-width: 13rem; padding: 1.25rem; border: 1px solid var(--selaras-resolved-border-default); border-bottom: 0; border-radius: .5rem .5rem 0 0; background: var(--selaras-resolved-surface-default); transform: translateY(.3rem); transition: transform 150ms var(--serangkai-ease); }
+.workspace-card-sheet { display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: .5rem; row-gap: .4rem; width: 9.5rem; padding: .75rem .75rem .875rem; border: 1px solid var(--selaras-resolved-border-default); border-bottom: 0; border-radius: .375rem .375rem 0 0; background: var(--selaras-resolved-surface-default); transform: translateY(.25rem); transition: transform 150ms var(--serangkai-ease); }
 .workspace-rangka:hover .workspace-card-sheet { transform: translateY(0); }
-.workspace-card-sheet > svg { width: 1.75rem; height: 1.75rem; }.workspace-card-sheet > span { font-size: .7rem; font-weight: 700; }.workspace-card-sheet i { width: 100%; height: 4px; border-radius: 2px; background: var(--selaras-resolved-border-muted); }.workspace-card-sheet i:last-child { width: 60%; }
-@media (min-width: 640px) { .workspace-list-controls { width: auto; flex-wrap: nowrap; }.workspace-list-controls > :first-child { flex: 1; width: 16rem; } .workspace-rangka-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 1280px) { .workspace-rangka-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 639px) { .workspace-rangka-collection:not(.workspace-rangka-grid) .workspace-rangka-updated { display: none; } .workspace-rangka { padding-inline: .25rem; } .workspace-rangka-icon { width: 2rem; height: 2rem; } }
+.workspace-card-sheet > span { font-size: .6875rem; font-weight: 700; letter-spacing: .02em; }
+.workspace-card-sheet i { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: var(--selaras-resolved-border-muted); }
+.workspace-card-sheet i:last-child { width: 60%; }
+@media (prefers-reduced-motion: reduce) { .workspace-card-sheet { transition: none; } }
+
+@media (min-width: 640px) {
+  .workspace-list-controls { width: auto; flex-wrap: nowrap; }
+  .workspace-list-controls > :first-child { flex: 1; width: 17rem; }
+}
+@media (max-width: 639px) {
+  .workspace-rangka-list .workspace-rangka-folder { display: none; }
+  .workspace-rangka-list .workspace-rangka { padding: .625rem .5rem .625rem .625rem; }
+  /* Phones: no room for a date column. The title takes the row and the
+     date moves back into the meta line. */
+  .workspace-rangka-list .workspace-rangka-updated-column { display: none; }
+  .workspace-rangka-list .workspace-rangka-updated-inline { display: inline; margin-left: 0; }
+  .workspace-rangka-list .workspace-item-actions { width: auto; }
+  .workspace-rangka-icon { width: 2rem; height: 2rem; }
+  .workspace-card-cover { height: 4rem; }
+  .workspace-card-sheet { width: 7.5rem; padding: .5rem .625rem .625rem; }
+  .workspace-card-sheet i { display: none; }
+}
 </style>

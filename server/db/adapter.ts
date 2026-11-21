@@ -1,7 +1,7 @@
 import { drizzle as drizzleD1 } from 'drizzle-orm/d1'
 import * as schema from './schema'
 import { BOOTSTRAP_STATEMENTS } from './bootstrap'
-import { ensureGlobalSlugUniqueness, ensureOAuthSchema, ensureUserSchema, ensureRangkaSchema } from './migrations'
+import { ensureGlobalSlugUniqueness, ensureOAuthSchema, ensureStorageSchema, ensureUserSchema, ensureRangkaSchema } from './migrations'
 import { getDatabaseProvider } from './provider'
 
 export { getDatabaseProvider, type DatabaseProvider } from './provider'
@@ -59,6 +59,7 @@ export async function getRequestDatabase(event: any) {
         await ensureUserSchema(db)
         await ensureGlobalSlugUniqueness(db)
         await ensureOAuthSchema(db)
+        await ensureStorageSchema(db)
       })()
       d1Initialization = initialization
       // Do not leave a rejected promise cached forever: a transient D1 error

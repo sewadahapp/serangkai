@@ -6,6 +6,7 @@ import { and, eq, max } from 'drizzle-orm'
 import { readRangkaBytes } from '../../utils/rangka-storage'
 import { appendVersion } from '../../utils/rangka-versions'
 import { checkTextRangka } from '../../utils/rangka'
+import { assertStorageAvailable, byteLength } from '../../utils/storage-quota'
 
 const schema = z.object({
   title: z.string().min(1).optional(),
@@ -65,6 +66,8 @@ export default defineEventHandler(async (event) => {
     // must not append duplicate history.
     const currentContent = (await readRangkaBytes(rangka.contentPath)).toString()
     if (currentContent !== changes.content) {
+      // Each version is stored in full, so a new version costs its whole size.
+      await assertStorageAvailable(db, user.id, byteLength(changes.content))
       version = currentVersion + 1
       contentPath = `${user.id}/${rangka.id}/versions/${version}`
       const claimed = await appendVersion(db, {

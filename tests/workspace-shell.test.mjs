@@ -12,6 +12,9 @@ import { adminEnv, adminUsername, adminPassword } from './helpers/auth.mjs'
 const port = 4200 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
 let child, dataDir, browser
+// A click that lands while the login page is still hydrating can be lost on a
+// loaded CI runner; wait until the Vue app has mounted before submitting.
+const hydrated = () => !!document.getElementById('__nuxt')?.__vue_app__
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-shell-'))
   child = spawn(serverRuntime, ['.output/server/index.mjs'], { env: { ...process.env, ...adminEnv(), PORT: String(port), JWT_SECRET: randomBytes(32).toString('hex'), SHARE_SECRET: randomBytes(32).toString('hex'), DATABASE_PATH: join(dataDir, 'db.sqlite'), STORAGE_PATH: join(dataDir, 'files') }, stdio: 'ignore' })
@@ -31,8 +34,14 @@ test('workspace is the private home and uses a responsive app sidebar', async ()
     await page.waitForURL('**/auth/login')
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
-    await page.waitForURL(`${base}/`)
+    // This first login on a fresh server has timed out intermittently in the
+    // full browser run; say where the page was so CI logs show the cause.
+    await page.waitForURL(`${base}/`).catch(async (error) => {
+      const text = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 300)
+      throw new Error(`Login did not reach the workspace. URL: ${page.url()}. Page: ${text}. Page errors: ${errors.join(' | ') || 'none'}. ${error.message.split('\n')[0]}`)
+    })
     await page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor()
     const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' })
     await sidebar.getByRole('button', { name: 'All rangka' }).waitFor()
@@ -46,7 +55,9 @@ test('workspace is the private home and uses a responsive app sidebar', async ()
         await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, type, content }) })
       }
     })
-    await page.reload()
+    // Creating a folder selects it (and the URL keeps it), so go back to all
+    // rangka where the root-level documents are listed.
+    await page.goto(`${base}/`)
     await page.getByRole('link', { name: /^Research notes/ }).waitFor()
     await page.screenshot({ path: '/tmp/serangkai-shell-desktop.png' })
     for (const width of [320, 375, 768]) {
@@ -55,7 +66,7 @@ test('workspace is the private home and uses a responsive app sidebar', async ()
       assert.ok(dimensions[1] <= dimensions[0], `overflow at ${width}: ${dimensions}`)
       assert.equal(await sidebar.isVisible(), false)
       await page.getByRole('button', { name: 'Browse folders' }).click()
-      const folders = page.getByRole('dialog', { name: 'Folders', exact: true })
+      const folders = page.getByRole('dialog', { name: 'Navigation', exact: true })
       await folders.getByRole('treeitem', { name: /^Research/ }).click()
       await folders.waitFor({ state: 'hidden' })
     }
@@ -127,7 +138,7 @@ test('folder tree separates expansion, selection, and actions across desktop and
     await page.screenshot({ path: '/tmp/serangkai-folder-tree-desktop.png' })
     await page.setViewportSize({ width: 320, height: 800 })
     await page.getByRole('button', { name: 'Browse folders', exact: true }).click()
-    const drawer = page.getByRole('dialog', { name: 'Folders', exact: true })
+    const drawer = page.getByRole('dialog', { name: 'Navigation', exact: true })
     const mobileRoot = drawer.getByRole('treeitem', { name: /^Tree projects/ })
     await mobileRoot.locator('[data-folder-toggle]').click()
     assert.equal(await mobileRoot.getAttribute('aria-expanded'), 'false')
@@ -176,6 +187,7 @@ test('rangka grid and list preserve filtering, pagination, and the chosen view',
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     await page.evaluate(async () => {
@@ -222,6 +234,7 @@ test('rangka menus support management from list and grid on desktop and mobile',
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const id = await page.evaluate(async () => {
@@ -255,7 +268,6 @@ test('rangka menus support management from list and grid on desktop and mobile',
     await page.getByRole('button', { name: 'Share', exact: true }).click()
     await page.getByRole('combobox', { name: 'Visibility', exact: true }).click()
     await page.getByRole('option', { name: 'Unlisted', exact: true }).click()
-    await page.getByRole('button', { name: 'Save visibility', exact: true }).click()
     const share = page.getByRole('textbox', { name: 'Share link', exact: true })
     await share.waitFor()
     assert.match(await share.inputValue(), /\/share\/.+\?k=[a-f0-9]{64}$/)
@@ -282,6 +294,7 @@ test('Selaras tooltips describe actions and preserve dropdown triggers', async (
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const create = page.getByRole('button', { name: 'New folder', exact: true })
@@ -312,6 +325,7 @@ test('anchored rangka menus leave space at the viewport edges', async () => {
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     await page.evaluate(async () => {
@@ -343,6 +357,7 @@ test('Markdown readers use wider centered content and an independent contents ra
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const item = await page.evaluate(async () => {
@@ -402,10 +417,13 @@ test('integrated add and edit screens retain navigation and protect unsaved draf
         viewport: document.documentElement.clientWidth,
         content: document.documentElement.scrollWidth,
         editorLeft: document.querySelector('.serangkai-editor-workspace').getBoundingClientRect().left,
+        sidebarRight: document.querySelector('.app-sidebar')?.getBoundingClientRect().right ?? 0,
         statusBottom: document.querySelector('.serangkai-editor-status').getBoundingClientRect().bottom,
       }))
       assert.ok(layout.content <= layout.viewport, `add screen overflows at ${width}px`)
-      assert.equal(layout.editorLeft, width >= 1024 ? 256 : 0)
+      // The sidebar is resizable, so the editor starts at its edge (the
+      // splitter can land on half a pixel) rather than at a fixed 256px.
+      assert.ok(Math.abs(layout.editorLeft - (width >= 1024 ? layout.sidebarRight : 0)) <= 1, `editor starts at the sidebar edge at ${width}px: ${JSON.stringify(layout)}`)
       assert.ok(layout.statusBottom <= 901, 'editor footer stays within the viewport')
       if (width === 390 || width === 1440) await page.screenshot({ path: `/tmp/serangkai-add-${width}.png` })
     }
@@ -455,7 +473,8 @@ test('Settings tabs keep token permissions, one-time copy, and agent revocation 
       await route.fulfill({ json: { success: true } })
     })
     await page.goto(`${base}/settings?tab=tokens`)
-    assert.equal(await page.getByRole('tab', { name: 'Tokens', exact: true }).getAttribute('aria-selected'), 'true')
+    // Settings is one page of cards; ?tab=tokens lands on the API tokens card.
+    await page.getByRole('heading', { name: 'API tokens', exact: true }).waitFor()
     await page.getByRole('button', { name: 'Create token', exact: true }).click()
     const modal = page.getByRole('dialog', { name: 'Create token', exact: true })
     const read = modal.getByRole('checkbox', { name: /^Read/ })
@@ -497,7 +516,6 @@ test('Settings tabs keep token permissions, one-time copy, and agent revocation 
       assert.ok(content <= viewport, `token list overflows at ${width}px`)
       if (width === 320 || width === 1440) await page.screenshot({ path: `/tmp/serangkai-settings-tokens-${width}.png` })
     }
-    await page.getByRole('tab', { name: 'Agents', exact: true }).click()
     await page.getByRole('heading', { name: 'Could not load connected agents', exact: true }).waitFor()
     clientsError = false
     await page.getByRole('button', { name: 'Try again', exact: true }).click()
@@ -511,7 +529,6 @@ test('Settings tabs keep token permissions, one-time copy, and agent revocation 
     await page.getByRole('button', { name: `Disconnect ${clientName}`, exact: true }).click()
     await page.getByRole('heading', { name: 'No agents connected', exact: true }).waitFor()
     assert.equal(disconnected, 1)
-    await page.getByRole('tab', { name: 'Tokens', exact: true }).click()
     await page.getByRole('button', { name: `Revoke ${tokenName}`, exact: true }).click()
     await page.getByRole('button', { name: `Revoke ${tokenName}`, exact: true }).waitFor({ state: 'hidden' })
     assert.equal((await context.request.get(`${base}/api/rangka`, { headers: { authorization: `Bearer ${secret}` } })).status(), 401)
@@ -520,10 +537,10 @@ test('Settings tabs keep token permissions, one-time copy, and agent revocation 
     await page.getByRole('heading', { name: 'API tokens', exact: true }).waitFor()
     assert.equal(new URL(page.url()).searchParams.get('tab'), 'tokens')
     await page.goto(`${base}/agent`)
+    await page.getByRole('tab', { name: 'Manual setup', exact: true }).click()
     await page.getByRole('link', { name: 'Settings → Connected agents', exact: true }).click()
     await page.getByRole('heading', { name: 'Connected agents', exact: true }).waitFor()
     assert.equal(new URL(page.url()).searchParams.get('tab'), 'agents')
-    await page.getByRole('tab', { name: 'Appearance', exact: true }).click()
     await page.getByRole('heading', { name: 'Appearance', exact: true }).waitFor()
     for (const width of [1440, 320]) {
       await page.setViewportSize({ width, height: 900 })
@@ -542,20 +559,25 @@ test('color mode lives in Settings and the desktop account label has a direct lo
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' })
     await sidebar.getByText(adminUsername, { exact: true }).waitFor()
-    assert.equal(await page.getByRole('button', { name: `Account menu for ${adminUsername}` }).count(), 0)
+    const accountMenu = sidebar.getByRole('button', { name: `Account menu for ${adminUsername}`, exact: true })
+    await accountMenu.waitFor()
     assert.equal(await page.getByRole('button', { name: 'Toggle color mode', exact: true }).count(), 0)
     await sidebar.getByRole('link', { name: 'Settings', exact: true }).click()
-    await page.getByRole('button', { name: 'Toggle color mode', exact: true }).click()
+    const colorMode = page.getByRole('group', { name: 'Color mode', exact: true })
+    await colorMode.getByRole('button', { name: 'Dark', exact: true }).click()
     await page.waitForFunction(() => document.documentElement.classList.contains('dark'))
     await page.reload()
     await page.waitForFunction(() => document.documentElement.classList.contains('dark'))
-    await page.getByRole('button', { name: 'Toggle color mode', exact: true }).click()
+    assert.equal(await colorMode.getByRole('button', { name: 'Dark', exact: true }).getAttribute('aria-pressed'), 'true')
+    await colorMode.getByRole('button', { name: 'Light', exact: true }).click()
     await page.waitForFunction(() => !document.documentElement.classList.contains('dark'))
-    await sidebar.getByRole('button', { name: 'Log out', exact: true }).click()
+    await accountMenu.click()
+    await page.getByRole('menuitem', { name: 'Log out', exact: true }).click()
     await page.waitForURL(`${base}/auth/login`)
     await page.getByRole('heading', { name: 'Log in to Serangkai' }).waitFor()
     await page.goto(base)
@@ -585,6 +607,7 @@ test('Markdown code tokens switch palettes in dark mode in both readers', async 
     await page.goto(`${base}/auth/login`)
     await page.getByLabel('Username').fill(adminUsername)
     await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await page.waitForURL(`${base}/`)
     const item = await page.evaluate(async () => {
@@ -603,6 +626,159 @@ test('Markdown code tokens switch palettes in dark mode in both readers', async 
     await page.waitForFunction(() => document.documentElement.classList.contains('dark'))
     await assertTokenPalette(true)
     await page.goto(`${base}/agent`)
+    // Code on the Agents page sits in collapsed reference sections; open one
+    // so there is highlighted code to check.
+    await page.getByRole('button', { name: 'Publishing & version history', exact: true }).click()
     await assertTokenPalette(true)
+  } finally { await context.close() }
+})
+
+test('a rangka shows its folder path, returns to the folder view, and edits its properties', async () => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  const errors = []
+  page.on('pageerror', error => errors.push(error.message))
+  try {
+    await page.goto(`${base}/auth/login`)
+    await page.getByLabel('Username').fill(adminUsername)
+    await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await page.waitForURL(`${base}/`)
+    const { parent, child, id } = await page.evaluate(async () => {
+      const post = async (url, body) => (await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json()
+      const parent = (await post('/api/folders', { name: 'Trail parent' })).folder
+      const child = (await post('/api/folders', { name: 'Trail child', parentId: parent.id })).folder
+      const created = await post('/api/rangka', { title: 'Trail doc', type: 'markdown', content: '# Trail doc', folderId: child.id })
+      return { parent, child, id: created.rangka.id }
+    })
+
+    // Open the rangka from its folder view; back returns to that exact view.
+    await page.goto(`${base}/?folder=${child.id}`)
+    await page.getByRole('link', { name: /^Trail doc/ }).click()
+    await page.waitForURL(`**/rangka/${id}`)
+    const trail = page.getByRole('navigation', { name: 'Breadcrumb' })
+    await trail.getByRole('heading', { name: 'Trail doc', level: 1 }).waitFor()
+    assert.equal(await trail.getByRole('link', { name: 'Trail parent' }).getAttribute('href'), `/?folder=${parent.id}`)
+    assert.equal(await trail.getByRole('link', { name: 'Trail child' }).getAttribute('href'), `/?folder=${child.id}`)
+    await page.getByRole('link', { name: 'Back to workspace' }).click()
+    await page.waitForURL(`${base}/?folder=${child.id}`)
+
+    // A direct visit has no workspace view to return to: back leads to the folder.
+    await page.goto(`${base}/rangka/${id}`)
+    assert.equal(await page.getByRole('link', { name: 'Back to workspace' }).getAttribute('href'), `/?folder=${child.id}`)
+
+    // Actions live behind the ⋯ button, not the title.
+    await page.getByRole('button', { name: 'Rangka actions' }).click()
+    await page.getByRole('menuitem', { name: 'Move to folder' }).waitFor()
+    await page.keyboard.press('Escape')
+
+    // The editor has the same property row as New rangka and saves it.
+    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    assert.equal(await page.getByRole('status').filter({ hasText: 'Unsaved changes' }).count(), 0)
+    await page.getByRole('combobox', { name: 'Folder', exact: true }).click()
+    await page.getByRole('option', { name: 'Trail parent', exact: true }).click()
+    await page.getByRole('combobox', { name: 'Visibility', exact: true }).click()
+    await page.getByRole('option', { name: 'Unlisted', exact: true }).click()
+    await page.getByRole('button', { name: 'Save version' }).click()
+    await trail.getByRole('heading', { name: 'Trail doc', level: 1 }).waitFor()
+    assert.equal(await trail.getByRole('link', { name: 'Trail child' }).count(), 0)
+    const saved = await page.evaluate(async id => (await (await fetch(`/api/rangka/${id}`)).json()).rangka, id)
+    assert.equal(saved.folderId, parent.id)
+    assert.equal(saved.visibility, 'unlisted')
+    assert.equal(errors.length, 0, errors.join('\n'))
+  } finally { await context.close() }
+})
+
+test('a private bundle renders with its own assets on the rangka page', async () => {
+  const { ZipFile } = await import('yazl')
+  const archive = await new Promise((resolve, reject) => { const z = new ZipFile(); const chunks = []; z.outputStream.on('data', c => chunks.push(c)).on('end', () => resolve(Buffer.concat(chunks))).on('error', reject); z.addBuffer(Buffer.from('<link rel="stylesheet" href="style.css"><h1>Kit</h1>'), 'kit/index.html'); z.addBuffer(Buffer.from('h1{color:rgb(255, 0, 0)}'), 'kit/style.css'); z.end() })
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  const blocked = []
+  page.on('requestfailed', request => { if (request.url().includes('/api/share/')) blocked.push(`${request.url()} ${request.failure()?.errorText}`) })
+  try {
+    await page.goto(`${base}/auth/login`)
+    await page.getByLabel('Username').fill(adminUsername)
+    await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await page.waitForURL(`${base}/`)
+    const id = await page.evaluate(async b64 => {
+      const form = new FormData(); form.append('file', new Blob([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], { type: 'application/zip' }), 'kit.zip'); form.append('title', 'Logo kit')
+      return (await (await fetch('/api/rangka/upload', { method: 'POST', body: form })).json()).rangka.id
+    }, archive.toString('base64'))
+    await page.goto(`${base}/rangka/${id}`)
+    const frame = page.frameLocator('iframe[title="Logo kit website"]')
+    await frame.getByRole('heading', { name: 'Kit' }).waitFor()
+    await assert.doesNotReject(() => frame.locator('h1').evaluate(h => new Promise((resolve, reject) => {
+      const started = Date.now()
+      const check = () => getComputedStyle(h).color === 'rgb(255, 0, 0)' ? resolve() : Date.now() - started > 5000 ? reject(new Error(getComputedStyle(h).color)) : setTimeout(check, 100)
+      check()
+    })))
+    assert.equal(blocked.length, 0, blocked.join('\n'))
+  } finally { await context.close() }
+})
+
+test('Edit in a list row opens the editor for text rangka only', async () => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  try {
+    await page.goto(`${base}/auth/login`)
+    await page.getByLabel('Username').fill(adminUsername)
+    await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await page.waitForURL(`${base}/`)
+    const id = await page.evaluate(async () => {
+      const created = await (await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Row edit note', type: 'markdown', content: '# Row edit note' }) })).json()
+      const pixel = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='), c => c.charCodeAt(0))
+      const form = new FormData(); form.append('file', new Blob([pixel], { type: 'image/png' }), 'row-pixel.png'); form.append('title', 'Row edit pixel')
+      await fetch('/api/rangka/upload', { method: 'POST', body: form })
+      return created.rangka.id
+    })
+    await page.goto(`${base}/?q=Row%20edit`)
+    await page.getByRole('button', { name: 'Actions for Row edit pixel', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Rename', exact: true }).waitFor()
+    assert.equal(await page.getByRole('menuitem', { name: 'Edit', exact: true }).count(), 0, 'images have no editor')
+    await page.keyboard.press('Escape')
+
+    await page.getByRole('button', { name: 'Actions for Row edit note', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Edit', exact: true }).click()
+    await page.getByRole('button', { name: 'Save version' }).waitFor()
+    await page.waitForURL(`${base}/rangka/${id}`)
+    assert.equal(new URL(page.url()).search, '', 'the edit flag is dropped once the editor is open')
+    await page.getByRole('textbox', { name: 'Content' }).fill('# Edited from the list')
+    await page.getByRole('button', { name: 'Save version' }).click()
+    await page.getByText('Saved version 2').waitFor()
+  } finally { await context.close() }
+})
+
+test('the command palette finds rangka beyond the recent list', async () => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  try {
+    await page.goto(`${base}/auth/login`)
+    await page.getByLabel('Username').fill(adminUsername)
+    await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await page.waitForURL(`${base}/`)
+    // The palette loads the 25 most recent rangka on open; the needle is older.
+    const needleId = await page.evaluate(async () => {
+      const post = async (url, body) => (await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json()
+      const archive = (await post('/api/folders', { name: 'Palette archive' })).folder
+      const needle = (await post('/api/rangka', { title: 'Needle in the archive', type: 'markdown', content: '# Needle', folderId: archive.id })).rangka
+      for (let i = 0; i < 26; i++) await post('/api/rangka', { title: `Palette filler ${i}`, type: 'markdown', content: '# Filler' })
+      return needle.id
+    })
+    await page.reload()
+    await page.getByRole('button', { name: 'Search', exact: true }).first().click()
+    const input = page.getByRole('dialog').locator('input')
+    await input.fill('needle')
+    const option = page.getByRole('option', { name: 'Needle in the archive — Palette archive' })
+    await option.waitFor()
+    await option.click()
+    await page.waitForURL(`${base}/rangka/${needleId}`)
   } finally { await context.close() }
 })

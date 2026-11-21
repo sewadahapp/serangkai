@@ -125,6 +125,35 @@ async function ensureGlobalSlugUniquenessOnce(db: any) {
 }
 
 /** Flattens a Drizzle error and its causes into one searchable string. */
+/**
+ * Adds storage accounting to databases created before it existed: a
+ * `stored_bytes` column on versions (null until the backfill measures it) and
+ * the per-account settings table. Additive and idempotent, like the other
+ * ensure* steps, so every isolate/process can run it at startup.
+ */
+export async function ensureStorageSchema(db: any) {
+  let hasStoredBytes = false
+  try {
+    const columns = await db.all<{ name: string }>(sql`PRAGMA table_info(rangka_versions)`)
+    hasStoredBytes = columns.some(column => String(column.name) === 'stored_bytes')
+  } catch {
+    // Some edge runtimes restrict PRAGMA; fall through to a guarded ALTER.
+  }
+  if (!hasStoredBytes) {
+    try {
+      await db.run(sql`ALTER TABLE rangka_versions ADD COLUMN stored_bytes INTEGER`)
+    } catch (error) {
+      if (!/duplicate column|already exists/i.test(errorText(error))) throw error
+    }
+  }
+  await db.run(sql.raw(`CREATE TABLE IF NOT EXISTS workspace_settings (
+    user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    storage_limit_bytes INTEGER,
+    storage_mode TEXT NOT NULL DEFAULT 'warn',
+    updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+  )`))
+}
+
 function errorText(error: any) {
   const parts: string[] = []
   let current = error

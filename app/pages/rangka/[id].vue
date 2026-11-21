@@ -5,7 +5,6 @@
         <div class="flex min-w-0 flex-1 items-center gap-2">
           <STooltip text="Back to rangka"><SButton variant="ghost" color="neutral" icon="lucide:arrow-left" aria-label="Close editor" class="shrink-0" @click="cancelEdit" /></STooltip>
           <SInput v-model="draftTitle" aria-label="Title" class="min-w-0 max-w-xl flex-1" :ui="{ base: 'bg-transparent font-semibold ring-0 not-focus:hover:ring-0' }" />
-          <SBadge :label="rangka.type" variant="subtle" color="neutral" size="sm" class="hidden md:inline-flex" />
           <span v-if="dirty" role="status" class="hidden shrink-0 text-xs text-[var(--selaras-resolved-text-muted)] lg:inline">Unsaved changes</span>
         </div>
         <div class="flex shrink-0 items-center gap-2">
@@ -13,6 +12,13 @@
           <STooltip text="Save version"><SButton icon="lucide:check" aria-label="Save version" :loading="saving" :disabled="saving" @click="save"><span class="hidden sm:inline">Save version</span></SButton></STooltip>
         </div>
       </header>
+
+      <!-- Same property row as New rangka. The type is fixed once created. -->
+      <div class="serangkai-editor-properties">
+        <SFormField v-slot="{ id }" label="Type"><SSelect :id="id" :model-value="rangka.type" :items="[{ label: rangkaTypeLabel(rangka.type), value: rangka.type }]" size="sm" disabled class="w-full" /></SFormField>
+        <SFormField v-slot="{ id }" label="Visibility"><SSelect :id="id" v-model="draftVisibility" :items="visibilityOptions" size="sm" class="w-full" /></SFormField>
+        <SFormField v-slot="{ id }" label="Folder" class="col-span-2 sm:col-span-1"><SSelect :id="id" v-model="draftFolderId" :items="folderOptions" size="sm" placeholder="No folder" class="w-full" /></SFormField>
+      </div>
 
       <div class="serangkai-editor-workspace-body">
         <SAlert v-if="message" :color="saveMessageColor" variant="subtle" :title="message" class="m-3 shrink-0" />
@@ -32,16 +38,25 @@
 
     <div v-else class="rangka-reader">
       <header class="rangka-toolbar">
-        <STooltip text="Back to rangka list"><SButton to="/" variant="ghost" color="neutral" icon="lucide:arrow-left" aria-label="Back to rangka list" class="shrink-0" /></STooltip>
-        <div class="min-w-0 flex-1">
-          <h1 class="min-w-0" :aria-label="rangka.title">
-            <STooltip :text="rangka.title"><span class="inline-flex min-w-0 max-w-full"><SDropdown :positioning="{ collisionPadding: 12 }" :items="rangkaActions" :adaptive="true"><SButton variant="ghost" color="neutral" trailing-icon="lucide:chevron-down" aria-label="Rangka actions" class="min-w-0 max-w-full"><span class="truncate">{{ rangka.title }}</span></SButton></SDropdown></span></STooltip>
-          </h1>
-        </div>
-        <div class="flex shrink-0 items-center gap-1">
+        <STooltip text="Back to workspace"><SButton :to="backTo" variant="ghost" color="neutral" icon="lucide:arrow-left" aria-label="Back to workspace" class="shrink-0" /></STooltip>
+        <!-- Where the rangka lives: its folder path, then the title. -->
+        <SBreadcrumb :items="crumbs" :max-items="3" class="rangka-crumbs" :ui="{ root: 'min-w-0', list: 'min-w-0', item: 'min-w-0' }">
+          <template #item="{ item, current }">
+            <h1 v-if="current" class="rangka-title">{{ item.label }}</h1>
+            <NuxtLink v-else :to="item.to" class="rangka-crumb"><SIcon v-if="item.icon" :name="item.icon" class="size-4 shrink-0" aria-hidden="true" /><span class="truncate">{{ item.label }}</span></NuxtLink>
+          </template>
+        </SBreadcrumb>
+        <span class="rangka-meta">
+          <SBadge :label="visibilityLabel" :icon="visibilityIcon" variant="subtle" color="neutral" size="sm" />
+          <span v-if="rangka.updatedAt" class="rangka-updated">Updated <time :datetime="rangka.updatedAt">{{ formatDay(rangka.updatedAt) }}</time></span>
+        </span>
+        <div class="ml-auto flex shrink-0 items-center gap-1">
           <STooltip v-if="isTextRangka" text="Edit"><SButton variant="ghost" color="neutral" icon="lucide:pencil" :disabled="historyLoading || latestVersion === null" aria-label="Edit" @click="openEditor"><span class="hidden sm:inline">Edit</span></SButton></STooltip>
           <STooltip text="History"><SButton variant="ghost" color="neutral" icon="lucide:history" aria-label="History" @click="historyOpen = true" /></STooltip>
           <STooltip text="Share"><SButton variant="outline" color="neutral" icon="lucide:share-2" aria-label="Share" @click="sharingOpen = true"><span class="hidden sm:inline">Share</span></SButton></STooltip>
+          <SDropdown :items="rangkaActions" :positioning="{ align: 'end', collisionPadding: 12 }" :adaptive="true">
+            <SButton variant="ghost" color="neutral" icon="lucide:ellipsis" aria-label="Rangka actions" />
+          </SDropdown>
         </div>
       </header>
       <p v-if="message" class="rangka-notice" role="status">{{ message }}</p>
@@ -67,6 +82,13 @@
               auto-height
               class="min-h-[70vh]"
             />
+            <!-- A bundle fills the reading area and scrolls inside its frame. -->
+            <SerangkaiHtmlPreview
+              v-else-if="rangka.type === 'bundle' && bundleUrl"
+              :src="bundleUrl"
+              :title="`${rangka.title} website`"
+              height="calc(100dvh - 9rem)"
+            />
             <div v-else-if="rangka.type === 'markdown'" class="min-w-0 w-full">
               <MarkdownDocument :body="contentBody" />
             </div>
@@ -80,36 +102,7 @@
       </section>
 
 
-      <SModal v-model:open="sharingOpen" title="Share rangka" description="Choose who can open this rangka.">
-        <template #body>
-
-            <div class="mt-3 space-y-3">
-              <SFormField v-slot="{ id }" label="Visibility">
-                <SSelect :id="id" v-model="draftVisibility" :items="visibilityOptions" class="w-full" />
-              </SFormField>
-
-              <div class="flex flex-wrap gap-2">
-                <SButton icon="lucide:eye" :loading="savingVisibility" :disabled="savingVisibility" @click="saveVisibility">Save visibility</SButton>
-                <SButton v-if="draftVisibility !== 'private'" variant="outline" :to="shareUrl || undefined" target="_blank" rel="noopener" :disabled="!shareUrl">Open link</SButton>
-              </div>
-
-              <p v-if="draftVisibility === 'private'" class="text-sm text-[var(--selaras-resolved-text-muted)]">Only you can open this rangka.</p>
-              <template v-else-if="shareUrl">
-                <SFormField label="Share link">
-                  <SInput :model-value="shareUrl" readonly aria-label="Share link" class="w-full font-mono text-xs">
-                    <template #trailing="{ buttonSize }">
-                      <SerangkaiCopyButton :value="shareUrl" label="share link" :size="buttonSize" />
-                    </template>
-                  </SInput>
-                </SFormField>
-                <p class="text-sm text-[var(--selaras-resolved-text-muted)]">
-                  {{ draftVisibility === 'unlisted' ? 'The signed link is required. Anyone with it can read this rangka.' : 'Anyone with the link can read this rangka.' }}
-                </p>
-              </template>
-              <p v-if="shareMessage" class="text-sm text-[var(--selaras-resolved-text-muted)]">{{ shareMessage }}</p>
-            </div>
-        </template>
-      </SModal>
+      <SerangkaiShareDialog v-model:open="sharingOpen" :rangka="rangka" @updated="onShareUpdated" />
 
       <SModal v-model:open="movingOpen" title="Move rangka" :description="folderPath ? `Currently in ${folderPath}` : 'Choose a folder for this rangka.'">
         <template #body>
@@ -125,10 +118,7 @@
 
       <SSlideover v-model:open="historyOpen" side="right" title="Version history" description="Browse and restore saved versions.">
         <template #body>
-            <div class="flex items-start justify-between gap-2">
-              <div><h2 id="versions-heading" class="text-sm font-semibold">History</h2><p class="mt-1 text-xs text-[var(--selaras-resolved-text-muted)]">{{ versionTotal }} {{ versionTotal === 1 ? 'version' : 'versions' }}</p></div>
-              <SIcon name="lucide:history" class="size-4 text-[var(--selaras-resolved-text-muted)]" aria-hidden="true" />
-            </div>
+            <p class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ versionTotal }} {{ versionTotal === 1 ? 'version' : 'versions' }}</p>
             <p v-if="historyLoading" class="mt-4 text-sm text-[var(--selaras-resolved-text-muted)]" role="status">Loading history…</p>
             <template v-else>
               <ul v-if="versions.length" class="mt-3 divide-y divide-[var(--selaras-resolved-border-muted)]">
@@ -181,12 +171,14 @@
 import { NO_FOLDER, folderIdFromSelection, folderSelection } from '~/utils/folders'
 import type { EditorLanguage } from '~/utils/editor'
 import { onBeforeRouteLeave } from 'vue-router'
+import { rangkaTypeLabel } from '~/utils/rangka-types'
 
 const route = useRoute()
 const requestFetch = useRequestFetch()
 const rangka = ref<any>(null)
 const content = ref('')
 const contentBody = ref<Record<string, unknown> | null>(null)
+const bundleUrl = ref<string | null>(null)
 const editing = ref(false)
 const sharingOpen = ref(false)
 const movingOpen = ref(false)
@@ -207,8 +199,6 @@ const message = ref('')
 const saveMessageColor = ref<'danger' | 'warning'>('danger')
 const draftVisibility = ref('private')
 const shareUrl = ref('')
-const shareMessage = ref('')
-const savingVisibility = ref(false)
 const folders = ref<any[]>([])
 const draftFolderId = ref<string | undefined>(NO_FOLDER)
 const savingFolder = ref(false)
@@ -235,14 +225,16 @@ const { confirm } = useConfirm()
 const { add: toast } = useToast()
 
 const visibilityOptions = [
-  { label: 'Private — only you', value: 'private' },
-  { label: 'Unlisted — signed link required', value: 'unlisted' },
-  { label: 'Public — anyone with the link', value: 'public' },
+  { label: 'Private', value: 'private' },
+  { label: 'Unlisted', value: 'unlisted' },
+  { label: 'Public', value: 'public' },
 ]
+const visibilityLabel = computed(() => visibilityOptions.find(option => option.value === rangka.value?.visibility)?.label || 'Private')
+const visibilityIcon = computed(() => rangka.value?.visibility === 'public' ? 'lucide:globe' : rangka.value?.visibility === 'unlisted' ? 'lucide:link' : 'lucide:lock')
 
 const folderOptions = computed(() => [
   { label: 'No folder', value: NO_FOLDER },
-  ...folders.value.map((folder: any) => ({ label: folder.path || folder.name, value: folder.id })),
+  ...folders.value.map((folder: any) => ({ label: String(folder.path || folder.name).replace(/^\//, '').replaceAll('/', ' / '), value: folder.id })),
 ])
 
 const rangkaPageTitle = computed(() => {
@@ -288,9 +280,11 @@ const editorFilename = computed(() => {
   return `${base}.${extensions[editorLanguage.value]}`
 })
 
+const visibilityChanged = computed(() => !!rangka.value && draftVisibility.value !== rangka.value.visibility)
+const folderChanged = computed(() => !!rangka.value && folderIdFromSelection(draftFolderId.value) !== (rangka.value.folderId || null))
 const dirty = computed(() => {
   if (!rangka.value) return false
-  return draftContent.value !== content.value || draftTitle.value !== rangka.value.title
+  return draftContent.value !== content.value || draftTitle.value !== rangka.value.title || visibilityChanged.value || folderChanged.value
 })
 
 const openEditor = () => {
@@ -313,6 +307,7 @@ const cancelEdit = async () => {
   }
   draftTitle.value = rangka.value.title
   draftContent.value = content.value
+  resetDraftProperties()
   editing.value = false
   message.value = ''
 }
@@ -326,9 +321,33 @@ const beforeUnload = (event: BeforeUnloadEvent) => { if (editing.value && dirty.
 onMounted(() => window.addEventListener('beforeunload', beforeUnload))
 onBeforeUnmount(() => window.removeEventListener('beforeunload', beforeUnload))
 
+const resetDraftProperties = () => {
+  if (!rangka.value) return
+  draftVisibility.value = rangka.value.visibility
+  draftFolderId.value = folderSelection(rangka.value.folderId)
+}
+
 const folderPath = computed(() => folders.value.find(folder => folder.id === rangka.value?.folderId)?.path || '')
 
+// Back returns to the workspace view the user came from, or to this rangka's
+// folder on a direct visit.
+const lastWorkspace = useWorkspaceReturn()
+const backTo = computed(() => workspaceReturnUrl(lastWorkspace.value, rangka.value?.folderId))
+
+// Folder ancestors from the stored path ("/Programs/2026"), each linking to
+// that folder in the workspace, then the title as the current page.
+const crumbs = computed(() => {
+  const byPath = new Map(folders.value.map((folder: any) => [folder.path, folder]))
+  const segments = folderPath.value.split('/').filter(Boolean)
+  const trail = segments.map((_, index) => byPath.get(`/${segments.slice(0, index + 1).join('/')}`)).filter(Boolean)
+  return [
+    ...trail.map((folder: any, index: number) => ({ label: folder.name, to: `/?folder=${encodeURIComponent(folder.id)}`, icon: index === 0 ? 'lucide:folder' : undefined })),
+    { label: rangka.value?.title || 'Rangka' },
+  ]
+})
+
 const formatDate = (value: string) => new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+const formatDay = (value: string) => new Date(value).toLocaleDateString([], { dateStyle: 'medium' })
 
 const loadVersions = async (page = 1) => {
   const sequence = ++historySequence
@@ -379,30 +398,27 @@ const restoreVersion = async (version: number) => {
 const reloadRangka = async () => {
   const res = await $fetch<any>(`/api/rangka/${route.params.id}`)
   applyRangka(res)
-  shareMessage.value = ''
   await loadVersions()
 }
 
+// Only feeds "Open share link" in the actions menu; the share dialog mints
+// its own link when opened.
 const loadShareLink = async () => {
   shareUrl.value = ''
-  if (draftVisibility.value === 'private') return
-  try {
-    const link = await $fetch<any>(`/api/rangka/${route.params.id}/share`, { method: 'POST' })
-    shareUrl.value = link.url
-  } catch (e: any) {
-    shareMessage.value = e.data?.message || 'Could not create a share link'
-  }
+  if (!rangka.value || rangka.value.visibility === 'private') return
+  try { shareUrl.value = (await $fetch<any>(`/api/rangka/${route.params.id}/share`, { method: 'POST' })).url } catch {}
 }
 
-const saveVisibility = async () => {
-  savingVisibility.value = true; shareMessage.value = ''
-  try {
-    const res = await $fetch<any>(`/api/rangka/${route.params.id}`, { method: 'PUT', body: { visibility: draftVisibility.value } })
-    rangka.value = res.rangka
-    await loadShareLink()
-    if (!shareMessage.value) shareMessage.value = 'Sharing settings saved.'
-  } catch (e: any) { shareMessage.value = e.data?.message || 'Could not save sharing settings' }
-  finally { savingVisibility.value = false }
+const onShareUpdated = (updated: any, url: string | null) => {
+  rangka.value = updated
+  draftVisibility.value = updated.visibility
+  shareUrl.value = url || ''
+}
+
+const openMove = () => {
+  draftFolderId.value = folderSelection(rangka.value?.folderId)
+  folderMessage.value = ''
+  movingOpen.value = true
 }
 
 const saveFolder = async () => {
@@ -442,7 +458,7 @@ const removeRangka = async () => {
   try {
     await $fetch(`/api/rangka/${route.params.id}`, { method: 'DELETE' })
     toast({ title: 'Rangka deleted', color: 'success' })
-    await navigateTo('/workspace')
+    await navigateTo(workspaceReturnUrl(lastWorkspace.value, rangka.value?.folderId))
   } catch (e: any) {
     deleteMessage.value = e.data?.message || 'Could not delete rangka'
   } finally {
@@ -452,9 +468,7 @@ const removeRangka = async () => {
 
 const rangkaActions = computed(() => [
   [
-    { label: 'Share', icon: 'lucide:share-2', onSelect: () => { sharingOpen.value = true } },
-    { label: 'Move to folder', icon: 'lucide:folder-input', onSelect: () => { movingOpen.value = true } },
-    { label: 'Version history', icon: 'lucide:history', onSelect: () => { historyOpen.value = true } },
+    { label: 'Move to folder', icon: 'lucide:folder-input', onSelect: openMove },
     { label: 'Download', icon: 'lucide:download', to: `/api/rangka/${route.params.id}/download` },
     { label: 'Duplicate', icon: 'lucide:copy', disabled: duplicating.value, onSelect: () => { void duplicateRangka() } },
     ...(rangka.value?.type === 'bundle' ? [{ label: 'Open bundle', icon: 'lucide:external-link', to: `/share/${rangka.value.slug}`, target: '_blank', rel: 'noopener' }] : []),
@@ -489,6 +503,7 @@ const applyRangka = (res: any) => {
   rangka.value = res.rangka
   content.value = res.content
   contentBody.value = res.body || null
+  bundleUrl.value = res.bundleUrl || null
   draftTitle.value = res.rangka.title
   draftContent.value = res.content
   draftVisibility.value = res.rangka.visibility
@@ -509,7 +524,19 @@ const loadSecondary = async () => {
     $fetch<any>('/api/folders'),
   ])
   if (folderList.status === 'fulfilled') folders.value = folderList.value.folders || []
+  openEditorFromLink()
   await loadShareLink()
+}
+
+// "Edit" in the workspace row menu links here with ?edit. Open the editor once
+// the version is known (saving needs it), then drop the flag so Back and
+// reload show the rangka.
+const router = useRouter()
+const openEditorFromLink = () => {
+  if (route.query.edit === undefined) return
+  const { edit: _, ...query } = route.query
+  void router.replace({ query })
+  if (isTextRangka.value && latestVersion.value !== null) openEditor()
 }
 
 const reportRecoverableLoadError = () => {
@@ -582,14 +609,22 @@ const save = async () => {
   try {
     const res = await $fetch<any>(`/api/rangka/${route.params.id}`, {
       method: 'PUT',
-      body: { title: draftTitle.value, content: draftContent.value, baseVersion: latestVersion.value },
+      body: {
+        title: draftTitle.value,
+        content: draftContent.value,
+        baseVersion: latestVersion.value,
+        ...(visibilityChanged.value ? { visibility: draftVisibility.value } : {}),
+        ...(folderChanged.value ? { folderId: folderIdFromSelection(draftFolderId.value) } : {}),
+      },
     })
+    const sharingChanged = visibilityChanged.value
     rangka.value = res.rangka
     content.value = draftContent.value
     contentBody.value = res.rangka.type === 'markdown'
       ? ((await $fetch<any>(`/api/rangka/${route.params.id}`)).body || null)
       : null
     await loadVersions()
+    if (sharingChanged) await loadShareLink()
     editing.value = false
     message.value = res.versionCreated ? `Saved version ${res.version}` : 'Saved without a new version'
   } catch (e: any) {
@@ -619,7 +654,18 @@ const save = async () => {
 .rangka-document { min-width: 0; padding: 1.5rem 1rem 4rem; }
 .rangka-document-markdown { max-width: 58rem; margin-inline: auto; padding-top: 2.5rem; }
 .rangka-document-markdown :deep(.selaras-prose :is(h1, h2, h3, h4):first-child) { margin-block-start: 0; }
+.rangka-crumbs { min-width: 0; flex: 0 1 auto; }
+.rangka-crumbs :deep(li) { min-width: 0; }
+.rangka-crumbs :deep(li:not(:last-child)) { flex-shrink: 0; }
+.rangka-crumb { display: flex; max-width: 10rem; align-items: center; gap: .25rem; color: var(--selaras-resolved-text-muted); transition: color 100ms; }
+.rangka-crumb:hover { color: var(--selaras-resolved-text-default); }
+.rangka-crumb:focus-visible { outline: 2px solid var(--selaras-resolved-color-primary-border); outline-offset: 2px; border-radius: var(--selaras-resolved-radius-sm); }
+.rangka-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9375rem; font-weight: 600; color: var(--selaras-resolved-text-default); }
+.rangka-meta { display: none; flex-shrink: 0; align-items: center; gap: .625rem; margin-left: .25rem; font-size: .75rem; color: var(--selaras-resolved-text-muted); }
 .rangka-notice { padding: .75rem 1.5rem; font-size: .75rem; color: var(--selaras-resolved-text-muted); }
+/* Phones keep only the title; the back arrow already leads to the folder. */
+@media (max-width: 639px) { .rangka-crumbs :deep(li:not(:last-child)) { display: none; } }
+@media (min-width: 1024px) { .rangka-meta { display: flex; } }
 @media (min-width: 768px) { .rangka-document { padding-inline: 2.5rem; }.rangka-toolbar { padding-inline: 1.5rem; } }
 @media (min-width: 1024px) { .rangka-toolbar { top: 0; }.rangka-document-markdown { padding-top: 3.5rem; } }
 </style>

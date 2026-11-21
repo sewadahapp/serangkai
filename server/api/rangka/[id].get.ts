@@ -3,6 +3,7 @@ import { getRequestDatabase } from '../../db/adapter'
 import { eq } from 'drizzle-orm'
 import { renderMarkdownContent } from '../../utils/markdown'
 import { readRangkaBytes } from '../../utils/rangka-storage'
+import { bundleEntryUrl } from '../../utils/share'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
@@ -44,5 +45,7 @@ export default defineEventHandler(async (event) => {
     body: markdown?.body ?? null,
     toc: markdown?.toc ?? [],
     startsWithHeading: markdown?.startsWithHeading ?? false,
+    // The owner's in-app view of a bundle; null for API tokens (see bundleEntryUrl).
+    bundleUrl: rangka.type === 'bundle' ? bundleEntryUrl(event, rangka) : null,
   }
 })

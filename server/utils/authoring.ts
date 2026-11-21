@@ -17,7 +17,7 @@ export const authoringRangkaTypes = [
   { type: 'json', description: 'JSON source, displayed with syntax highlighting.' },
   { type: 'image', description: 'SVG markup as text content (create_rangka or POST /api/rangka). Raster images (PNG, JPEG, WebP, GIF) must be uploaded with POST /api/rangka/upload.' },
   { type: 'pdf', description: 'PDF viewed in the browser. Binary: upload with POST /api/rangka/upload; not accepted as text content.' },
-  { type: 'bundle', description: 'Static ZIP web application, served sandboxed with authorization. Binary: upload the .zip with POST /api/rangka/upload; not accepted as text content.' },
+  { type: 'bundle', description: 'Static website as a ZIP, served sandboxed with authorization. Needs an index.html at the top level or inside one top-level folder, and may only contain web files (HTML, CSS, JS, JSON, images, fonts, audio, video, PDF, text); anything else refuses the upload. Binary: upload the .zip with POST /api/rangka/upload; not accepted as text content.' },
 ]
 
 export const chartSchema = {

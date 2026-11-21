@@ -10,6 +10,7 @@ import { requireScope } from '../../utils/require-auth'
 import { readRangkaBytes, writeRangka } from '../../utils/rangka-storage'
 import { checkTextRangka, reserveSlug } from '../../utils/rangka'
 import { appendVersion } from '../../utils/rangka-versions'
+import { byteLength, storageWriteRefusal } from '../../utils/storage-quota'
 import { isSlugConflict } from '../../db/migrations'
 import { findGrantByApiTokenId, resourceMatches } from '../../utils/oauth'
 import { mcpResourceUrl, protectedResourceMetadataUrl } from '../../utils/oauth-urls'
@@ -159,6 +160,9 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
     const slug = await reserveSlug(db, title)
     const checked = checkTextRangka(type, content, slug)
     if (!checked.ok) return { isError: true, content: [{ type: 'text', text: checked.message }] }
+    const storedBytes = byteLength(content)
+    const refusal = await storageWriteRefusal(db, userId, storedBytes)
+    if (refusal) return { isError: true, content: [{ type: 'text', text: refusal }] }
     const contentPath = `${userId}/${id}/content`
     await writeRangka(contentPath, content)
     try {
@@ -167,7 +171,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
       if (isSlugConflict(error)) return { isError: true, content: [{ type: 'text', text: 'That share identifier is already in use. Retry with a slightly different title.' }] }
       throw error
     }
-    await db.insert(rangkaVersions).values({ id: nanoid(), rangkaId: id, version: 1, contentPath, metadata: checked.metadata, createdAt: new Date() })
+    await db.insert(rangkaVersions).values({ id: nanoid(), rangkaId: id, version: 1, contentPath, metadata: checked.metadata, storedBytes, createdAt: new Date() })
     return textResult({ id, slug, title, type, visibility: rangkaVisibility, folderId: folderId || null })
   })
 
@@ -225,6 +229,8 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
       // duplicate history entries.
       const currentContent = (await readRangkaBytes(row.contentPath)).toString()
       if (currentContent !== content) {
+        const refusal = await storageWriteRefusal(db, userId, byteLength(content))
+        if (refusal) return { isError: true, content: [{ type: 'text', text: refusal }] }
         const version = currentVersion + 1
         contentPath = `${userId}/${id}/versions/${version}`
         const claimed = await appendVersion(db, { rangkaId: id, version, contentPath, metadata, content })

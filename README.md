@@ -57,6 +57,11 @@ Optional deployment settings:
   provider, including Backblaze B2), or `r2-binding` (Cloudflare Workers only,
   and the default there). With `s3`, set `S3_ENDPOINT`, `S3_REGION`,
   `S3_BUCKET`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`.
+- `STORAGE_LIMIT` — hard storage cap such as `10GB` (decimal `KB`/`MB`/`GB`/`TB`
+  or binary `KiB`/`MiB`/`GiB`/`TiB`). Writes that would exceed it are refused.
+  The owner can set a lower limit in **Settings → Storage** and choose whether
+  reaching it only warns or refuses new writes. With local/Docker storage and
+  no limit, the meter shows the real disk size of `STORAGE_PATH`.
 - `TRUST_PROXY=true`, or `TRUSTED_PROXY_IPS` with the proxy's socket addresses,
   makes rate limiting honor `X-Forwarded-For`. Set one when Serangkai runs
   behind a reverse proxy (Caddy, Traefik, nginx, a tunnel); otherwise every

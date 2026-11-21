@@ -20,7 +20,7 @@
         "@lezer/highlight": "^1.2.5",
         "@libsql/client": "^0.18.0",
         "@modelcontextprotocol/sdk": "^1.32.2",
-        "@sewadah/selaras": "^1.3.0",
+        "@sewadah/selaras": "^1.4.0",
         "@shikijs/langs": "^4.6.0",
         "@shikijs/themes": "^4.6.0",
         "@tanstack/vue-charts": "^1.2.0",
@@ -543,7 +543,7 @@
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.67.4", "", { "os": "win32", "cpu": "x64" }, "sha512-RJZnrwTWj7Iq2ooBwoGbDdC65tDwYawneGcAfFMJqVUrRZMcskka6nTkBpXR/47G7kzn3EW2qupExnaBy11vwg=="],
 
-    "@sewadah/selaras": ["@sewadah/selaras@1.3.0", "", { "dependencies": { "@internationalized/date": "^3.12.4", "@nuxt/icon": "^2.5.1", "@nuxt/kit": "^4.5.2", "@nuxtjs/color-mode": "^4.0.1", "@tailwindcss/oxide": "^4.3.0", "@tailwindcss/vite": "^4.3.0", "@tanstack/vue-table": "^9.3.1", "@tanstack/vue-virtual": "^3.13.47", "reka-ui": "^2.11.0", "shiki": "^4.5.0", "tailwind-merge": "^3.7.0", "tailwind-variants": "^3.3.1", "tw-animate-css": "^1.4.0" }, "peerDependencies": { "nuxt": "^4.5.2", "tailwindcss": "^4.3.0" } }, "sha512-sv7LWnsqP9fna1VvVpC+1wHxDucsaJqKzF1UP9HA5aA5+8zPGSVwh5LcYBi3KXPoImSFQtRFkKzpALRIUMAuOg=="],
+    "@sewadah/selaras": ["@sewadah/selaras@1.4.0", "", { "dependencies": { "@internationalized/date": "^3.12.4", "@nuxt/icon": "^2.5.1", "@nuxt/kit": "^4.5.2", "@nuxtjs/color-mode": "^4.0.1", "@tailwindcss/oxide": "^4.3.0", "@tailwindcss/vite": "^4.3.0", "@tanstack/vue-table": "^9.3.1", "@tanstack/vue-virtual": "^3.13.47", "reka-ui": "^2.11.0", "shiki": "^4.5.0", "tailwind-merge": "^3.7.0", "tailwind-variants": "^3.3.1", "tw-animate-css": "^1.4.0" }, "peerDependencies": { "nuxt": "^4.5.2", "tailwindcss": "^4.3.0" } }, "sha512-LRMG2GXx8mtjegmCeN3eDkR9rnm11ARSR9sM06pnABjkE1Co0/oIW9qEbWitBptUYNWcQqx8qw4LGBawY98How=="],
 
     "@sewadah/selaras-mcp": ["@sewadah/selaras-mcp@0.1.2", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.32.1", "zod": "^4.6.7" }, "peerDependencies": { "@sewadah/selaras": ">=0.11.0" }, "optionalPeers": ["@sewadah/selaras"], "bin": { "selaras-mcp": "mcp.mjs" } }, "sha512-U2gVrf06H9zyZ6hzmLsQCLsxecgSOYPz1cC65waSFp97xHXV6p1QzBP+C8Ml+4/nW2VtP7mZB3NN+QFGQmlDAA=="],
 

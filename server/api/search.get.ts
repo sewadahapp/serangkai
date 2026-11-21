@@ -2,13 +2,17 @@ import { rangkaItems, folders } from '../db/schema'
 import { getRequestDatabase } from '../db/adapter'
 import { requireUser } from '../utils/require-auth'
 import { rangkaShareUrlForCaller } from '../utils/share'
-import { and, eq, inArray, like, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, like, or } from 'drizzle-orm'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
   const user = requireUser(event)
   const query = String(getQuery(event).q || '').trim()
   const folderId = String(getQuery(event).folderId || '') || null
+  // Optional cap for quick lookups (the command palette): newest first, at
+  // most 50. Without it the full match list is returned as before.
+  const limitParam = Number(getQuery(event).limit)
+  const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 50) : null
   if (!query) return { rangka: [], folders: [] }
 
   const pattern = `%${query}%`
@@ -37,11 +41,14 @@ export default defineEventHandler(async (event) => {
 
   const ids = scope ? [...scope] : null
   const [foundRangka, foundFolders] = await Promise.all([
-    db.select().from(rangkaItems).where(and(
-      eq(rangkaItems.userId, user.id),
-      ...(ids ? [inArray(rangkaItems.folderId, ids)] : []),
-      or(like(rangkaItems.title, pattern), like(rangkaItems.slug, pattern)),
-    )),
+    (() => {
+      const matches = db.select().from(rangkaItems).where(and(
+        eq(rangkaItems.userId, user.id),
+        ...(ids ? [inArray(rangkaItems.folderId, ids)] : []),
+        or(like(rangkaItems.title, pattern), like(rangkaItems.slug, pattern)),
+      ))
+      return limit ? matches.orderBy(desc(rangkaItems.updatedAt)).limit(limit) : matches
+    })(),
     ids
       ? Promise.resolve(scopedFolders)
       : db.select().from(folders).where(and(eq(folders.userId, user.id), like(folders.name, pattern))),

@@ -13,6 +13,9 @@ import { adminEnv, adminPassword, adminUsername } from './helpers/auth.mjs'
 const port = 3720 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
 let child, dataDir, browser, page
+// Log in once the app has mounted, so these tests exercise the client-side
+// login (the pre-hydration form post has its own test).
+const hydrated = () => !!document.getElementById('__nuxt')?.__vue_app__
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-browser-test-'))
@@ -30,6 +33,7 @@ test('human browser workflow logs in and creates a rangka', async () => {
   await page.getByRole('heading', { name: 'Log in to Serangkai' }).waitFor()
   await page.getByLabel('Username').fill(adminUsername)
   await page.getByLabel('Password').fill(adminPassword)
+  await page.waitForFunction(hydrated)
   await page.getByRole('button', { name: 'Log in' }).click()
   await page.waitForURL(/\/(?:workspace)?$/)
   await assert.doesNotReject(() => page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor())
@@ -51,13 +55,14 @@ test('human browser workflow logs in and creates a rangka', async () => {
   await page.waitForURL('**/rangka/**')
   await page.getByRole('link', { name: 'Workspace', exact: true }).first().click()
   await page.waitForURL(/\/(?:workspace)?$/)
-  await assert.doesNotReject(() => page.getByText(/· Projects/).waitFor())
+  // Each row shows its folder path next to the type.
+  await assert.doesNotReject(() => page.locator('.workspace-rangka-folder', { hasText: 'Projects' }).first().waitFor())
   await page.getByRole('button', { name: 'Actions for Projects' }).click()
   await page.getByRole('menuitem', { name: 'Rename' }).click()
   await page.getByLabel('Folder name').fill('Programs')
   await page.getByRole('button', { name: 'Save name' }).click()
   await assert.doesNotReject(() => page.getByRole('treeitem', { name: /^Programs/ }).waitFor())
-  await assert.doesNotReject(() => page.getByText(/· Programs/).waitFor())
+  await assert.doesNotReject(() => page.locator('.workspace-rangka-folder', { hasText: 'Programs' }).first().waitFor())
   await page.getByRole('button', { name: 'All rangka' }).click()
   await page.getByRole('button', { name: 'New folder' }).click()
   await page.getByLabel('Folder name').fill('Archive')
@@ -70,12 +75,12 @@ test('human browser workflow logs in and creates a rangka', async () => {
   await page.getByRole('option', { name: 'Archive' }).click()
   await page.getByRole('button', { name: 'Move folder' }).click()
   await assert.doesNotReject(() => page.getByText('Folder moved', { exact: true }).waitFor())
-  await assert.doesNotReject(() => page.getByText(/· Archive \/ Programs/).waitFor())
+  await assert.doesNotReject(() => page.locator('.workspace-rangka-folder', { hasText: 'Archive / Programs' }).first().waitFor())
   await page.getByPlaceholder('Search rangka and folders…').fill('Browser')
-  await assert.doesNotReject(() => page.getByText(/In Programs and its subfolders/).waitFor())
+  await assert.doesNotReject(() => page.getByText(/in Programs and its subfolders/).waitFor())
   // Searching must keep the folder tree and the row's folder path intact.
   await assert.doesNotReject(() => page.getByRole('treeitem', { name: /^Programs/ }).waitFor())
-  await assert.doesNotReject(() => page.getByText(/· Archive \/ Programs/).waitFor())
+  await assert.doesNotReject(() => page.locator('.workspace-rangka-folder', { hasText: 'Archive / Programs' }).first().waitFor())
   await page.getByRole('button', { name: 'Clear', exact: true }).click()
   await assert.doesNotReject(() => page.getByRole('heading', { name: 'Programs', exact: true }).waitFor())
   await assert.doesNotReject(() => page.getByText('1 rangka', { exact: true }).waitFor())
@@ -87,7 +92,6 @@ test('human browser workflow logs in and creates a rangka', async () => {
   await page.getByRole('button', { name: 'Share', exact: true }).click()
   await page.getByRole('combobox', { name: 'Visibility' }).click()
   await page.getByRole('option', { name: /Unlisted/ }).click()
-  await page.getByRole('button', { name: 'Save visibility' }).click()
   const shareLink = page.getByRole('textbox', { name: 'Share link', exact: true })
   await assert.doesNotReject(() => shareLink.waitFor())
   assert.match(await shareLink.inputValue(), /\/share\/[^?]+\?k=[a-f0-9]{64}$/)
@@ -113,7 +117,6 @@ test('human browser workflow logs in and creates a rangka', async () => {
 
   await page.getByRole('link', { name: 'Settings' }).click()
   await page.waitForURL('**/settings')
-  await page.getByRole('tab', { name: 'Tokens', exact: true }).click()
   await page.getByRole('button', { name: 'Create token', exact: true }).click()
   await page.getByLabel('Name').fill('Browser token')
   await page.getByRole('dialog', { name: 'Create token', exact: true }).getByRole('button', { name: 'Create token', exact: true }).click()
@@ -126,6 +129,8 @@ test('human browser workflow logs in and creates a rangka', async () => {
 
   await page.getByRole('link', { name: 'Agents' }).first().click()
   await page.waitForURL('**/agent')
+  // Endpoints live in the Manual setup tab; the agent prompt is the default.
+  await page.getByRole('tab', { name: 'Manual setup', exact: true }).click()
   await assert.doesNotReject(() => page.getByRole('textbox', { name: 'MCP endpoint', exact: true }).waitFor())
   assert.match(await page.getByRole('textbox', { name: 'MCP endpoint', exact: true }).inputValue(), /\/api\/mcp$/)
   assert.match(await page.getByRole('textbox', { name: 'REST endpoint', exact: true }).inputValue(), /\/api\/rangka$/)
@@ -610,6 +615,9 @@ test('read-only values offer a working copy button', async () => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base })
 
   await page.goto(`${base}/agent`)
+  await page.getByRole('button', { name: 'Copy setup prompt', exact: true }).click()
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /^Connect to my Serangkai workspace over MCP\./)
+  await page.getByRole('tab', { name: 'Manual setup', exact: true }).click()
   const mcpCopy = page.getByRole('button', { name: 'Copy MCP endpoint' })
   await assert.doesNotReject(() => mcpCopy.waitFor())
   await assert.doesNotReject(() => page.getByRole('button', { name: 'Copy REST endpoint' }).waitFor())
@@ -1177,6 +1185,7 @@ test('workspace stays usable on narrow screens with long names and pagination', 
     await mobile.goto(`${base}/auth/login`)
     await mobile.getByLabel('Username').fill(adminUsername)
     await mobile.getByLabel('Password').fill(adminPassword)
+    await mobile.waitForFunction(hydrated)
     await mobile.getByRole('button', { name: 'Log in' }).click()
     await mobile.waitForURL(/\/(?:workspace)?$/)
     const name = 'A-very-long-folder-name-without-any-spaces-to-break-the-layout'
@@ -1198,7 +1207,7 @@ test('workspace stays usable on narrow screens with long names and pagination', 
     await mobile.getByRole('button', { name: 'Next', exact: true }).click()
     await mobile.getByText('Page 2 of 2').waitFor()
     await mobile.getByRole('button', { name: 'Browse folders' }).click()
-    const foldersPanel = mobile.getByRole('dialog', { name: 'Folders' })
+    const foldersPanel = mobile.getByRole('dialog', { name: 'Navigation' })
     await foldersPanel.waitFor()
     await mobile.waitForFunction(() => { const panel = document.querySelector('[role=dialog]'); return panel && Math.abs(panel.getBoundingClientRect().left) < 2 })
     for (const folder of folders.slice(0, -1)) {
@@ -1220,24 +1229,25 @@ test('workspace stays usable on narrow screens with long names and pagination', 
   }
 })
 
-test('mobile account navigation opens from the right and closes after navigation', async () => {
+test('mobile navigation drawer opens from the left and closes after navigation', async () => {
   const context = await browser.newContext({ viewport: { width: 375, height: 720 } })
   const mobile = await context.newPage()
   try {
     await mobile.goto(`${base}/auth/login`)
     await mobile.getByLabel('Username').fill(adminUsername)
     await mobile.getByLabel('Password').fill(adminPassword)
+    await mobile.waitForFunction(hydrated)
     await mobile.getByRole('button', { name: 'Log in' }).click()
     await mobile.waitForURL(/\/(?:workspace)?$/)
-    const trigger = mobile.getByRole('button', { name: `Account menu for ${adminUsername}` })
+    const trigger = mobile.getByRole('button', { name: 'Open navigation', exact: true })
     await trigger.waitFor()
-    assert.match(await trigger.innerText(), new RegExp(adminUsername))
     assert.equal(await mobile.getByRole('navigation', { name: 'Workspace sections' }).count(), 0)
     await trigger.click()
     const dialog = mobile.getByRole('dialog', { name: 'Navigation' })
     await dialog.waitFor()
-    assert.match(await dialog.innerText(), new RegExp(`Signed in as ${adminUsername}`))
-    await mobile.waitForFunction(() => { const panel = document.querySelector('[role=dialog]'); if (!panel) return false; const rect = panel.getBoundingClientRect(); return Math.abs(rect.right - innerWidth) < 2 })
+    await dialog.getByText(adminUsername, { exact: true }).waitFor()
+    await dialog.getByRole('button', { name: `Account menu for ${adminUsername}`, exact: true }).waitFor()
+    await mobile.waitForFunction(() => { const panel = document.querySelector('[role=dialog]'); if (!panel) return false; return Math.abs(panel.getBoundingClientRect().left) < 2 })
     await dialog.getByRole('link', { name: 'Agents', exact: true }).click()
     await mobile.waitForURL('**/agent')
     await dialog.waitFor({ state: 'hidden' })
@@ -1248,7 +1258,7 @@ test('mobile account navigation opens from the right and closes after navigation
     await mobile.setViewportSize({ width: 1280, height: 720 })
     assert.equal(await trigger.isVisible(), false)
     await mobile.getByRole('complementary', { name: 'Workspace sidebar' }).getByText(adminUsername, { exact: true }).waitFor()
-    await mobile.getByRole('button', { name: 'Log out', exact: true }).waitFor()
+    await mobile.getByRole('complementary', { name: 'Workspace sidebar' }).getByRole('button', { name: `Account menu for ${adminUsername}`, exact: true }).waitFor()
     await mobile.getByRole('link', { name: 'Workspace', exact: true }).first().waitFor()
   } finally {
     await context.close()
@@ -1262,8 +1272,10 @@ test('agent connection reference fits narrow viewports and keeps copy controls a
     await mobile.goto(`${base}/agent`)
     await mobile.getByLabel('Username').fill(adminUsername)
     await mobile.getByLabel('Password').fill(adminPassword)
+    await mobile.waitForFunction(hydrated)
     await mobile.getByRole('button', { name: 'Log in', exact: true }).click()
     await mobile.getByRole('heading', { name: 'Connect an agent' }).waitFor()
+    await mobile.getByRole('tab', { name: 'Manual setup', exact: true }).click()
     for (const width of [320, 375, 768, 1280]) {
       await mobile.setViewportSize({ width, height: 720 })
       const sizes = await mobile.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }))
@@ -1282,7 +1294,7 @@ test('agent connection reference fits narrow viewports and keeps copy controls a
     assert.ok(introBox && snippetBox && snippetBox.y > introBox.y + introBox.height + 10, 'MCP snippet should have space below its description')
     await mobile.getByRole('tab', { name: 'REST API', exact: true }).click()
     await mobile.getByRole('heading', { name: 'REST examples', exact: true }).waitFor()
-    assert.match(await mobile.getByRole('tabpanel').innerText(), /\/api\/rangka/)
+    assert.match(await mobile.getByRole('tabpanel', { name: 'REST API', exact: true }).innerText(), /\/api\/rangka/)
     await mobile.getByRole('tab', { name: 'Browser sign-in', exact: true }).click()
     await mobile.getByRole('heading', { name: 'Connect with browser sign-in', exact: true }).waitFor()
     await mobile.getByRole('button', { name: 'MCP tools', exact: true }).click()
@@ -1304,6 +1316,7 @@ test('rangka history pages and actions work on a narrow screen', async () => {
     await mobile.goto(`${base}/auth/login`)
     await mobile.getByLabel('Username').fill(adminUsername)
     await mobile.getByLabel('Password').fill(adminPassword)
+    await mobile.waitForFunction(hydrated)
     await mobile.getByRole('button', { name: 'Log in' }).click()
     await mobile.waitForURL(/\/(?:workspace)?$/)
     const id = await mobile.evaluate(async () => {
@@ -1353,6 +1366,7 @@ test('Markdown code blocks have space after headings and before following text',
     await reader.goto(`${base}/auth/login`)
     await reader.getByLabel('Username').fill(adminUsername)
     await reader.getByLabel('Password').fill(adminPassword)
+    await reader.waitForFunction(hydrated)
     await reader.getByRole('button', { name: 'Log in' }).click()
     await reader.waitForURL(/\/(?:workspace)?$/)
     const id = await reader.evaluate(async () => {

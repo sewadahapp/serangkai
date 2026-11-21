@@ -99,11 +99,11 @@ test('active app navigation stays distinct from the sidebar in every theme and m
         assert.notEqual(activeBg, 'rgba(0, 0, 0, 0)')
         if (theme.id === 'catppuccin') await page.screenshot({ path: `/tmp/serangkai-catppuccin-sidebar-${scheme}.png` })
         await page.setViewportSize({ width: 390, height: 844 })
-        await page.getByRole('button', { name: `Account menu for ${adminUsername}`, exact: true }).click()
+        await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
         const navigation = page.getByRole('dialog', { name: 'Navigation', exact: true })
         await page.waitForFunction(() => {
           const dialog = document.querySelector('[role="dialog"]')
-          return dialog && dialog.getBoundingClientRect().right <= window.innerWidth + 1
+          return dialog && dialog.getBoundingClientRect().left >= -1 && dialog.getBoundingClientRect().right <= window.innerWidth + 1
         })
         const mobileActive = navigation.getByRole('link', { name: 'Settings', exact: true })
         assert.equal(await mobileActive.getAttribute('aria-current'), 'page')

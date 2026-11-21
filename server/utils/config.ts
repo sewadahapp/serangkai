@@ -11,6 +11,7 @@
  * `scripts/session-secret.mjs`).
  */
 import { getDatabaseProvider, getTursoConfig, type DatabaseProvider } from '../db/provider'
+import { parseByteSize } from '../../shared/byte-size'
 
 export type StorageDriver = 'local' | 's3' | 'r2-binding'
 
@@ -30,6 +31,11 @@ export interface ServerConfig {
   turso?: ReturnType<typeof getTursoConfig>
   storageDriver: StorageDriver
   storagePath: string
+  /**
+   * Operator storage cap from STORAGE_LIMIT (e.g. "10GB"), or null. The owner
+   * can set a lower limit in Settings but never a higher one.
+   */
+  storageLimitBytes: number | null
   r2Binding: string
   /**
    * Opt-in ephemeral object storage. Cloudflare Workers need a real R2 binding;
@@ -107,6 +113,14 @@ export function getServerConfig(): ServerConfig {
     }
   }
 
+  // A typo must not silently mean "unlimited", so an unreadable value stops
+  // startup instead of being ignored.
+  const storageLimitInput = (process.env.STORAGE_LIMIT || '').trim()
+  const storageLimitBytes = storageLimitInput ? parseByteSize(storageLimitInput) : null
+  if (storageLimitInput && storageLimitBytes === null) {
+    throw new Error(`STORAGE_LIMIT "${storageLimitInput}" is not a size. Use a value like 500MB, 10GB, or 1TB.`)
+  }
+
   const databaseDriver = getDatabaseProvider()
   const turso = databaseDriver === 'turso' ? getTursoConfig() : undefined
 
@@ -122,6 +136,7 @@ export function getServerConfig(): ServerConfig {
     turso,
     storageDriver,
     storagePath: process.env.STORAGE_PATH || './data/files',
+    storageLimitBytes,
     r2Binding: process.env.R2_BINDING || 'RANGKA',
     allowEphemeralStorage: process.env.SERANGKAI_ALLOW_EPHEMERAL_STORAGE === 'true' && !production,
     s3,

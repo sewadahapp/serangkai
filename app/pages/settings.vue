@@ -1,84 +1,148 @@
 <template>
   <div class="settings-page">
-    <header class="settings-heading">
-      <div><h1>Settings</h1><p>Appearance, API tokens, and agent access.</p></div>
-      <SButton to="/agent" variant="ghost" color="neutral" icon="lucide:book-open">Connection guide</SButton>
-    </header>
+    <SerangkaiPageHeader title="Settings" description="Appearance, connected agents, and API tokens." class="!mb-0" />
 
-    <STabs v-model="activeSection" :items="settingsSections" variant="underline" :ui="{ list: { 'aria-label': 'Settings sections' }, content: 'pt-6' }">
-      <template #appearance>
-        <section aria-labelledby="appearance" class="settings-section">
-          <div><h2 id="appearance" class="settings-section-title">Appearance</h2><p class="settings-description mt-1">Your choices are saved for this browser.</p></div>
-          <div class="settings-mode-row">
-            <div><h3 class="text-sm font-medium">Light / dark mode</h3><p class="settings-description mt-1">Switch the workspace color mode.</p></div>
-            <STooltip text="Switch light / dark mode"><SColorModeToggle /></STooltip>
+    <!-- One page of section cards (no tabs): each card has a title and
+         description, an optional action on the right, then its content. -->
+    <section id="appearance" class="serangkai-card settings-card" aria-labelledby="appearance-title">
+      <header class="serangkai-card-head">
+        <div class="min-w-0">
+          <h2 id="appearance-title" class="settings-section-title">Appearance</h2>
+          <p class="settings-description">Saved for this browser.</p>
+        </div>
+      </header>
+      <div class="settings-card-body">
+        <div class="settings-row">
+          <div class="min-w-0">
+            <h3 class="settings-row-title">Color mode</h3>
+            <p class="settings-description">Light, dark, or follow your system.</p>
           </div>
-          <div>
-            <h3 class="mb-3 text-sm font-medium">Color theme</h3>
-            <SRadioGroup :model-value="theme" variant="card" :items="themeOptions" :ui="{ root: 'grid grid-cols-1 gap-3 sm:grid-cols-2', label: 'min-w-0 flex-1' }" aria-label="Color theme" @update:model-value="setTheme">
-              <template #label="{ item }">
-                <span class="settings-theme-card">
-                  <span class="settings-theme-previews" aria-hidden="true">
-                    <span v-for="mode in ['light', 'dark']" :key="mode" class="settings-theme-preview" :style="{ backgroundColor: themePreview(item.value, mode).surface }">
-                      <span class="settings-theme-rail" :style="{ backgroundColor: themePreview(item.value, mode).primary }" />
-                      <span class="settings-theme-bar" :style="{ backgroundColor: themePreview(item.value, mode).primary }" />
-                      <span class="settings-theme-line" :style="{ backgroundColor: themePreview(item.value, mode).primary }" />
-                      <span class="settings-theme-dot" :style="{ backgroundColor: themePreview(item.value, mode).accent }" />
-                    </span>
+          <ClientOnly>
+            <SToggleGroup :model-value="colorModePreference" :items="colorModeOptions" color="neutral" size="sm" aria-label="Color mode" @update:model-value="setColorMode">
+              <template #item="{ item }"><SIcon :name="item.icon!" class="size-4" aria-hidden="true" /><span>{{ item.label }}</span></template>
+            </SToggleGroup>
+            <template #fallback><SSkeleton class="h-8 w-56 rounded-md" /></template>
+          </ClientOnly>
+        </div>
+        <div class="settings-row settings-row-stacked">
+          <div class="min-w-0">
+            <h3 class="settings-row-title">Color theme</h3>
+            <p class="settings-description">Each theme has a light and a dark palette.</p>
+          </div>
+          <SRadioGroup :model-value="theme" variant="card" :items="themeOptions" :ui="{ root: 'grid grid-cols-1 gap-3 sm:grid-cols-2', label: 'min-w-0 flex-1' }" aria-label="Color theme" @update:model-value="setTheme">
+            <template #label="{ item }">
+              <span class="settings-theme-card">
+                <span class="settings-theme-previews" aria-hidden="true">
+                  <span v-for="mode in ['light', 'dark']" :key="mode" class="settings-theme-preview" :style="{ backgroundColor: themePreview(item.value, mode).surface }">
+                    <span class="settings-theme-rail" :style="{ backgroundColor: themePreview(item.value, mode).primary }" />
+                    <span class="settings-theme-bar" :style="{ backgroundColor: themePreview(item.value, mode).primary }" />
+                    <span class="settings-theme-line" :style="{ backgroundColor: themePreview(item.value, mode).primary }" />
+                    <span class="settings-theme-dot" :style="{ backgroundColor: themePreview(item.value, mode).accent }" />
                   </span>
-                  <span class="block text-sm font-medium">{{ item.label }}</span>
-                  <span class="settings-theme-description">{{ item.description }}</span>
                 </span>
-              </template>
-            </SRadioGroup>
-          </div>
-        </section>
-      </template>
+                <span class="block text-sm font-medium">{{ item.label }}</span>
+                <span class="settings-theme-description">{{ item.description }}</span>
+              </span>
+            </template>
+          </SRadioGroup>
+        </div>
+      </div>
+    </section>
 
-      <template #tokens>
-        <section aria-labelledby="existing-tokens" class="settings-section">
-          <header class="settings-section-heading">
-            <div class="min-w-0 flex-1"><div class="flex items-center gap-2"><h2 id="existing-tokens" class="settings-section-title">API tokens</h2><SBadge v-if="!loadingTokens && !tokensError" :label="String(tokens.length)" color="neutral" variant="subtle" size="sm" /></div><p class="settings-description mt-1">Scoped access for agents and scripts.</p></div>
-            <STooltip text="Create token"><SButton icon="lucide:plus" aria-label="Create token" :disabled="loadingTokens" @click="openTokenDialog"><span class="hidden sm:inline">Create token</span></SButton></STooltip>
-          </header>
-          <SerangkaiErrorState v-if="tokensError" title="Could not load API tokens" :description="tokensError" retry-label="Try again" @retry="loadTokens" />
-          <SCard v-else :ui="{ body: 'p-0' }">
-            <div v-if="loadingTokens" class="settings-loading" role="status" aria-live="polite" aria-busy="true">
-              <span class="sr-only">Loading API tokens…</span>
-              <div v-for="index in 3" :key="index" class="settings-credential" aria-hidden="true"><div class="min-w-0 flex-1"><SSkeleton animation="shimmer" class="h-4 w-28" /><SSkeleton animation="shimmer" class="mt-2 h-3 w-56 max-w-full" /></div><SSkeleton animation="shimmer" class="h-8 w-8 rounded-md" /></div>
+    <section id="storage" class="serangkai-card settings-card" aria-labelledby="storage-title">
+      <header class="serangkai-card-head">
+        <div class="min-w-0">
+          <h2 id="storage-title" class="settings-section-title">Storage</h2>
+          <p class="settings-description">How much space your rangka use, and what happens at your limit.</p>
+        </div>
+      </header>
+      <div class="settings-card-body">
+        <div class="settings-row settings-row-stacked">
+          <div v-if="storageMeterView" class="settings-storage-meter">
+            <div class="settings-storage-numbers">
+              <span class="settings-row-title">{{ storageMeterView.summary }}</span>
+              <span class="settings-description" :class="{ 'settings-storage-warning': storageMeterView.color === 'warning', 'settings-storage-danger': storageMeterView.color === 'danger' }">{{ storageMeterView.remaining }}</span>
             </div>
-            <ul v-else-if="tokens.length" class="settings-credentials" aria-label="API tokens">
-              <li v-for="token in tokens" :key="token.id" class="settings-credential">
-                <SIcon name="lucide:key-round" class="mt-1 size-4 shrink-0 text-[var(--selaras-resolved-text-muted)]" aria-hidden="true" />
-                <div class="min-w-0 flex-1"><p class="settings-credential-name">{{ token.name }}</p><div class="mt-2 flex flex-wrap gap-1"><SBadge v-for="scope in token.scopes" :key="scope" :label="scope" color="neutral" variant="subtle" size="sm" /></div><p class="settings-metadata"><span>Created {{ formatDate(token.createdAt) }}</span><span v-if="token.lastUsedAt">Last used {{ formatDate(token.lastUsedAt) }}</span><span v-if="token.expiresAt">Expires {{ formatDate(token.expiresAt) }}</span></p></div>
-                <STooltip text="Revoke token"><SButton variant="ghost" color="danger" size="sm" icon="lucide:ban" :aria-label="`Revoke ${token.name}`" :loading="revokingTokenId === token.id" :disabled="!!revokingTokenId" @click="revokeToken(token)"><span class="hidden sm:inline">Revoke</span></SButton></STooltip>
-              </li>
-            </ul>
-            <div v-else class="settings-empty"><SIcon name="lucide:key-round" class="size-6 text-[var(--selaras-resolved-text-muted)]" aria-hidden="true" /><h3>No tokens yet</h3><p>Create a token when an agent or script needs access to your workspace.</p><SButton variant="outline" color="neutral" icon="lucide:plus" @click="openTokenDialog">Create your first token</SButton></div>
-          </SCard>
-          <SAlert v-if="tokenMessage" color="info" variant="subtle" :title="tokenMessage" />
-        </section>
-      </template>
+            <SProgress v-if="storageMeterView.percent !== null" :model-value="storageMeterView.percent" :color="storageMeterView.color" aria-label="Storage used" />
+            <p class="settings-metadata">
+              <span v-if="storage?.measuring">Measuring older files…</span>
+              <span v-if="storage?.operatorLimitBytes">Server cap {{ formatByteSize(storage.operatorLimitBytes) }}</span>
+              <span v-if="storage?.disk">Disk {{ formatByteSize(storage.disk.freeBytes) }} free of {{ formatByteSize(storage.disk.totalBytes) }}</span>
+              <span v-if="!storage?.disk && !storage?.limitBytes">Object storage reports no capacity; set a limit to track it.</span>
+            </p>
+          </div>
+          <SSkeleton v-else class="h-14 w-full rounded-md" />
+        </div>
 
-      <template #agents>
-        <section aria-labelledby="connected-clients" class="settings-section">
-          <header class="settings-section-heading"><div><div class="flex items-center gap-2"><h2 id="connected-clients" class="settings-section-title">Connected agents</h2><SBadge v-if="!loadingClients && !clientsError" :label="String(oauthClients.length)" color="neutral" variant="subtle" size="sm" /></div><p class="settings-description mt-1">Agents you've approved through browser sign-in.</p></div></header>
-          <SerangkaiErrorState v-if="clientsError" title="Could not load connected agents" :description="clientsError" retry-label="Try again" @retry="loadClients" />
-          <SCard v-else :ui="{ body: 'p-0' }">
-            <div v-if="loadingClients" class="settings-loading" role="status" aria-live="polite" aria-busy="true"><span class="sr-only">Loading connected agents…</span><div v-for="index in 2" :key="index" class="settings-credential" aria-hidden="true"><div class="min-w-0 flex-1"><SSkeleton animation="shimmer" class="h-4 w-32" /><SSkeleton animation="shimmer" class="mt-2 h-3 w-56 max-w-full" /></div><SSkeleton animation="shimmer" class="h-8 w-8 rounded-md" /></div></div>
-            <ul v-else-if="oauthClients.length" class="settings-credentials" aria-label="Connected agents">
-              <li v-for="client in oauthClients" :key="client.id" class="settings-credential">
-                <SIcon name="lucide:bot" class="mt-1 size-4 shrink-0 text-[var(--selaras-resolved-text-muted)]" aria-hidden="true" />
-                <div class="min-w-0 flex-1"><p class="settings-credential-name">{{ client.name }}</p><div class="mt-2 flex flex-wrap gap-1"><SBadge v-for="scope in client.scopes" :key="scope" :label="scope" color="neutral" variant="subtle" size="sm" /></div><p class="settings-metadata"><span>Connected {{ formatDate(client.connectedAt) }}</span><span>Access until {{ formatDate(client.refreshExpiresAt) }}</span></p></div>
-                <STooltip text="Disconnect agent"><SButton variant="ghost" color="danger" size="sm" icon="lucide:unplug" :aria-label="`Disconnect ${client.name}`" :loading="disconnectingClientId === client.id" :disabled="!!disconnectingClientId" @click="disconnectClient(client)"><span class="hidden sm:inline">Disconnect</span></SButton></STooltip>
-              </li>
-            </ul>
-            <div v-else class="settings-empty"><SIcon name="lucide:bot" class="size-6 text-[var(--selaras-resolved-text-muted)]" aria-hidden="true" /><h3>No agents connected</h3><p>Connect a compatible MCP client using browser sign-in. Approved agents appear here.</p><SButton to="/agent" variant="outline" color="neutral" icon="lucide:plug">Connection guide</SButton></div>
-          </SCard>
-          <SAlert v-if="clientMessage" color="info" variant="subtle" :title="clientMessage" />
-        </section>
-      </template>
-    </STabs>
+        <form id="storage-form" class="contents" @submit.prevent="saveStorage">
+          <div class="settings-row">
+            <div class="min-w-0">
+              <h3 id="storage-limit-label" class="settings-row-title">Storage limit</h3>
+              <p class="settings-description">{{ storage?.operatorLimitBytes ? `Up to ${formatByteSize(storage.operatorLimitBytes)} on this server. ` : '' }}Leave empty for no limit.</p>
+            </div>
+            <div class="settings-storage-limit" role="group" aria-labelledby="storage-limit-label">
+              <SInput v-model="limitAmount" inputmode="decimal" placeholder="No limit" aria-label="Limit amount" class="w-28" :invalid="!!limitProblem" />
+              <SSelect v-model="limitUnit" :items="limitUnits" aria-label="Limit unit" class="w-24" />
+            </div>
+          </div>
+          <div class="settings-row settings-row-stacked">
+            <div class="min-w-0">
+              <h3 class="settings-row-title">When the limit is reached</h3>
+              <p class="settings-description">Block new writes if going over would cost you, for example on a plan that bills overuse.</p>
+            </div>
+            <SRadioGroup v-model="storageModeChoice" :items="storageModeOptions" aria-label="When the limit is reached" />
+          </div>
+        </form>
+      </div>
+      <div class="settings-card-foot settings-storage-foot">
+        <SAlert v-if="limitProblem || storageError" color="danger" variant="subtle" :title="limitProblem || storageError" class="flex-1" />
+        <SButton type="submit" form="storage-form" size="sm" :loading="savingStorage" :disabled="!storageDirty || !!limitProblem || savingStorage">Save storage settings</SButton>
+      </div>
+    </section>
+
+    <section id="connected-agents" class="serangkai-card settings-card" aria-labelledby="connected-clients">
+      <header class="serangkai-card-head">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2"><h2 id="connected-clients" class="settings-section-title">Connected agents</h2><SBadge v-if="!loadingClients && !clientsError" :label="String(oauthClients.length)" color="neutral" variant="subtle" size="sm" /></div>
+          <p class="settings-description">Agents you've approved through browser sign-in.</p>
+        </div>
+      </header>
+      <div v-if="clientsError" class="settings-card-body"><SerangkaiErrorState title="Could not load connected agents" :description="clientsError" retry-label="Try again" @retry="loadClients" /></div>
+      <div v-else-if="loadingClients" class="settings-loading" role="status" aria-live="polite" aria-busy="true"><span class="sr-only">Loading connected agents…</span><div v-for="index in 2" :key="index" class="settings-credential" aria-hidden="true"><div class="min-w-0 flex-1"><SSkeleton animation="shimmer" class="h-4 w-32" /><SSkeleton animation="shimmer" class="mt-2 h-3 w-56 max-w-full" /></div><SSkeleton animation="shimmer" class="h-8 w-8 rounded-md" /></div></div>
+      <ul v-else-if="oauthClients.length" class="settings-credentials" aria-label="Connected agents">
+        <li v-for="client in oauthClients" :key="client.id" class="settings-credential">
+          <span class="settings-credential-icon" aria-hidden="true"><SIcon name="lucide:bot" class="size-4" /></span>
+          <div class="min-w-0 flex-1"><p class="settings-credential-name">{{ client.name }}</p><p class="settings-metadata"><span v-for="scope in client.scopes" :key="scope" class="settings-scope" :class="{ 'settings-scope-full': scope === 'full' }">{{ scope }}</span><span>Connected {{ formatDate(client.connectedAt) }}</span><span>Access until {{ formatDate(client.refreshExpiresAt) }}</span></p></div>
+          <STooltip text="Disconnect agent"><SButton variant="ghost" color="danger" size="sm" icon="lucide:unplug" :aria-label="`Disconnect ${client.name}`" :loading="disconnectingClientId === client.id" :disabled="!!disconnectingClientId" @click="disconnectClient(client)"><span class="hidden sm:inline">Disconnect</span></SButton></STooltip>
+        </li>
+      </ul>
+      <div v-else class="settings-empty"><h3>No agents connected</h3><p>Connect a compatible MCP client with browser sign-in. Approved agents appear here.</p><SButton to="/agent" variant="outline" color="neutral" size="sm" icon="lucide:plug">Connection guide</SButton></div>
+      <div v-if="clientMessage" class="settings-card-foot"><SAlert color="info" variant="subtle" :title="clientMessage" /></div>
+    </section>
+
+    <section id="api-tokens" class="serangkai-card settings-card" aria-labelledby="existing-tokens">
+      <header class="serangkai-card-head">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2"><h2 id="existing-tokens" class="settings-section-title">API tokens</h2><SBadge v-if="!loadingTokens && !tokensError" :label="String(tokens.length)" color="neutral" variant="subtle" size="sm" /></div>
+          <p class="settings-description">Scoped access for agents and scripts that use a bearer token.</p>
+        </div>
+        <SButton icon="lucide:plus" size="sm" :disabled="loadingTokens" @click="openTokenDialog">Create token</SButton>
+      </header>
+      <div v-if="tokensError" class="settings-card-body"><SerangkaiErrorState title="Could not load API tokens" :description="tokensError" retry-label="Try again" @retry="loadTokens" /></div>
+      <div v-else-if="loadingTokens" class="settings-loading" role="status" aria-live="polite" aria-busy="true">
+        <span class="sr-only">Loading API tokens…</span>
+        <div v-for="index in 3" :key="index" class="settings-credential" aria-hidden="true"><div class="min-w-0 flex-1"><SSkeleton animation="shimmer" class="h-4 w-28" /><SSkeleton animation="shimmer" class="mt-2 h-3 w-56 max-w-full" /></div><SSkeleton animation="shimmer" class="h-8 w-8 rounded-md" /></div>
+      </div>
+      <ul v-else-if="tokens.length" class="settings-credentials" aria-label="API tokens">
+        <li v-for="token in tokens" :key="token.id" class="settings-credential">
+          <span class="settings-credential-icon" aria-hidden="true"><SIcon name="lucide:key-round" class="size-4" /></span>
+          <div class="min-w-0 flex-1"><p class="settings-credential-name">{{ token.name }}</p><p class="settings-metadata"><span v-for="scope in token.scopes" :key="scope" class="settings-scope" :class="{ 'settings-scope-full': scope === 'full' }">{{ scope }}</span><span>Created {{ formatDate(token.createdAt) }}</span><span v-if="token.lastUsedAt">Last used {{ formatDate(token.lastUsedAt) }}</span><span v-if="token.expiresAt">Expires {{ formatDate(token.expiresAt) }}</span></p></div>
+          <STooltip text="Revoke token"><SButton variant="ghost" color="danger" size="sm" icon="lucide:ban" :aria-label="`Revoke ${token.name}`" :loading="revokingTokenId === token.id" :disabled="!!revokingTokenId" @click="revokeToken(token)"><span class="hidden sm:inline">Revoke</span></SButton></STooltip>
+        </li>
+      </ul>
+      <div v-else class="settings-empty"><h3>No tokens yet</h3><p>Create one when an agent or script can't use browser sign-in.</p></div>
+      <div v-if="tokenMessage" class="settings-card-foot"><SAlert color="info" variant="subtle" :title="tokenMessage" /></div>
+    </section>
 
     <SModal v-model:open="showTokenDialog" :title="newToken ? 'Token created' : 'Create token'" :description="newToken ? 'Copy this token now — it will not be shown again.' : 'Choose a name, permissions, and an optional expiry date.'" :dismissible="!creatingToken" :close="!creatingToken" :ui="{ content: 'max-w-xl' }">
       <template #body>
@@ -98,25 +162,86 @@
 import type { DateValue } from '@internationalized/date'
 import { getLocalTimeZone } from '@internationalized/date'
 import { isThemeId, themes } from '#shared/themes'
+import { formatByteSize, parseByteSize } from '#shared/byte-size'
 
 useHead({ title: 'Settings' })
 
 const route = useRoute()
-const router = useRouter()
-const settingsSections = [
-  { label: 'Appearance', value: 'appearance' },
-  { label: 'Tokens', value: 'tokens' },
-  { label: 'Agents', value: 'agents' },
+
+// Settings used to be tabs; existing links (?tab=tokens, ?tab=agents from
+// the Agents page and elsewhere) now scroll to the matching section card.
+const sectionForTab: Record<string, string> = { appearance: 'appearance', storage: 'storage', tokens: 'api-tokens', agents: 'connected-agents' }
+const scrollToRequestedSection = () => {
+  const id = sectionForTab[String(route.query.tab || '')]
+  if (id && id !== 'appearance') document.getElementById(id)?.scrollIntoView({ block: 'start' })
+}
+watch(() => route.query.tab, () => nextTick(scrollToRequestedSection))
+
+// Light / Dark / System, stored by Nuxt color mode (same preference the
+// Selaras toggles write).
+const colorMode = useColorMode()
+const colorModeOptions = [
+  { label: 'Light', value: 'light', icon: 'lucide:sun' },
+  { label: 'Dark', value: 'dark', icon: 'lucide:moon' },
+  { label: 'System', value: 'system', icon: 'lucide:monitor' },
 ]
-const activeSection = computed({
-  get: () => settingsSections.some(section => section.value === route.query.tab) ? String(route.query.tab) : 'appearance',
-  set: (value: string) => {
-    if (settingsSections.some(section => section.value === value)) {
-      void router.replace({ query: { ...route.query, tab: value === 'appearance' ? undefined : value } })
-    }
-  },
-})
+const colorModePreference = computed(() => colorMode.preference)
+const setColorMode = (value: string | string[]) => {
+  if (value === 'light' || value === 'dark' || value === 'system') colorMode.preference = value
+}
 const formatDate = (value: string) => new Date(value).toLocaleDateString()
+
+// Storage: the meter plus the owner's limit and warn/block choice. The server
+// re-checks everything (cap, session-only), so this form is a convenience.
+const { status: storage, refresh: refreshStorage } = useStorageStatus()
+const { add: toast } = useToast()
+const storageMeterView = computed(() => storage.value ? storageMeter(storage.value) : null)
+const limitUnits = ['MB', 'GB', 'TB']
+const limitAmount = ref('')
+const limitUnit = ref('GB')
+const storageModeChoice = ref<'warn' | 'reject'>('warn')
+const storageModeOptions = [
+  { value: 'warn', label: 'Warn only', description: 'Keep saving. The meter turns amber at 80% and red at 95%.' },
+  { value: 'reject', label: 'Block new writes', description: 'Refuse uploads, new rangka, and versions that would go over. Deleting always works.' },
+]
+const savingStorage = ref(false)
+const storageError = ref('')
+
+const syncStorageForm = (value: typeof storage.value) => {
+  if (!value) return
+  storageModeChoice.value = value.mode
+  const bytes = value.ownerLimitBytes
+  if (!bytes) { limitAmount.value = ''; return }
+  const unit = bytes >= 1e12 ? 'TB' : bytes >= 1e9 ? 'GB' : 'MB'
+  limitUnit.value = unit
+  limitAmount.value = String(Number((bytes / ({ MB: 1e6, GB: 1e9, TB: 1e12 } as Record<string, number>)[unit]!).toFixed(2)))
+}
+watch(storage, (value, previous) => { if (!previous) syncStorageForm(value) }, { immediate: true })
+
+const parsedLimit = computed(() => limitAmount.value.trim() ? parseByteSize(`${limitAmount.value.trim()}${limitUnit.value}`) : null)
+const limitProblem = computed(() => {
+  if (limitAmount.value.trim() && parsedLimit.value === null) return 'Enter the limit as a number, like 10 or 2.5.'
+  const cap = storage.value?.operatorLimitBytes
+  if (cap && parsedLimit.value && parsedLimit.value > cap) return `The limit can be at most ${formatByteSize(cap)} on this server.`
+  return ''
+})
+const storageDirty = computed(() => !!storage.value && (parsedLimit.value !== storage.value.ownerLimitBytes || storageModeChoice.value !== storage.value.mode))
+
+const saveStorage = async () => {
+  if (!storageDirty.value || limitProblem.value || savingStorage.value) return
+  savingStorage.value = true
+  storageError.value = ''
+  try {
+    const res = await $fetch<{ storage: NonNullable<typeof storage.value> }>('/api/storage', { method: 'PUT', body: { limitBytes: parsedLimit.value, mode: storageModeChoice.value } })
+    storage.value = res.storage
+    syncStorageForm(res.storage)
+    toast({ title: 'Storage settings saved', color: 'success' })
+  } catch (e: any) {
+    storageError.value = e?.data?.message || 'Could not save storage settings.'
+  } finally {
+    savingStorage.value = false
+  }
+}
 
 const theme = useAppTheme()
 const themeOptions = themes.map(({ id, label, description }) => ({ value: id, label, description }))
@@ -291,19 +416,33 @@ const revokeToken = async (token: any) => {
   } finally { revokingTokenId.value = null }
 }
 
-onMounted(() => { if (loggedIn.value) { loadTokens(); loadClients() } })
+onMounted(async () => {
+  nextTick(scrollToRequestedSection)
+  void refreshStorage()
+  if (!loggedIn.value) return
+  // Lists change height once loaded; land on the requested card again.
+  await Promise.all([loadTokens(), loadClients()])
+  nextTick(scrollToRequestedSection)
+})
 </script>
 
 <style scoped>
-.settings-page { display: flex; min-width: 0; flex-direction: column; gap: 1.75rem; max-width: 60rem; margin-inline: auto; overflow-wrap: anywhere; }
-.settings-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
-.settings-heading h1 { font-size: 1.875rem; font-weight: 700; line-height: 1.2; letter-spacing: -.035em; }
-.settings-heading p { margin-top: .65rem; color: var(--selaras-resolved-text-muted); font-size: .9rem; line-height: 1.65; }
-.settings-section { display: flex; min-width: 0; flex-direction: column; gap: 1.5rem; }
-.settings-section-heading { display: flex; min-width: 0; align-items: start; justify-content: space-between; gap: 1rem; }
+/* One page of section cards; width comes from the shared page column. */
+.settings-page { display: flex; min-width: 0; flex-direction: column; gap: 1.5rem; overflow-wrap: anywhere; }
+/* Card look comes from the shared .serangkai-card in main.css. */
+.settings-card { scroll-margin-top: 1.5rem; }
+.settings-card-body { display: flex; min-width: 0; flex-direction: column; padding: 0 1.25rem; }
+.settings-card-foot { padding: 0 1.25rem 1rem; }
 .settings-section-title { font-size: 1rem; font-weight: 650; line-height: 1.5; letter-spacing: -.02em; }
-.settings-description { color: var(--selaras-resolved-text-muted); font-size: .875rem; line-height: 1.7; }
-.settings-mode-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--selaras-resolved-border-muted); padding-bottom: 1.25rem; }
+.settings-description { margin-top: .125rem; color: var(--selaras-resolved-text-muted); font-size: .875rem; line-height: 1.6; }
+
+/* Rows inside a card: label left, control right; stacked rows put the
+   control under the label. */
+.settings-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 1.5rem; padding: 1.125rem 0; }
+.settings-row + .settings-row { border-top: 1px solid var(--selaras-resolved-border-muted); }
+.settings-row-stacked { flex-direction: column; align-items: stretch; }
+.settings-row-title { font-size: .875rem; font-weight: 600; }
+
 .settings-theme-card { display: block; min-width: 0; }
 .settings-theme-previews { display: grid; width: 100%; max-width: 16.5rem; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-bottom: .75rem; }
 .settings-theme-preview { position: relative; min-width: 0; aspect-ratio: 16 / 10; overflow: hidden; border: 1px solid var(--selaras-resolved-border-muted); border-radius: .375rem; }
@@ -312,13 +451,30 @@ onMounted(() => { if (loggedIn.value) { loadTokens(); loadClients() } })
 .settings-theme-line { position: absolute; top: 1.25rem; left: 30%; width: 35%; height: .2rem; border-radius: 2px; opacity: .25; }
 .settings-theme-dot { position: absolute; right: .5rem; bottom: .5rem; width: .5rem; height: .5rem; border-radius: 50%; }
 .settings-theme-description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: .25rem; color: var(--selaras-resolved-text-muted); font-size: .75rem; line-height: 1.5; }
-.settings-credentials { max-height: 32rem; overflow-y: auto; }
-.settings-credential { display: flex; align-items: start; gap: .75rem; padding: 1rem; }
+
+/* Credential rows (agents and tokens) share one shape. */
+.settings-credentials { max-height: 32rem; overflow-y: auto; overscroll-behavior: contain; }
+.settings-credential { display: flex; align-items: center; gap: .875rem; padding: .875rem 1.25rem; }
 .settings-credential + .settings-credential { border-top: 1px solid var(--selaras-resolved-border-muted); }
+.settings-credential-icon { display: grid; width: 2rem; height: 2rem; flex-shrink: 0; place-items: center; border-radius: var(--selaras-resolved-radius-md); background: var(--selaras-resolved-surface-elevated); color: var(--selaras-resolved-text-muted); }
 .settings-credential-name { overflow-wrap: anywhere; font-size: .875rem; font-weight: 600; }
-.settings-metadata { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin-top: .5rem; color: var(--selaras-resolved-text-muted); font-size: .75rem; line-height: 1.6; }
-.settings-empty { display: flex; align-items: center; flex-direction: column; gap: .75rem; padding: 2rem 1.25rem; text-align: center; }
+.settings-metadata { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .75rem; margin-top: .25rem; color: var(--selaras-resolved-text-muted); font-size: .75rem; line-height: 1.5; }
+.settings-scope { padding: 0 .375rem; border: 1px solid var(--selaras-resolved-border-default); border-radius: var(--selaras-resolved-radius-sm); font-family: var(--font-mono); font-size: .6875rem; color: var(--selaras-resolved-text-default); }
+.settings-storage-meter { display: flex; flex-direction: column; gap: .5rem; }
+.settings-storage-numbers { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .25rem 1rem; font-variant-numeric: tabular-nums; }
+.settings-storage-warning { color: var(--selaras-resolved-color-warning-text); font-weight: 600; }
+.settings-storage-danger { color: var(--selaras-resolved-color-danger-text); font-weight: 600; }
+.settings-storage-limit { display: flex; gap: .5rem; }
+.settings-storage-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .75rem; padding-top: 1rem; border-top: 1px solid var(--selaras-resolved-border-muted); }
+.settings-scope-full { border-color: var(--selaras-resolved-color-warning-border); background: var(--selaras-resolved-color-warning-subtle); color: var(--selaras-resolved-color-warning-text); }
+.settings-empty { display: flex; align-items: flex-start; flex-direction: column; gap: .375rem; padding: 1.25rem; }
 .settings-empty h3 { font-size: .875rem; font-weight: 600; }
-.settings-empty p { max-width: 24rem; color: var(--selaras-resolved-text-muted); font-size: .875rem; line-height: 1.7; }
-@media (min-width: 640px) { .settings-credential { padding-inline: 1.25rem; } }
+.settings-empty p { max-width: 32rem; color: var(--selaras-resolved-text-muted); font-size: .875rem; line-height: 1.6; }
+.settings-empty :deep(a) { margin-top: .375rem; }
+/* Below 1024px a sticky top bar covers the first 4rem when jumping to a card. */
+@media (max-width: 1023px) { .settings-card { scroll-margin-top: 5rem; } }
+@media (max-width: 639px) {
+  .settings-credential, .settings-empty { padding-inline: 1rem; }
+  .settings-card-body { padding-inline: 1rem; }
+}
 </style>
