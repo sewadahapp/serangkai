@@ -112,7 +112,16 @@ test('human browser workflow logs in and creates a rangka', async () => {
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Restore' }).last().click()
   await assert.doesNotReject(() => page.getByText('Restored version 1 as version 3.').waitFor())
-  await assert.doesNotReject(() => page.getByText('v3', { exact: true }).first().waitFor())
+  await assert.doesNotReject(() => page.getByRole('button', { name: 'View version 3', exact: true }).waitFor())
+  // Older versions can be deleted from the row's actions menu; the current one cannot.
+  await page.getByRole('button', { name: 'Actions for version 1', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Delete version' }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete version' }).click()
+  await assert.doesNotReject(() => page.getByText(/^Deleted version 1, freeing /).waitFor())
+  await page.getByRole('button', { name: 'View version 1', exact: true }).waitFor({ state: 'detached' })
+  await page.getByRole('button', { name: 'Actions for version 3', exact: true }).click()
+  assert.equal(await page.getByRole('menuitem', { name: 'Delete version' }).count(), 0)
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
   await page.getByRole('link', { name: 'Settings' }).click()
