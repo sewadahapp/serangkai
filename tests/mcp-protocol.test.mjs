@@ -89,6 +89,28 @@ test('supports MCP initialization and tool discovery', async () => {
   const tools = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} })
   const names = tools.result.tools.map(tool => tool.name)
   assert.deepEqual(names, ['get_rangka_capabilities', 'list_folders', 'search', 'create_folder', 'list_rangka', 'get_rangka', 'create_rangka', 'update_rangka'])
+  for (const tool of tools.result.tools) {
+    assert.equal(tool.outputSchema?.type, 'object', `${tool.name} declares an output schema`)
+  }
+})
+
+test('returns structured content that matches the text result', async () => {
+  const created = await mcp({ jsonrpc: '2.0', id: 30, method: 'tools/call', params: { name: 'create_rangka', arguments: { title: 'Structured', type: 'markdown', content: '# Typed' } } })
+  assert.deepEqual(created.result.structuredContent, JSON.parse(created.result.content[0].text))
+  assert.equal(created.result.structuredContent.visibility, 'private')
+
+  const listed = await mcp({ jsonrpc: '2.0', id: 31, method: 'tools/call', params: { name: 'list_rangka', arguments: { query: 'Structured' } } })
+  const [row] = listed.result.structuredContent.rangka
+  assert.equal(row.id, created.result.structuredContent.id)
+  assert.equal(typeof row.createdAt, 'string')
+  assert.equal('contentPath' in row, false)
+
+  const capabilities = await mcp({ jsonrpc: '2.0', id: 32, method: 'tools/call', params: { name: 'get_rangka_capabilities', arguments: {} } })
+  assert.equal(typeof capabilities.result.structuredContent.version, 'number')
+
+  const missing = await mcp({ jsonrpc: '2.0', id: 33, method: 'tools/call', params: { name: 'get_rangka', arguments: { id: 'does-not-exist' } } })
+  assert.equal(missing.result.isError, true)
+  assert.equal(missing.result.structuredContent, undefined)
 })
 
 test('creates and reads a rangka through MCP tools', async () => {
@@ -121,7 +143,7 @@ test('creates folders and files rangka inside them through MCP tools', async () 
   assert.equal(rangka.folderId, folder.id)
 
   const listed = await mcp({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'list_folders', arguments: {} } })
-  assert.equal(JSON.parse(listed.result.content[0].text)[0].name, 'Reports')
+  assert.equal(JSON.parse(listed.result.content[0].text).folders[0].name, 'Reports')
 
   const moved = await mcp({ jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'update_rangka', arguments: { id: rangka.id, folderId: null } } })
   assert.equal(JSON.parse(moved.result.content[0].text).folderId, null)

@@ -259,6 +259,13 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   Metadata-only updates are exempt, and unchanged content creates no version.
   Mutating tools declare `destructiveHint`.
 
+Every tool declares an `outputSchema` and returns `structuredContent`, with the
+same JSON repeated as text for older clients. List results are objects
+(`{ folders }`, `{ rangka }`) because structured content must be an object.
+Typed output lets clients generate a code API from the tools, which is how
+"code mode" clients call MCP; Serangkai does not run agent-written code on the
+server. Error results carry text only.
+
 ### Frontend Routes
 - `/` - Private rangka workspace with paginated search, folder navigation, and
   list/grid views. Both views offer per-rangka menus for rename, duplicate,
