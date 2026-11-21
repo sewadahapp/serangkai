@@ -701,3 +701,36 @@ test('a private bundle renders with its own assets on the rangka page', async ()
     assert.equal(blocked.length, 0, blocked.join('\n'))
   } finally { await context.close() }
 })
+
+test('Edit in a list row opens the editor for text rangka only', async () => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  try {
+    await page.goto(`${base}/auth/login`)
+    await page.getByLabel('Username').fill(adminUsername)
+    await page.getByLabel('Password').fill(adminPassword)
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await page.waitForURL(`${base}/`)
+    const id = await page.evaluate(async () => {
+      const created = await (await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Row edit note', type: 'markdown', content: '# Row edit note' }) })).json()
+      const pixel = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='), c => c.charCodeAt(0))
+      const form = new FormData(); form.append('file', new Blob([pixel], { type: 'image/png' }), 'row-pixel.png'); form.append('title', 'Row edit pixel')
+      await fetch('/api/rangka/upload', { method: 'POST', body: form })
+      return created.rangka.id
+    })
+    await page.goto(`${base}/?q=Row%20edit`)
+    await page.getByRole('button', { name: 'Actions for Row edit pixel', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Rename', exact: true }).waitFor()
+    assert.equal(await page.getByRole('menuitem', { name: 'Edit', exact: true }).count(), 0, 'images have no editor')
+    await page.keyboard.press('Escape')
+
+    await page.getByRole('button', { name: 'Actions for Row edit note', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Edit', exact: true }).click()
+    await page.getByRole('button', { name: 'Save version' }).waitFor()
+    await page.waitForURL(`${base}/rangka/${id}`)
+    assert.equal(new URL(page.url()).search, '', 'the edit flag is dropped once the editor is open')
+    await page.getByRole('textbox', { name: 'Content' }).fill('# Edited from the list')
+    await page.getByRole('button', { name: 'Save version' }).click()
+    await page.getByText('Saved version 2').waitFor()
+  } finally { await context.close() }
+})

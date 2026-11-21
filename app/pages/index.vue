@@ -723,9 +723,12 @@ const copyRangkaLink = async (url: string) => {
   try { await navigator.clipboard.writeText(url); toast({ title: 'Share link copied', color: 'success' }) }
   catch { toast({ title: 'Could not copy link.', color: 'danger' }) }
 }
+const EDITABLE_TYPES = ['markdown', 'html', 'json', 'javascript']
 const rangkaMenu = (item: Rangka) => [
   [
-    { label: 'Rename', icon: 'lucide:pencil', disabled: !!rangkaBusy.value, onSelect: () => openRangkaAction(item, 'rename') },
+    // Straight into the editor, for the types it can open.
+    ...(EDITABLE_TYPES.includes(item.type) ? [{ label: 'Edit', icon: 'lucide:square-pen', to: `/rangka/${item.id}?edit` }] : []),
+    { label: 'Rename', icon: 'lucide:text-cursor-input', disabled: !!rangkaBusy.value, onSelect: () => openRangkaAction(item, 'rename') },
     { label: 'Duplicate', icon: 'lucide:copy', disabled: !!rangkaBusy.value, onSelect: () => { void duplicateFromList(item) } },
     { label: 'Move to folder', icon: 'lucide:folder-input', disabled: !!rangkaBusy.value, onSelect: () => openRangkaAction(item, 'move') },
   ],

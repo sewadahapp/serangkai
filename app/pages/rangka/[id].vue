@@ -524,7 +524,19 @@ const loadSecondary = async () => {
     $fetch<any>('/api/folders'),
   ])
   if (folderList.status === 'fulfilled') folders.value = folderList.value.folders || []
+  openEditorFromLink()
   await loadShareLink()
+}
+
+// "Edit" in the workspace row menu links here with ?edit. Open the editor once
+// the version is known (saving needs it), then drop the flag so Back and
+// reload show the rangka.
+const router = useRouter()
+const openEditorFromLink = () => {
+  if (route.query.edit === undefined) return
+  const { edit: _, ...query } = route.query
+  void router.replace({ query })
+  if (isTextRangka.value && latestVersion.value !== null) openEditor()
 }
 
 const reportRecoverableLoadError = () => {
