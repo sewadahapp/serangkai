@@ -13,6 +13,9 @@ import { adminEnv, adminPassword, adminUsername } from './helpers/auth.mjs'
 const port = 3720 + Math.floor(Math.random() * 100)
 const base = `http://127.0.0.1:${port}`
 let child, dataDir, browser, page
+// Log in once the app has mounted, so these tests exercise the client-side
+// login (the pre-hydration form post has its own test).
+const hydrated = () => !!document.getElementById('__nuxt')?.__vue_app__
 
 before(async () => {
   dataDir = await mkdtemp(join(tmpdir(), 'serangkai-browser-test-'))
@@ -30,6 +33,7 @@ test('human browser workflow logs in and creates a rangka', async () => {
   await page.getByRole('heading', { name: 'Log in to Serangkai' }).waitFor()
   await page.getByLabel('Username').fill(adminUsername)
   await page.getByLabel('Password').fill(adminPassword)
+  await page.waitForFunction(hydrated)
   await page.getByRole('button', { name: 'Log in' }).click()
   await page.waitForURL(/\/(?:workspace)?$/)
   await assert.doesNotReject(() => page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor())
@@ -1181,6 +1185,7 @@ test('workspace stays usable on narrow screens with long names and pagination', 
     await mobile.goto(`${base}/auth/login`)
     await mobile.getByLabel('Username').fill(adminUsername)
     await mobile.getByLabel('Password').fill(adminPassword)
+    await mobile.waitForFunction(hydrated)
     await mobile.getByRole('button', { name: 'Log in' }).click()
     await mobile.waitForURL(/\/(?:workspace)?$/)
     const name = 'A-very-long-folder-name-without-any-spaces-to-break-the-layout'
@@ -1231,6 +1236,7 @@ test('mobile navigation drawer opens from the left and closes after navigation',
     await mobile.goto(`${base}/auth/login`)
     await mobile.getByLabel('Username').fill(adminUsername)
     await mobile.getByLabel('Password').fill(adminPassword)
+    await mobile.waitForFunction(hydrated)
     await mobile.getByRole('button', { name: 'Log in' }).click()
     await mobile.waitForURL(/\/(?:workspace)?$/)
     const trigger = mobile.getByRole('button', { name: 'Open navigation', exact: true })
@@ -1266,6 +1272,7 @@ test('agent connection reference fits narrow viewports and keeps copy controls a
     await mobile.goto(`${base}/agent`)
     await mobile.getByLabel('Username').fill(adminUsername)
     await mobile.getByLabel('Password').fill(adminPassword)
+    await mobile.waitForFunction(hydrated)
     await mobile.getByRole('button', { name: 'Log in', exact: true }).click()
     await mobile.getByRole('heading', { name: 'Connect an agent' }).waitFor()
     await mobile.getByRole('tab', { name: 'Manual setup', exact: true }).click()
@@ -1309,6 +1316,7 @@ test('rangka history pages and actions work on a narrow screen', async () => {
     await mobile.goto(`${base}/auth/login`)
     await mobile.getByLabel('Username').fill(adminUsername)
     await mobile.getByLabel('Password').fill(adminPassword)
+    await mobile.waitForFunction(hydrated)
     await mobile.getByRole('button', { name: 'Log in' }).click()
     await mobile.waitForURL(/\/(?:workspace)?$/)
     const id = await mobile.evaluate(async () => {
@@ -1358,6 +1366,7 @@ test('Markdown code blocks have space after headings and before following text',
     await reader.goto(`${base}/auth/login`)
     await reader.getByLabel('Username').fill(adminUsername)
     await reader.getByLabel('Password').fill(adminPassword)
+    await reader.waitForFunction(hydrated)
     await reader.getByRole('button', { name: 'Log in' }).click()
     await reader.waitForURL(/\/(?:workspace)?$/)
     const id = await reader.evaluate(async () => {

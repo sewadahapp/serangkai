@@ -36,7 +36,12 @@ test('workspace is the private home and uses a responsive app sidebar', async ()
     await page.getByLabel('Password').fill(adminPassword)
     await page.waitForFunction(hydrated)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
-    await page.waitForURL(`${base}/`)
+    // This first login on a fresh server has timed out intermittently in the
+    // full browser run; say where the page was so CI logs show the cause.
+    await page.waitForURL(`${base}/`).catch(async (error) => {
+      const text = (await page.locator('body').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 300)
+      throw new Error(`Login did not reach the workspace. URL: ${page.url()}. Page: ${text}. Page errors: ${errors.join(' | ') || 'none'}. ${error.message.split('\n')[0]}`)
+    })
     await page.getByRole('heading', { name: 'Rangka', exact: true }).waitFor()
     const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' })
     await sidebar.getByRole('button', { name: 'All rangka' }).waitFor()
@@ -746,5 +751,34 @@ test('Edit in a list row opens the editor for text rangka only', async () => {
     await page.getByRole('textbox', { name: 'Content' }).fill('# Edited from the list')
     await page.getByRole('button', { name: 'Save version' }).click()
     await page.getByText('Saved version 2').waitFor()
+  } finally { await context.close() }
+})
+
+test('the command palette finds rangka beyond the recent list', async () => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  try {
+    await page.goto(`${base}/auth/login`)
+    await page.getByLabel('Username').fill(adminUsername)
+    await page.getByLabel('Password').fill(adminPassword)
+    await page.waitForFunction(hydrated)
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await page.waitForURL(`${base}/`)
+    // The palette loads the 25 most recent rangka on open; the needle is older.
+    const needleId = await page.evaluate(async () => {
+      const post = async (url, body) => (await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json()
+      const archive = (await post('/api/folders', { name: 'Palette archive' })).folder
+      const needle = (await post('/api/rangka', { title: 'Needle in the archive', type: 'markdown', content: '# Needle', folderId: archive.id })).rangka
+      for (let i = 0; i < 26; i++) await post('/api/rangka', { title: `Palette filler ${i}`, type: 'markdown', content: '# Filler' })
+      return needle.id
+    })
+    await page.reload()
+    await page.getByRole('button', { name: 'Search', exact: true }).first().click()
+    const input = page.getByRole('dialog').locator('input')
+    await input.fill('needle')
+    const option = page.getByRole('option', { name: 'Needle in the archive — Palette archive' })
+    await option.waitFor()
+    await option.click()
+    await page.waitForURL(`${base}/rangka/${needleId}`)
   } finally { await context.close() }
 })

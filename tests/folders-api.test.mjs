@@ -170,3 +170,16 @@ test('workspace paginates and scopes results while preserving total folder count
   assert.equal((await fetch(`${base}/api/workspace`)).status, 401)
   assert.equal((await json(cookieA, 'GET', '/api/workspace?page=0')).status, 400)
 })
+
+test('search limit returns the newest matches first and is capped', async () => {
+  for (const title of ['Limit match one', 'Limit match two', 'Limit match three']) {
+    assert.equal((await json(cookieA, 'POST', '/api/rangka', { title, type: 'markdown', content: `# ${title}` })).status, 200)
+    await new Promise(resolve => setTimeout(resolve, 1100)) // updatedAt has one-second resolution
+  }
+  const limited = await (await json(cookieA, 'GET', '/api/search?q=Limit%20match&limit=2')).json()
+  assert.deepEqual(limited.rangka.map(item => item.title), ['Limit match three', 'Limit match two'])
+  const all = await (await json(cookieA, 'GET', '/api/search?q=Limit%20match')).json()
+  assert.equal(all.rangka.length, 3, 'without a limit every match is returned')
+  const invalid = await (await json(cookieA, 'GET', '/api/search?q=Limit%20match&limit=abc')).json()
+  assert.equal(invalid.rangka.length, 3, 'an invalid limit is ignored')
+})
