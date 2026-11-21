@@ -1,6 +1,35 @@
 # Changelog
 
 
+## v0.4.0
+
+[compare changes](https://github.com/sewadahapp/serangkai/compare/v0.3.0...v0.4.0)
+
+### 🚀 Enhancements
+
+- **ui:** Redesign workspace, sidebar, and agents page ([395115a](https://github.com/sewadahapp/serangkai/commit/395115a))
+- **ui:** Redesign settings as section cards ([38606b3](https://github.com/sewadahapp/serangkai/commit/38606b3))
+- **ui:** Add command palette and sidebar edge toggle ([1b882b9](https://github.com/sewadahapp/serangkai/commit/1b882b9))
+- **share:** Slimmer header and footer on shared pages ([6a790da](https://github.com/sewadahapp/serangkai/commit/6a790da))
+- **storage:** Track usage and enforce storage limits ([9fd9ce5](https://github.com/sewadahapp/serangkai/commit/9fd9ce5))
+- **ui:** Storage meter in sidebar and settings ([961adc0](https://github.com/sewadahapp/serangkai/commit/961adc0))
+- **rangka:** Folder trail, actions menu and editor properties ([51ffc26](https://github.com/sewadahapp/serangkai/commit/51ffc26))
+- **bundles:** Upload rules and working private bundles ([42d4c26](https://github.com/sewadahapp/serangkai/commit/42d4c26))
+- **workspace:** Edit text rangka from the list menu ([4f0d2e0](https://github.com/sewadahapp/serangkai/commit/4f0d2e0))
+- **palette:** Search all rangka from the command palette ([7d1e6fc](https://github.com/sewadahapp/serangkai/commit/7d1e6fc))
+
+### 🩹 Fixes
+
+- **bundles:** Token read scope and stricter entry names ([e786962](https://github.com/sewadahapp/serangkai/commit/e786962))
+
+### ✅ Tests
+
+- **ci:** Run shell and storage suites, cover Workers ([5daa29b](https://github.com/sewadahapp/serangkai/commit/5daa29b))
+
+### ❤️ Contributors
+
+- Wicaksana Pratama <wicaksanapratama@gmail.com>
+
 ## v0.3.0
 
 [compare changes](https://github.com/sewadahapp/serangkai/compare/v0.2.0...v0.3.0)
