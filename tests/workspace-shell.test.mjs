@@ -257,7 +257,6 @@ test('rangka menus support management from list and grid on desktop and mobile',
     await page.getByRole('button', { name: 'Share', exact: true }).click()
     await page.getByRole('combobox', { name: 'Visibility', exact: true }).click()
     await page.getByRole('option', { name: 'Unlisted', exact: true }).click()
-    await page.getByRole('button', { name: 'Save visibility', exact: true }).click()
     const share = page.getByRole('textbox', { name: 'Share link', exact: true })
     await share.waitFor()
     assert.match(await share.inputValue(), /\/share\/.+\?k=[a-f0-9]{64}$/)
@@ -615,5 +614,61 @@ test('Markdown code tokens switch palettes in dark mode in both readers', async 
     // so there is highlighted code to check.
     await page.getByRole('button', { name: 'Publishing & version history', exact: true }).click()
     await assertTokenPalette(true)
+  } finally { await context.close() }
+})
+
+test('a rangka shows its folder path, returns to the folder view, and edits its properties', async () => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  const errors = []
+  page.on('pageerror', error => errors.push(error.message))
+  try {
+    await page.goto(`${base}/auth/login`)
+    await page.getByLabel('Username').fill(adminUsername)
+    await page.getByLabel('Password').fill(adminPassword)
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await page.waitForURL(`${base}/`)
+    const { parent, child, id } = await page.evaluate(async () => {
+      const post = async (url, body) => (await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).json()
+      const parent = (await post('/api/folders', { name: 'Trail parent' })).folder
+      const child = (await post('/api/folders', { name: 'Trail child', parentId: parent.id })).folder
+      const created = await post('/api/rangka', { title: 'Trail doc', type: 'markdown', content: '# Trail doc', folderId: child.id })
+      return { parent, child, id: created.rangka.id }
+    })
+
+    // Open the rangka from its folder view; back returns to that exact view.
+    await page.goto(`${base}/?folder=${child.id}`)
+    await page.getByRole('link', { name: /^Trail doc/ }).click()
+    await page.waitForURL(`**/rangka/${id}`)
+    const trail = page.getByRole('navigation', { name: 'Breadcrumb' })
+    await trail.getByRole('heading', { name: 'Trail doc', level: 1 }).waitFor()
+    assert.equal(await trail.getByRole('link', { name: 'Trail parent' }).getAttribute('href'), `/?folder=${parent.id}`)
+    assert.equal(await trail.getByRole('link', { name: 'Trail child' }).getAttribute('href'), `/?folder=${child.id}`)
+    await page.getByRole('link', { name: 'Back to workspace' }).click()
+    await page.waitForURL(`${base}/?folder=${child.id}`)
+
+    // A direct visit has no workspace view to return to: back leads to the folder.
+    await page.goto(`${base}/rangka/${id}`)
+    assert.equal(await page.getByRole('link', { name: 'Back to workspace' }).getAttribute('href'), `/?folder=${child.id}`)
+
+    // Actions live behind the ⋯ button, not the title.
+    await page.getByRole('button', { name: 'Rangka actions' }).click()
+    await page.getByRole('menuitem', { name: 'Move to folder' }).waitFor()
+    await page.keyboard.press('Escape')
+
+    // The editor has the same property row as New rangka and saves it.
+    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    assert.equal(await page.getByRole('status').filter({ hasText: 'Unsaved changes' }).count(), 0)
+    await page.getByRole('combobox', { name: 'Folder', exact: true }).click()
+    await page.getByRole('option', { name: 'Trail parent', exact: true }).click()
+    await page.getByRole('combobox', { name: 'Visibility', exact: true }).click()
+    await page.getByRole('option', { name: 'Unlisted', exact: true }).click()
+    await page.getByRole('button', { name: 'Save version' }).click()
+    await trail.getByRole('heading', { name: 'Trail doc', level: 1 }).waitFor()
+    assert.equal(await trail.getByRole('link', { name: 'Trail child' }).count(), 0)
+    const saved = await page.evaluate(async id => (await (await fetch(`/api/rangka/${id}`)).json()).rangka, id)
+    assert.equal(saved.folderId, parent.id)
+    assert.equal(saved.visibility, 'unlisted')
+    assert.equal(errors.length, 0, errors.join('\n'))
   } finally { await context.close() }
 })

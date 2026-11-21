@@ -3,12 +3,12 @@
     <header class="serangkai-editor-workspace-bar">
       <h1 class="sr-only">New rangka</h1>
       <div class="flex min-w-0 flex-1 items-center gap-2">
-        <STooltip text="Back to rangka list"><SButton to="/" variant="ghost" color="neutral" icon="lucide:arrow-left" aria-label="Back to rangka list" class="shrink-0" /></STooltip>
+        <STooltip text="Back to workspace"><SButton :to="backTo" variant="ghost" color="neutral" icon="lucide:arrow-left" aria-label="Back to workspace" class="shrink-0" /></STooltip>
         <SInput v-model="title" placeholder="Untitled rangka" required aria-label="Title" class="min-w-0 max-w-xl flex-1" :ui="{ base: 'bg-transparent font-semibold ring-0 not-focus:hover:ring-0' }" />
         <span class="hidden shrink-0 text-xs text-[var(--selaras-resolved-text-muted)] md:inline">Draft</span>
       </div>
       <div class="flex shrink-0 items-center gap-2">
-        <SButton to="/" variant="ghost" color="neutral" class="hidden sm:inline-flex" :disabled="saving">Cancel</SButton>
+        <SButton :to="backTo" variant="ghost" color="neutral" class="hidden sm:inline-flex" :disabled="saving">Cancel</SButton>
         <STooltip text="Create rangka"><SButton type="submit" icon="lucide:plus" aria-label="Create rangka" :loading="saving" :disabled="saving || loading || !!loadError"><span class="hidden sm:inline">Create rangka</span></SButton></STooltip>
       </div>
     </header>
@@ -50,6 +50,8 @@ const defaults: Record<string, string> = {
 }
 const content = ref(defaults.markdown)
 const initialFolder = folderId.value
+const lastWorkspace = useWorkspaceReturn()
+const backTo = computed(() => workspaceReturnUrl(lastWorkspace.value, folderIdFromSelection(initialFolder)))
 const saved = ref(false)
 const dirty = computed(() => !!title.value.trim() || type.value !== 'markdown' || visibility.value !== 'private' || folderId.value !== initialFolder || content.value !== defaults.markdown)
 const beforeUnload = (event: BeforeUnloadEvent) => { if (dirty.value && !saved.value) { event.preventDefault(); event.returnValue = '' } }

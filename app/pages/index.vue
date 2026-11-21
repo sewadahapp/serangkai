@@ -163,23 +163,17 @@
       </section>
     </div>
 
-    <SModal :open="!!rangkaDialog" :title="rangkaDialog === 'rename' ? 'Rename rangka' : rangkaDialog === 'move' ? 'Move rangka' : 'Share rangka'" :description="actionTarget?.title" :dismissible="!rangkaBusy" :close="!rangkaBusy" @update:open="open => { if (!open) rangkaDialog = null }">
+    <SModal :open="!!rangkaDialog" :title="rangkaDialog === 'rename' ? 'Rename rangka' : 'Move rangka'" :description="actionTarget?.title" :dismissible="!rangkaBusy" :close="!rangkaBusy" @update:open="open => { if (!open) rangkaDialog = null }">
       <template #body>
         <form id="rangka-action-form" class="space-y-4" @submit.prevent="saveRangkaAction">
           <SFormField v-if="rangkaDialog === 'rename'" label="Rangka title" required><SInput v-model="actionTitle" required class="w-full" /></SFormField>
-          <SFormField v-else-if="rangkaDialog === 'move'" v-slot="{ id }" label="Move to"><SSelect :id="id" v-model="actionFolderId" :items="rangkaFolderOptions" class="w-full" /></SFormField>
-          <template v-else>
-            <SFormField v-slot="{ id }" label="Visibility"><SSelect :id="id" v-model="actionVisibility" :items="visibilityOptions" class="w-full" /></SFormField>
-            <p class="text-sm text-[var(--selaras-resolved-text-muted)]">{{ actionVisibility === 'private' ? 'Only you can open this rangka.' : 'Anyone with the share link can read this rangka.' }}</p>
-            <SFormField v-if="actionTarget?.shareUrl && actionVisibility === actionTarget.visibility" label="Share link">
-              <SInput :model-value="actionTarget.shareUrl" readonly class="w-full" aria-label="Share link"><template #trailing="{ buttonSize }"><SerangkaiCopyButton :value="actionTarget.shareUrl" label="share link" :size="buttonSize" /></template></SInput>
-            </SFormField>
-          </template>
+          <SFormField v-else v-slot="{ id }" label="Move to"><SSelect :id="id" v-model="actionFolderId" :items="rangkaFolderOptions" class="w-full" /></SFormField>
           <SAlert v-if="rangkaActionError" color="danger" variant="subtle" :title="rangkaActionError" />
         </form>
       </template>
-      <template #footer><div class="flex gap-2"><SButton variant="ghost" :disabled="!!rangkaBusy" @click="rangkaDialog = null">{{ rangkaDialog === 'share' ? 'Done' : 'Cancel' }}</SButton><SButton type="submit" form="rangka-action-form" :loading="!!rangkaBusy" :disabled="!!rangkaBusy">{{ rangkaDialog === 'share' ? 'Save visibility' : rangkaDialog === 'move' ? 'Move rangka' : 'Save name' }}</SButton></div></template>
+      <template #footer><div class="flex gap-2"><SButton variant="ghost" :disabled="!!rangkaBusy" @click="rangkaDialog = null">Cancel</SButton><SButton type="submit" form="rangka-action-form" :loading="!!rangkaBusy" :disabled="!!rangkaBusy">{{ rangkaDialog === 'move' ? 'Move rangka' : 'Save name' }}</SButton></div></template>
     </SModal>
+    <SerangkaiShareDialog v-model:open="shareOpen" :rangka="shareTarget" @updated="() => { void search() }" />
 
     <SModal v-model:open="showFolderDialog" :title="folderDialogMode === 'rename' ? 'Rename folder' : 'Move folder'" :description="selectedFolder ? `Manage ${selectedFolder.name}` : undefined">
       <template #body>
@@ -230,10 +224,11 @@ interface Rangka {
 const folders = ref<Folder[]>([])
 const rangkaItems = ref<Rangka[]>([])
 const actionTarget = ref<Rangka | null>(null)
-const rangkaDialog = ref<'rename' | 'move' | 'share' | null>(null)
+const rangkaDialog = ref<'rename' | 'move' | null>(null)
+const shareOpen = ref(false)
+const shareTarget = ref<Rangka | null>(null)
 const actionTitle = ref('')
 const actionFolderId = ref<string | undefined>(NO_FOLDER)
-const actionVisibility = ref('private')
 const rangkaBusy = ref<string | null>(null)
 const rangkaActionError = ref('')
 
@@ -672,11 +667,12 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', focusSearchShortcut)
 })
 
-const openRangkaAction = (item: Rangka, mode: 'rename' | 'move' | 'share') => {
+const openShare = (item: Rangka) => { shareTarget.value = { ...item }; shareOpen.value = true }
+
+const openRangkaAction = (item: Rangka, mode: 'rename' | 'move') => {
   actionTarget.value = { ...item }
   actionTitle.value = item.title
   actionFolderId.value = folderSelection(item.folderId)
-  actionVisibility.value = item.visibility
   rangkaActionError.value = ''
   rangkaDialog.value = mode
 }
@@ -689,13 +685,10 @@ const saveRangkaAction = async () => {
   rangkaBusy.value = item.id
   rangkaActionError.value = ''
   try {
-    const body = mode === 'rename' ? { title: actionTitle.value.trim() } : mode === 'move' ? { folderId: folderIdFromSelection(actionFolderId.value) } : { visibility: actionVisibility.value }
-    const result = await $fetch<any>(`/api/rangka/${item.id}`, { method: 'PUT', body })
-    if (mode === 'share') {
-      const link = actionVisibility.value === 'private' ? null : await $fetch<any>(`/api/rangka/${item.id}/share`, { method: 'POST' })
-      actionTarget.value = { ...result.rangka, shareUrl: link?.url || null }
-    } else rangkaDialog.value = null
-    toast({ title: mode === 'rename' ? 'Rangka renamed' : mode === 'move' ? 'Rangka moved' : 'Sharing settings saved', color: 'success' })
+    const body = mode === 'rename' ? { title: actionTitle.value.trim() } : { folderId: folderIdFromSelection(actionFolderId.value) }
+    await $fetch<any>(`/api/rangka/${item.id}`, { method: 'PUT', body })
+    rangkaDialog.value = null
+    toast({ title: mode === 'rename' ? 'Rangka renamed' : 'Rangka moved', color: 'success' })
     await search()
   } catch (e: any) { rangkaActionError.value = e?.data?.message || 'Could not update rangka.' }
   finally { rangkaBusy.value = null }
@@ -737,7 +730,7 @@ const rangkaMenu = (item: Rangka) => [
     { label: 'Move to folder', icon: 'lucide:folder-input', disabled: !!rangkaBusy.value, onSelect: () => openRangkaAction(item, 'move') },
   ],
   [
-    { label: 'Share', icon: 'lucide:share-2', disabled: !!rangkaBusy.value, onSelect: () => openRangkaAction(item, 'share') },
+    { label: 'Share', icon: 'lucide:share-2', disabled: !!rangkaBusy.value, onSelect: () => openShare(item) },
     ...(item.shareUrl ? [{ label: 'Copy share link', icon: 'lucide:link', onSelect: () => { void copyRangkaLink(item.shareUrl!) } }] : []),
     { label: 'Download', icon: 'lucide:download', to: `/api/rangka/${item.id}/download` },
   ],

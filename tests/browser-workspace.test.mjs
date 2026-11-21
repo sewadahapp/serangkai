@@ -88,7 +88,6 @@ test('human browser workflow logs in and creates a rangka', async () => {
   await page.getByRole('button', { name: 'Share', exact: true }).click()
   await page.getByRole('combobox', { name: 'Visibility' }).click()
   await page.getByRole('option', { name: /Unlisted/ }).click()
-  await page.getByRole('button', { name: 'Save visibility' }).click()
   const shareLink = page.getByRole('textbox', { name: 'Share link', exact: true })
   await assert.doesNotReject(() => shareLink.waitFor())
   assert.match(await shareLink.inputValue(), /\/share\/[^?]+\?k=[a-f0-9]{64}$/)

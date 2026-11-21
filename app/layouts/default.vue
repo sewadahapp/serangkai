@@ -103,6 +103,9 @@ const mainClass = computed(() => ({
 const navDrawer = useNavDrawer()
 watch(() => route.fullPath, () => { navDrawer.value = false })
 
+// Remember the workspace view so a rangka's back arrow returns to it.
+trackWorkspaceReturn()
+
 // Command palette (also bound to Cmd/Ctrl+K by Selaras). Close the drawer
 // first so the two overlays don't stack.
 const palette = useCommandPalette()
