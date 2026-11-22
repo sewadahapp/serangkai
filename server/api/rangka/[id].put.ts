@@ -7,6 +7,7 @@ import { readRangkaBytes } from '../../utils/rangka-storage'
 import { appendVersion } from '../../utils/rangka-versions'
 import { checkTextRangka } from '../../utils/rangka'
 import { assertStorageAvailable, byteLength } from '../../utils/storage-quota'
+import { autoPruneVersions } from '../../utils/version-pruning'
 
 const schema = z.object({
   title: z.string().min(1).optional(),
@@ -101,6 +102,7 @@ export default defineEventHandler(async (event) => {
     ...(changes.content === undefined ? {} : { contentPath }),
     updatedAt: now,
   }).where(and(eq(rangkaItems.id, rangka.id), eq(rangkaItems.userId, user.id)))
+  if (version !== undefined) await autoPruneVersions(db, user.id, rangka.id)
 
   return { rangka: { ...rangka, ...changes, contentPath, updatedAt: now }, version, versionCreated: version !== undefined }
 })

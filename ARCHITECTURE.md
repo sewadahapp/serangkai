@@ -173,6 +173,30 @@ accounting existed are measured once, a batch per request, from driver metadata
 - Checks are not transactional; two writes racing at the limit can overshoot
   by at most one request.
 
+#### Version retention
+Every version is a full copy, so history is where storage grows. Old versions
+can be removed three ways (`server/utils/version-pruning.ts`):
+
+- Delete one version from the history panel
+  (`DELETE /api/rangka/:id/versions/:version`).
+- Clear older versions, keeping only the current one
+  (`DELETE /api/rangka/:id/versions`). It removes up to 25 per request and
+  returns `remaining`; the UI repeats until it is zero.
+- The optional **Keep last N versions** setting (`workspace_settings.keep_versions`,
+  null keeps all, the default). It runs inside each save that creates a
+  version (REST, MCP, restore) and prunes at most 10 versions per save, so
+  turning it on for a long history spreads the work over later saves instead
+  of one request. There is no scheduled job, so it behaves the same on every
+  runtime. A failed prune is logged and never fails the save.
+
+The current version is never deleted, and neither is a bundle's first version,
+whose row also accounts for the bundle's unpacked files. Rows are deleted
+before files, and a file is only removed when no remaining version uses it.
+Deleting and clearing require a browser session: history is the owner's
+protection against an agent's bad writes, so API tokens and MCP cannot erase it.
+The per-request caps keep each request within Cloudflare Workers' limit on
+storage calls.
+
 `server/plugins/storage.ts` mounts the driver once at startup, and
 `server/utils/rangka-storage.ts` is the single read/write surface. The S3
 driver (`server/utils/s3-driver.ts`) is a small unstorage adapter over
@@ -222,6 +246,8 @@ per day and does not remove the current version.
 - `GET /api/rangka/:id/versions` - Version history
 - `GET /api/rangka/:id/versions/:version` - Read a historical version
 - `POST /api/rangka/:id/versions/:version/restore` - Restore a version as a new version
+- `DELETE /api/rangka/:id/versions/:version` - Delete one older version (browser session only)
+- `DELETE /api/rangka/:id/versions` - Clear older versions in batches (browser session only)
 - `GET /api/rangka/:id/download` - Download the original source
 - `GET /api/rangka/:id/preview` - Owner-only inline image/PDF preview
 - `POST /api/rangka/:id/duplicate` - Copy an rangka as a new private rangka

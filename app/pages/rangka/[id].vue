@@ -118,21 +118,34 @@
 
       <SSlideover v-model:open="historyOpen" side="right" title="Version history" description="Browse and restore saved versions.">
         <template #body>
-            <p class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ versionTotal }} {{ versionTotal === 1 ? 'version' : 'versions' }}</p>
+            <div class="history-head">
+              <p class="text-xs text-[var(--selaras-resolved-text-muted)]">{{ versionTotal }} {{ versionTotal === 1 ? 'version' : 'versions' }}</p>
+              <SButton v-if="versionTotal > 1" variant="ghost" color="neutral" size="sm" icon="lucide:eraser" :loading="clearingHistory" :disabled="historyBusy" @click="clearOlderVersions">Clear older</SButton>
+            </div>
             <p v-if="historyLoading" class="mt-4 text-sm text-[var(--selaras-resolved-text-muted)]" role="status">Loading history…</p>
             <template v-else>
-              <ul v-if="versions.length" class="mt-3 divide-y divide-[var(--selaras-resolved-border-muted)]">
-                <li v-for="item in versions" :key="item.id" class="py-3">
-                  <div class="flex items-center justify-between gap-2">
-                    <div class="flex items-center gap-2"><span class="text-sm font-semibold">v{{ item.version }}</span><SBadge v-if="item.version === latestVersion" label="Current" variant="subtle" color="primary" size="sm" /></div>
-                    <time :datetime="item.createdAt" class="text-right text-xs text-[var(--selaras-resolved-text-muted)]">{{ formatDate(item.createdAt) }}</time>
+              <STimeline v-if="versions.length" :items="historyItems" size="sm" class="mt-3" :ui="{ item: 'py-0.5', track: 'pt-3.5' }">
+                <template #content="{ item }">
+                  <div class="history-row" :class="{ 'history-row-busy': deletingVersion === item.version }">
+                    <button type="button" class="history-main" :aria-label="`View version ${item.version}`" @click="viewVersion(item.version)">
+                      <span class="history-title">
+                        Version {{ item.version }}
+                        <SBadge v-if="item.current" label="Current" variant="subtle" color="primary" size="sm" />
+                      </span>
+                      <span class="history-meta">
+                        <time :datetime="item.createdAt" :title="formatDate(item.createdAt)">{{ formatRelative(item.createdAt) }}</time>
+                        <template v-if="item.storedBytes != null"><span aria-hidden="true">·</span><span>{{ formatByteSize(item.storedBytes) }}</span></template>
+                      </span>
+                    </button>
+                    <div class="history-actions">
+                      <SButton v-if="!item.current" variant="ghost" color="neutral" size="sm" icon="lucide:rotate-ccw" :loading="restoring === item.version" :disabled="historyBusy" @click="restoreVersion(item.version)">Restore</SButton>
+                      <SDropdown :items="versionMenu(item.version)" :positioning="{ align: 'end', collisionPadding: 12 }" :adaptive="true">
+                        <SButton variant="ghost" color="neutral" size="sm" icon="lucide:ellipsis" :disabled="historyBusy" :aria-label="`Actions for version ${item.version}`" />
+                      </SDropdown>
+                    </div>
                   </div>
-                  <div class="mt-1 flex flex-wrap gap-1">
-                    <SButton variant="ghost" size="sm" icon="lucide:eye" @click="viewVersion(item.version)">View</SButton>
-                    <SButton v-if="item.version !== latestVersion" variant="ghost" size="sm" icon="lucide:history" :loading="restoring === item.version" :disabled="restoring !== null" @click="restoreVersion(item.version)">Restore</SButton>
-                  </div>
-                </li>
-              </ul>
+                </template>
+              </STimeline>
               <p v-else-if="!historyError" class="mt-3 text-sm text-[var(--selaras-resolved-text-muted)]">No versions yet.</p>
               <div v-if="versionPages > 1" class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--selaras-resolved-border-muted)] pt-3">
                 <span class="text-xs text-[var(--selaras-resolved-text-muted)]">Page {{ versionPage }} of {{ versionPages }}</span>
@@ -172,6 +185,7 @@ import { NO_FOLDER, folderIdFromSelection, folderSelection } from '~/utils/folde
 import type { EditorLanguage } from '~/utils/editor'
 import { onBeforeRouteLeave } from 'vue-router'
 import { rangkaTypeLabel } from '~/utils/rangka-types'
+import { formatByteSize } from '#shared/byte-size'
 
 const route = useRoute()
 const requestFetch = useRequestFetch()
@@ -348,6 +362,15 @@ const crumbs = computed(() => {
 
 const formatDate = (value: string) => new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
 const formatDay = (value: string) => new Date(value).toLocaleDateString([], { dateStyle: 'medium' })
+// "3 minutes ago" for recent versions; the exact time stays in the tooltip.
+const relativeUnits: Array<[Intl.RelativeTimeFormatUnit, number]> = [['year', 31536000], ['month', 2592000], ['week', 604800], ['day', 86400], ['hour', 3600], ['minute', 60]]
+const formatRelative = (value: string) => {
+  const seconds = (new Date(value).getTime() - Date.now()) / 1000
+  if (Math.abs(seconds) < 60) return 'Just now'
+  const format = new Intl.RelativeTimeFormat([], { numeric: 'auto' })
+  const [unit, size] = relativeUnits.find(([, size]) => Math.abs(seconds) >= size)!
+  return format.format(Math.round(seconds / size), unit)
+}
 
 const loadVersions = async (page = 1) => {
   const sequence = ++historySequence
@@ -382,12 +405,80 @@ const viewVersion = async (version: number) => {
 
 const closeViewing = () => { viewing.value = null }
 
+// Deleting history. The server refuses the current version and only accepts a
+// browser session, so agents cannot erase the history that protects you.
+const { refresh: refreshStorage } = useStorageStatus()
+const deletingVersion = ref<number | null>(null)
+const clearingHistory = ref(false)
+const historyBusy = computed(() => restoring.value !== null || deletingVersion.value !== null || clearingHistory.value)
+
+// Timeline items: the current version gets the filled primary dot; older ones
+// a hollow ring in the border colour, so only the current version stands out.
+const olderVersionMarker = 'data-[marker-type=dot]:border-2 data-[marker-type=dot]:border-[var(--selaras-resolved-border-hover)] data-[marker-type=dot]:bg-[var(--selaras-resolved-surface-default)]'
+const historyItems = computed(() => versions.value.map(item => {
+  const current = item.version === latestVersion.value
+  return { ...item, current, color: 'primary', ...(current ? {} : { ui: { marker: olderVersionMarker } }) }
+}))
+
+const versionMenu = (version: number) => version === latestVersion.value
+  ? [[{ label: 'View', icon: 'lucide:eye', onSelect: () => { void viewVersion(version) } }]]
+  : [
+      [
+        { label: 'View', icon: 'lucide:eye', onSelect: () => { void viewVersion(version) } },
+        { label: 'Restore', icon: 'lucide:rotate-ccw', onSelect: () => { void restoreVersion(version) } },
+      ],
+      [{ label: 'Delete version', icon: 'lucide:trash-2', destructive: true, onSelect: () => { void removeVersion(version) } }],
+    ]
+
+const removeVersion = async (version: number) => {
+  const ok = await confirm({ title: `Delete version ${version}?`, description: 'This version and its stored content are removed. It cannot be undone.', confirmLabel: 'Delete version', confirmColor: 'danger', icon: 'lucide:trash-2' })
+  if (!ok) return
+  deletingVersion.value = version; versionMessage.value = ''
+  try {
+    const res = await $fetch<{ freedBytes: number }>(`/api/rangka/${route.params.id}/versions/${version}`, { method: 'DELETE' })
+    versionMessage.value = `Deleted version ${version}, freeing ${formatByteSize(res.freedBytes)}.`
+    await loadVersions(versionPage.value)
+    void refreshStorage()
+  } catch (e: any) {
+    versionMessage.value = e.data?.message || `Could not delete version ${version}`
+  } finally {
+    deletingVersion.value = null
+  }
+}
+
+const clearOlderVersions = async () => {
+  const older = versionTotal.value - 1
+  const ok = await confirm({ title: 'Clear older versions?', description: `Only the current version is kept. ${older} older ${older === 1 ? 'version is' : 'versions are'} removed. This cannot be undone.`, confirmLabel: 'Clear older versions', confirmColor: 'danger', icon: 'lucide:eraser' })
+  if (!ok) return
+  clearingHistory.value = true; versionMessage.value = ''
+  let deleted = 0
+  let freedBytes = 0
+  try {
+    // The server removes a batch per request so large histories stay within
+    // edge runtime limits; keep going until nothing is left.
+    for (let round = 0; round < 200; round++) {
+      const res = await $fetch<{ deleted: number; freedBytes: number; remaining: number }>(`/api/rangka/${route.params.id}/versions`, { method: 'DELETE' })
+      deleted += res.deleted
+      freedBytes += res.freedBytes
+      if (!res.remaining || !res.deleted) break
+    }
+    versionMessage.value = `Deleted ${deleted} older ${deleted === 1 ? 'version' : 'versions'}, freeing ${formatByteSize(freedBytes)}.`
+  } catch (e: any) {
+    versionMessage.value = e.data?.message || 'Could not clear older versions.'
+  } finally {
+    clearingHistory.value = false
+    await loadVersions(1)
+    void refreshStorage()
+  }
+}
+
 const restoreVersion = async (version: number) => {
   restoring.value = version; versionMessage.value = ''
   try {
     const res = await $fetch(`/api/rangka/${route.params.id}/versions/${version}/restore`, { method: 'POST' })
     versionMessage.value = `Restored version ${version} as version ${res.version}.`
     await reloadRangka()
+    void refreshStorage()
   } catch (e: any) {
     versionMessage.value = e.data?.message || `Could not restore version ${version}`
   } finally {
@@ -649,6 +740,17 @@ const save = async () => {
 </script>
 
 <style scoped>
+/* Version history on STimeline. The row opens the version; Restore stays
+   visible because it is the panel's main job; View and Delete live in the menu. */
+.history-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 2rem; }
+.history-row { display: flex; align-items: center; gap: .5rem; padding-right: .25rem; border-radius: var(--selaras-resolved-radius-md); transition: background-color .12s ease, opacity .12s ease; }
+.history-row:hover, .history-row:focus-within { background: var(--selaras-resolved-surface-elevated); }
+.history-row-busy { opacity: .5; }
+.history-main { display: flex; min-width: 0; flex: 1 1 auto; flex-direction: column; gap: .125rem; padding: .5rem; text-align: left; border-radius: var(--selaras-resolved-radius-sm); cursor: pointer; }
+.history-main:focus-visible { outline: 2px solid var(--selaras-resolved-color-primary-border); outline-offset: 1px; }
+.history-title { display: flex; align-items: center; gap: .5rem; font-size: .875rem; font-weight: 600; color: var(--selaras-resolved-text-default); }
+.history-meta { display: flex; flex-wrap: wrap; gap: .375rem; font-size: .75rem; color: var(--selaras-resolved-text-muted); font-variant-numeric: tabular-nums; }
+.history-actions { display: flex; flex: none; align-items: center; gap: .125rem; }
 .rangka-reader { min-width: 0; }
 .rangka-toolbar { position: sticky; top: 4rem; z-index: 10; display: flex; align-items: center; gap: .5rem; min-height: 3.5rem; padding: .5rem 1rem; border-bottom: 1px solid var(--selaras-resolved-border-muted); background: var(--selaras-resolved-surface-canvas); }
 .rangka-document { min-width: 0; padding: 1.5rem 1rem 4rem; }
