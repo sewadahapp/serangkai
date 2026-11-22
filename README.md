@@ -46,7 +46,7 @@ rangka in Serangkai” to identify the intended workspace.
 
 ## Demo
 
-[![Serangkai workspace showing an interactive dashboard](https://github.com/user-attachments/assets/d985cacc-904a-434b-b73e-7e3f87fd52a8)](https://github.com/user-attachments/assets/4a852e25-9585-493a-90da-8ab7da98727a)
+[![Serangkai workspace showing an interactive dashboard](https://github.com/user-attachments/assets/d985cacc-904a-434b-b73e-7e3f87fd52a8)](https://github.com/user-attachments/assets/1a2b5a60-8400-4256-a504-f0d41b9c55fa)
 
 ## Features
 
@@ -173,8 +173,9 @@ bun run dev
 # Build for production
 bun run build
 
-# Run the unit tests
-bun test tests/markdown-render.test.mjs tests/toc-extract.test.mjs tests/rangka-runtime.test.mjs
+# Run the Markdown and rangka runtime tests
+bun run test:markdown
+bun run test:runtime
 ```
 
 `bun.lock` is the only committed lockfile. Do not add `package-lock.json` or run
