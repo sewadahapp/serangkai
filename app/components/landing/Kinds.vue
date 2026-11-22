@@ -62,7 +62,7 @@ const plates = [
         <li v-for="(plate, i) in plates" :key="plate.fig" class="plate" :data-span="plate.span" :data-kind="plate.kind">
           <div class="mount lb-marks" data-reveal :style="{ '--reveal-rot': plate.rot, '--reveal-delay': `${(i % 2) * 0.08}s` }">
             <div class="print">
-              <LandingBPiece :kind="plate.kind" :title="plate.title" :meta="plate.meta" :status="'status' in plate ? plate.status : undefined" />
+              <LandingPiece :kind="plate.kind" :title="plate.title" :meta="plate.meta" :status="'status' in plate ? plate.status : undefined" />
             </div>
           </div>
           <div class="caption" data-reveal :style="{ '--reveal-delay': `${(i % 2) * 0.08 + 0.12}s` }">

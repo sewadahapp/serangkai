@@ -167,7 +167,7 @@ const copied = computed(() => p.value >= 0.94)
                       <div v-for="(piece, i) in pieces" :key="piece.slug" class="slot" :class="{ filled: settle(i) >= 0.98, selected: i === 0 && share > 0 }">
                         <span class="slot-empty">empty frame</span>
                         <div class="piece-wrap" :style="pieceStyle(i)">
-                          <LandingBPiece
+                          <LandingPiece
                             :kind="piece.kind"
                             :title="piece.title"
                             :meta="piece.meta"
