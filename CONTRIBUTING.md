@@ -83,12 +83,15 @@ combining unrelated changes in one commit.
 
 ## Before opening a pull request
 
-Run the checks locally:
+For code changes, run the release test suite locally. It builds the Node server
+output before running the tests.
 
 ```bash
-bun run build          # production build must succeed
-bun run test:ci        # full CI suite
+bun run test:ci
 ```
+
+The [Verify workflow](.github/workflows/verify.yml) also runs dedicated API,
+browser, and Node fallback checks on pull requests.
 
 Other useful checks, depending on what you changed:
 

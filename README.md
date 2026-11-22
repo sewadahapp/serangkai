@@ -173,8 +173,9 @@ bun run dev
 # Build for production
 bun run build
 
-# Run the unit tests
-bun test tests/markdown-render.test.mjs tests/toc-extract.test.mjs tests/rangka-runtime.test.mjs
+# Run the Markdown and rangka runtime tests
+bun run test:markdown
+bun run test:runtime
 ```
 
 `bun.lock` is the only committed lockfile. Do not add `package-lock.json` or run
