@@ -1,6 +1,34 @@
 # Changelog
 
 
+## v0.5.0
+
+[compare changes](https://github.com/sewadahapp/serangkai/compare/v0.4.0...v0.5.0)
+
+### 🚀 Enhancements
+
+- **mcp:** Typed output schemas and structured content ([2b20f32](https://github.com/sewadahapp/serangkai/commit/2b20f32))
+- **versions:** Delete, clear, and auto-prune version history ([46587d9](https://github.com/sewadahapp/serangkai/commit/46587d9))
+- **versions:** Polish the history list ([e079085](https://github.com/sewadahapp/serangkai/commit/e079085))
+- **brand:** Replace the S badge with the Rangka mark ([8aafd73](https://github.com/sewadahapp/serangkai/commit/8aafd73))
+- **theme:** Make porcelain the default palette ([5196902](https://github.com/sewadahapp/serangkai/commit/5196902))
+
+### 📖 Documentation
+
+- Add contributing guide and sharpen README intro ([#10](https://github.com/sewadahapp/serangkai/pull/10))
+- Sharpen positioning without product comparisons ([26981e4](https://github.com/sewadahapp/serangkai/commit/26981e4))
+- Clarify local and pull request checks ([59f40be](https://github.com/sewadahapp/serangkai/commit/59f40be))
+- Link the updated Serangkai walkthrough ([6f3ffc9](https://github.com/sewadahapp/serangkai/commit/6f3ffc9))
+
+### ✅ Tests
+
+- **browser:** Follow the new history rows and cover version delete ([7d2ddae](https://github.com/sewadahapp/serangkai/commit/7d2ddae))
+- **browser:** Close the history panel with its Close button ([bd18eac](https://github.com/sewadahapp/serangkai/commit/bd18eac))
+
+### ❤️ Contributors
+
+- Wicaksana Pratama <wicaksanapratama@gmail.com>
+
 ## v0.4.0
 
 [compare changes](https://github.com/sewadahapp/serangkai/compare/v0.3.0...v0.4.0)
