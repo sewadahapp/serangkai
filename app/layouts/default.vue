@@ -27,9 +27,9 @@
         <template #header="{ isCollapsed }">
           <div class="app-sidebar-head" :class="{ 'app-sidebar-head-collapsed': isCollapsed }">
             <STooltip v-if="isCollapsed" text="Serangkai" :content="{ side: 'right' }">
-              <NuxtLink to="/" class="app-brand" aria-label="Serangkai home"><span class="app-logo">S</span></NuxtLink>
+              <NuxtLink to="/" class="app-brand" aria-label="Serangkai home"><SerangkaiLogo /></NuxtLink>
             </STooltip>
-            <NuxtLink v-else to="/" class="app-brand" aria-label="Serangkai home"><span class="app-logo">S</span>Serangkai</NuxtLink>
+            <NuxtLink v-else to="/" class="app-brand" aria-label="Serangkai home"><SerangkaiLogo />Serangkai</NuxtLink>
           </div>
         </template>
         <template #default="{ isCollapsed }">
@@ -56,7 +56,7 @@
           </SDashboardSidebarToggle>
         </div>
         <header class="app-topbar app-topbar-private">
-          <NuxtLink to="/" class="app-brand" aria-label="Serangkai home"><span class="app-logo">S</span>Serangkai</NuxtLink>
+          <NuxtLink to="/" class="app-brand" aria-label="Serangkai home"><SerangkaiLogo />Serangkai</NuxtLink>
           <div class="flex items-center gap-1">
             <SButton variant="ghost" color="neutral" icon="lucide:search" aria-label="Search" @click="openPalette" />
             <SButton variant="ghost" color="neutral" icon="lucide:menu" aria-label="Open navigation" @click="navDrawer = true" />
@@ -77,7 +77,7 @@
 
     <template v-if="!appShell">
       <header class="app-topbar">
-        <NuxtLink to="/" class="app-brand" aria-label="Serangkai home"><span class="app-logo">S</span>Serangkai</NuxtLink>
+        <NuxtLink to="/" class="app-brand" aria-label="Serangkai home"><SerangkaiLogo />Serangkai</NuxtLink>
         <div class="flex min-w-0 items-center gap-1.5">
           <SSkeleton v-if="!ready" class="h-8 w-24" />
           <SButton v-else-if="route.path !== '/auth/login'" to="/auth/login" size="sm">Log in</SButton>
@@ -140,7 +140,6 @@ watch(() => route.path, () => { if (appShell.value) void storage.refresh() })
 .app-sidebar-head { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: .5rem; padding-left: .25rem; }
 .app-sidebar-head-collapsed { justify-content: center; padding-left: 0; }
 .app-brand { display: flex; align-items: center; gap: .6rem; min-width: 0; font-size: .95rem; font-weight: 700; letter-spacing: -.025em; white-space: nowrap; }
-.app-logo { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; flex-shrink: 0; border-radius: .5rem; background: var(--selaras-resolved-color-primary-fill); color: var(--selaras-resolved-color-primary-on-fill); font-size: .85rem; }
 .app-sidebar-edge { display: none; }
 .app-sidebar-edge-button { position: absolute; top: 0; left: 0; display: grid; width: 1.5rem; height: 1.5rem; place-items: center; transform: translateX(-50%); border: 1px solid var(--selaras-resolved-border-default); border-radius: 9999px; background: var(--selaras-resolved-surface-default); color: var(--selaras-resolved-text-muted); box-shadow: 0 1px 2px rgb(0 0 0 / .08); transition: color 100ms, border-color 100ms; }
 .app-sidebar-edge-button:hover { border-color: var(--selaras-resolved-border-hover); color: var(--selaras-resolved-text-default); }

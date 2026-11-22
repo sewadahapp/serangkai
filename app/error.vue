@@ -88,7 +88,7 @@ useHead(() => ({
       <header class="border-b border-[var(--selaras-resolved-border-default)]">
         <div class="serangkai-shell flex h-16 items-center justify-between gap-4">
           <NuxtLink to="/" class="flex items-center gap-2 rounded-md focus-visible:outline-offset-4" aria-label="Serangkai home">
-            <span class="grid size-8 shrink-0 place-items-center rounded-md bg-[var(--selaras-resolved-color-primary-fill)] text-sm font-bold text-[var(--selaras-resolved-color-primary-on-fill)]">S</span>
+            <SerangkaiLogo />
             <span class="truncate text-base font-semibold tracking-tight">Serangkai</span>
           </NuxtLink>
           <SColorModeToggle />
