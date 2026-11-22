@@ -15,6 +15,16 @@ bun run generate   # static output in .output/public
 - Documentation: Markdown under `content/`
 - Site settings: `app/app.config.ts`
 
+## Publishing
+
+`.github/workflows/deploy-pages.yml` lints, typechecks, and generates the site on
+every pull request into `site`. A push to `site`, including a merged pull
+request, runs the same checks and then publishes to GitHub Pages. It needs two
+repository settings:
+
+- **Settings → Pages → Source**: GitHub Actions.
+- **Settings → Environments → github-pages → Deployment branches**: allow `site`.
+
 To work on it next to the app, check it out as a worktree:
 
 ```sh
