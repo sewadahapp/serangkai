@@ -4,6 +4,9 @@ definePageMeta({ layout: false })
 useSeoMeta({
   title: 'A home for the work your agents make',
   description: 'Serangkai is a self-hosted workspace where you and your AI agents publish reports, dashboards, diagrams, charts, and small HTML apps.',
+  ogImage: 'https://sewadahapp.github.io/serangkai/og-image.png',
+  ogImageAlt: 'Serangkai: a home for the work your agents make.',
+  twitterCard: 'summary_large_image',
 })
 
 const root = ref<HTMLElement | null>(null)

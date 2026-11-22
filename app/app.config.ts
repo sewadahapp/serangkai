@@ -4,7 +4,9 @@ export default defineAppConfig({
       name: 'Serangkai',
       description: 'A self-hosted workspace where you and your AI agents publish interactive work.',
       titleTemplate: '%s · Serangkai',
+      url: 'https://sewadahapp.github.io/serangkai',
       favicon: '/favicon.svg',
+      logo: { light: '/logo-light.svg', dark: '/logo-dark.svg', alt: '' },
     },
     repository: {
       url: 'https://github.com/sewadahapp/serangkai',
