@@ -149,20 +149,20 @@ function theme(light: {
 export const RANGKA_THEME_VALUES: Record<RangkaThemeId, ThemeValues> = {
   serangkai: theme(
     {
-      surface: ['#f8fafc', '#ffffff', '#f1f5f9', '#0f172a'],
-      text: ['#0f172a', '#64748b', '#f8fafc'],
-      border: ['#dbe3ee', '#e8eef6', '#b6c4d9'],
-      primary: family({ fill: '#2563eb', onFill: '#ffffff', text: '#1d4ed8', subtle: '#e8effc', onSubtle: '#1e40af', border: '#2563eb' }, { fill: '#1d4ed8', text: '#1e40af' }),
-      accent: family({ fill: '#ea580c', onFill: '#ffffff', text: '#c2410c', subtle: '#fdeee3', onSubtle: '#9a3412', border: '#ea580c' }, { fill: '#c2410c', text: '#9a3412' }),
-      secondary: family({ fill: '#0d9488', onFill: '#ffffff', text: '#0f766e', subtle: '#e6f4f2', onSubtle: '#115e59', border: '#0d9488' }, { fill: '#0f766e', text: '#115e59' }),
+      surface: ['#f7f3ea', '#fdfbf6', '#efe9dd', '#1c2320'],
+      text: ['#1c2320', '#61665f', '#fdfbf6'],
+      border: ['#e1d9c9', '#ece5d8', '#cfc5b2'],
+      primary: family({ fill: '#0b7a5e', onFill: '#ffffff', text: '#006e54', subtle: '#e7eee6', onSubtle: '#006e54', border: '#0b7a5e' }, { fill: '#097056', text: '#00654c' }),
+      accent: family({ fill: '#e0281e', onFill: '#ffffff', text: '#c70002', subtle: '#fee9e1', onSubtle: '#c70002', border: '#e0281e' }, { fill: '#ce241b', text: '#b80001' }),
+      secondary: family({ fill: '#46598f', onFill: '#ffffff', text: '#46598f', subtle: '#e9eaec', onSubtle: '#46598f', border: '#46598f' }, { fill: '#405183', text: '#3e5186' }),
     },
     {
-      surface: ['#090d18', '#0c0c0d', '#111827', '#f8fafc'],
-      text: ['#e2e8f0', '#94a3b8', '#0f172a'],
-      border: ['#263349', '#1b2637', '#3b4c66'],
-      primary: family({ fill: '#417eff', onFill: '#061024', text: '#93c5fd', subtle: '#16233c', onSubtle: '#bfdbfe', border: '#417eff' }, { fill: '#619aff', text: '#bfdbfe' }),
-      accent: family({ fill: '#f97316', onFill: '#1a0d02', text: '#fdba74', subtle: '#2a1608', onSubtle: '#fed7aa', border: '#f97316' }, { fill: '#fb923c', text: '#fed7aa' }),
-      secondary: family({ fill: '#2dd4bf', onFill: '#032622', text: '#5eead4', subtle: '#062a26', onSubtle: '#99f6e4', border: '#2dd4bf' }, { fill: '#5eead4', text: '#99f6e4' }),
+      surface: ['#0f1312', '#151a18', '#1b211f', '#f2eee4'],
+      text: ['#f2eee4', '#a2a7a1', '#151a18'],
+      border: ['#29302d', '#1f2523', '#3a423e'],
+      primary: family({ fill: '#0b7a5e', onFill: '#ffffff', text: '#42a082', subtle: '#17231e', onSubtle: '#42a082', border: '#0b7a5e' }, { fill: '#1c7e62', text: '#4ca98b' }),
+      accent: family({ fill: '#e0281e', onFill: '#ffffff', text: '#ff5746', subtle: '#281f1b', onSubtle: '#ff5746', border: '#e0281e' }, { fill: '#e12b21', text: '#ff6d5c' }),
+      secondary: family({ fill: '#46598f', onFill: '#ffffff', text: '#778dc7', subtle: '#192023', onSubtle: '#778dc7', border: '#54679f' }, { fill: '#506296', text: '#8096d1' }),
     },
   ),
   'rose-pine': theme(

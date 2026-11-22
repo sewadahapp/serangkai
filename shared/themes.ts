@@ -30,10 +30,10 @@ export const themes: ThemeDefinition[] = [
   {
     id: 'serangkai',
     label: 'Serangkai',
-    description: 'Trust blue and warm orange on cool neutrals. The default palette.',
+    description: 'Jade lacquer and a scarlet signal on ivory porcelain. The default palette.',
     preview: {
-      light: { surface: '#ffffff', primary: '#2563eb', accent: '#ea580c' },
-      dark: { surface: '#0c0c0d', primary: '#417eff', accent: '#f97316' },
+      light: { surface: '#fdfbf6', primary: '#0b7a5e', accent: '#e0281e' },
+      dark: { surface: '#151a18', primary: '#0b7a5e', accent: '#e0281e' },
     },
   },
   {

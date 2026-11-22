@@ -242,7 +242,7 @@ test('Markdown renders Mermaid diagrams and JSON charts', async () => {
   // Charts must use the active theme's categorical palette, not TanStack's
   // hard-coded fallback. The first mark uses --ts-chart-1.
   const chartFills = await page.locator('.ts-chart-host svg rect').evaluateAll(rects => rects.map(rect => getComputedStyle(rect).fill))
-  assert.ok(chartFills.includes('rgb(37, 99, 235)'), `expected Serangkai chart blue, got ${chartFills.join(', ')}`)
+  assert.ok(chartFills.includes('rgb(11, 122, 94)'), `expected Serangkai chart jade, got ${chartFills.join(', ')}`)
 
   // Selaras spaces blocks with a direct-child selector. Comark wraps the
   // document in its own element, so `selaras-prose` must sit on that wrapper;
