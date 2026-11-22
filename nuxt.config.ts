@@ -1,9 +1,11 @@
 import { defineColorFromSeed } from '@sewadah/selaras/theme'
 
-// The app's default theme (see nuxt.config.ts on master). Change both together.
+// The app's default theme, "porcelain": jade lacquer and a scarlet signal on
+// ivory. Mirrors nuxt.config.ts on master; change both together.
+const surfaces = { light: '#FDFBF6', dark: '#151A18' }
 const brand = {
-  primary: defineColorFromSeed('#2563EB'),
-  accent: defineColorFromSeed('#EA580C'),
+  primary: defineColorFromSeed('#0B7A5E', { surfaces }),
+  accent: defineColorFromSeed('#E0281E', { surfaces }),
 }
 
 export default defineNuxtConfig({

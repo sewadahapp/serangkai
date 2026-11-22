@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Serangkai">
-  <g fill="none" stroke="#2563eb" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4V7a3 3 0 0 1 3-3h3.4"/><path d="M21.6 4H25a3 3 0 0 1 3 3v3.4"/><path d="M28 21.6V25a3 3 0 0 1-3 3h-3.4"/><path d="M10.4 28H7a3 3 0 0 1-3-3v-3.4"/></g>
-  <rect x="9" y="9" width="7.4" height="14" rx="2" fill="#ea580c"/>
-  <rect x="18.4" y="9" width="4.6" height="6" rx="1.6" fill="#2563eb"/>
-  <rect x="18.4" y="17" width="4.6" height="6" rx="1.6" fill="#2563eb"/>
+  <g fill="none" stroke="#0b7a5e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.4V7a3 3 0 0 1 3-3h3.4"/><path d="M21.6 4H25a3 3 0 0 1 3 3v3.4"/><path d="M28 21.6V25a3 3 0 0 1-3 3h-3.4"/><path d="M10.4 28H7a3 3 0 0 1-3-3v-3.4"/></g>
+  <rect x="9" y="9" width="7.4" height="14" rx="2" fill="#e0281e"/>
+  <rect x="18.4" y="9" width="4.6" height="6" rx="1.6" fill="#0b7a5e"/>
+  <rect x="18.4" y="17" width="4.6" height="6" rx="1.6" fill="#0b7a5e"/>
 </svg>

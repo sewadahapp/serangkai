@@ -1,6 +1,6 @@
 /* Serangkai's default app theme, shared by the landing page and the docs.
-   Colors come from `selaras.theme.colors` in nuxt.config.ts; this file adds
-   the app's UI typeface. Keep both in step with the app's nuxt.config.ts and
+   Brand colors come from `selaras.theme.colors` in nuxt.config.ts; this file
+   adds the porcelain surfaces, text and borders, and the app's UI typeface. Keep both in step with the app's nuxt.config.ts and
    app/assets/css/main.css on master. */
 @font-face {
   font-family: 'Plus Jakarta Sans';
@@ -12,4 +12,36 @@
 
 html {
   font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --selaras-surface-canvas: #f7f3ea;
+  --selaras-surface-default: #fdfbf6;
+  --selaras-surface-elevated: #efe9dd;
+  --selaras-surface-inverted: #1c2320;
+  --selaras-text-default: #1c2320;
+  --selaras-text-muted: #61665f;
+  --selaras-text-inverted: #fdfbf6;
+  --selaras-border-default: #e1d9c9;
+  --selaras-border-muted: #ece5d8;
+  --selaras-border-hover: #cfc5b2;
+  --selaras-color-neutral-subtle: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 92%, var(--selaras-resolved-text-default));
+  --selaras-color-neutral-subtle-hover: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 86%, var(--selaras-resolved-text-default));
+  --selaras-color-neutral-subtle-pressed: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 80%, var(--selaras-resolved-text-default));
+}
+
+:root.dark {
+  --selaras-surface-canvas: #0f1312;
+  --selaras-surface-default: #151a18;
+  --selaras-surface-elevated: #1b211f;
+  --selaras-surface-inverted: #f2eee4;
+  --selaras-text-default: #f2eee4;
+  --selaras-text-muted: #a2a7a1;
+  --selaras-text-inverted: #151a18;
+  --selaras-border-default: #29302d;
+  --selaras-border-muted: #1f2523;
+  --selaras-border-hover: #3a423e;
+  --selaras-color-neutral-subtle: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 88%, var(--selaras-resolved-text-default));
+  --selaras-color-neutral-subtle-hover: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 84%, var(--selaras-resolved-text-default));
+  --selaras-color-neutral-subtle-pressed: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 80%, var(--selaras-resolved-text-default));
 }

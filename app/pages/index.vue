@@ -102,8 +102,8 @@ onBeforeUnmount(() => observer?.disconnect())
   --b-table: var(--b-raised);
   --b-card: var(--b-paper);
   --b-mark: color-mix(in oklab, var(--b-muted) 55%, transparent);
-  --b-shadow-loose: 0 1px 1px rgb(20 20 30 / 0.04), 0 18px 40px -12px rgb(20 20 40 / 0.22);
-  --b-shadow-set: 0 1px 1px rgb(20 20 30 / 0.04), 0 2px 6px -2px rgb(20 20 40 / 0.08);
+  --b-shadow-loose: 0 1px 1px rgb(28 35 32 / 0.04), 0 18px 40px -12px rgb(28 35 32 / 0.2);
+  --b-shadow-set: 0 1px 1px rgb(28 35 32 / 0.04), 0 2px 6px -2px rgb(28 35 32 / 0.08);
 
   --b-serif: 'Newsreader', 'Iowan Old Style', 'Charter', 'Georgia', serif;
   --b-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', 'Menlo', 'Consolas', monospace;
