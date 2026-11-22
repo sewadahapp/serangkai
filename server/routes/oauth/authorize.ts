@@ -98,12 +98,12 @@ function errorPage(event: any, status: number, message: string, detail?: string)
   :root{color-scheme:light dark}
   body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:2rem;
     font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;
-    background:light-dark(#f8fafc,#090a0d);color:light-dark(#0f172a,#e2e8f0)}
-  main{max-width:32rem;border:1px solid light-dark(#e2e8f0,#28303d);border-radius:.75rem;padding:2rem;background:light-dark(#fff,#14171f)}
+    background:light-dark(#f7f3ea,#0f1312);color:light-dark(#1c2320,#f2eee4)}
+  main{max-width:32rem;border:1px solid light-dark(#e1d9c9,#29302d);border-radius:.75rem;padding:2rem;background:light-dark(#fdfbf6,#151a18)}
   h1{margin:0 0 .5rem;font-size:1.35rem}
-  p{margin:0 0 1rem;color:light-dark(#475569,#9aa4b8)}
-  code{font-family:ui-monospace,monospace;font-size:.85em;background:light-dark(#f1f5f9,#1b2029);padding:.15rem .35rem;border-radius:.25rem}
-  a{color:light-dark(#2563eb,#5b9bff)}
+  p{margin:0 0 1rem;color:light-dark(#565b55,#a2a7a1)}
+  code{font-family:ui-monospace,monospace;font-size:.85em;background:light-dark(#efe9dd,#1b211f);padding:.15rem .35rem;border-radius:.25rem}
+  a{color:light-dark(#006e54,#42a082)}
 </style></head>
 <body><main>
   <h1>This connection could not be authorized</h1>
@@ -322,31 +322,31 @@ function renderConsentPage({ client, input, scopes, consentToken, owner }: Conse
   :root{color-scheme:light dark}
   body{margin:0;min-height:100dvh;display:grid;place-items:center;padding:2rem;
     font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-    background:light-dark(#f8fafc,#090a0d);color:light-dark(#0f172a,#e2e8f0)}
-  main{width:100%;max-width:34rem;border:1px solid light-dark(#e2e8f0,#28303d);
-    border-radius:.75rem;padding:2rem;background:light-dark(#fff,#14171f)}
+    background:light-dark(#f7f3ea,#0f1312);color:light-dark(#1c2320,#f2eee4)}
+  main{width:100%;max-width:34rem;border:1px solid light-dark(#e1d9c9,#29302d);
+    border-radius:.75rem;padding:2rem;background:light-dark(#fdfbf6,#151a18)}
   .eyebrow{margin:0 0 .4rem;font-size:.75rem;font-weight:600;letter-spacing:.08em;
-    text-transform:uppercase;color:light-dark(#64748b,#9aa4b8)}
+    text-transform:uppercase;color:light-dark(#61665f,#a2a7a1)}
   h1{margin:0 0 .5rem;font-size:1.5rem;line-height:1.2;letter-spacing:-.01em}
-  p{margin:0 0 1rem;color:light-dark(#475569,#9aa4b8)}
+  p{margin:0 0 1rem;color:light-dark(#565b55,#a2a7a1)}
   .client{display:flex;align-items:center;gap:.75rem;margin:1.25rem 0;
-    padding:.75rem;border-radius:.5rem;border:1px solid light-dark(#e2e8f0,#28303d)}
+    padding:.75rem;border-radius:.5rem;border:1px solid light-dark(#e1d9c9,#29302d)}
   .mark{display:grid;place-items:center;width:2.25rem;height:2.25rem;flex:none;
-    border-radius:.5rem;background:#2563eb;color:#fff;font-weight:700}
-  .client small{display:block;color:light-dark(#64748b,#9aa4b8);font-size:.8rem;
+    border-radius:.5rem;background:#0b7a5e;color:#fff;font-weight:700}
+  .client small{display:block;color:light-dark(#61665f,#a2a7a1);font-size:.8rem;
     word-break:break-all}
   ul{list-style:none;margin:0 0 1.25rem;padding:0;display:grid;gap:.5rem}
   label{display:flex;gap:.65rem;align-items:flex-start;padding:.75rem;
-    border:1px solid light-dark(#e2e8f0,#28303d);border-radius:.5rem;cursor:pointer}
+    border:1px solid light-dark(#e1d9c9,#29302d);border-radius:.5rem;cursor:pointer}
   input[type=checkbox]{margin-top:.25rem}
   label span{display:block}
-  label small{display:block;color:light-dark(#64748b,#9aa4b8);font-size:.85rem}
+  label small{display:block;color:light-dark(#61665f,#a2a7a1);font-size:.85rem}
   .actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1.5rem}
   button{font:inherit;font-weight:600;border-radius:.5rem;padding:.6rem 1rem;
     border:1px solid transparent;cursor:pointer}
-  .approve{background:#2563eb;color:#fff}
-  .deny{background:transparent;color:inherit;border-color:light-dark(#cbd5e1,#3a4453)}
-  .note{margin-top:1.25rem;font-size:.85rem;color:light-dark(#64748b,#9aa4b8)}
+  .approve{background:#0b7a5e;color:#fff}
+  .deny{background:transparent;color:inherit;border-color:light-dark(#cfc5b2,#3a423e)}
+  .note{margin-top:1.25rem;font-size:.85rem;color:light-dark(#61665f,#a2a7a1)}
   code{font-family:ui-monospace,monospace;font-size:.8em}
 </style></head>
 <body>

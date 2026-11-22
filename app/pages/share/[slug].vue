@@ -8,7 +8,7 @@
       <div class="serangkai-shell share-header-row flex items-center justify-between gap-4">
         <div class="flex min-w-0 items-center gap-2.5">
           <NuxtLink to="/" class="flex shrink-0 items-center gap-2" aria-label="Serangkai home">
-            <span class="share-logo">S</span>
+            <SerangkaiLogo />
             <span class="hidden text-[.95rem] font-semibold tracking-tight sm:inline">Serangkai</span>
           </NuxtLink>
           <template v-if="rangka">
@@ -327,7 +327,6 @@ useHead(() => ({
    anchors, and contents rail all subtract it. */
 .share-page { --share-header-h: 3.5rem; }
 .share-header-row { height: var(--share-header-h); }
-.share-logo { display: grid; width: 1.75rem; height: 1.75rem; flex-shrink: 0; place-items: center; border-radius: .5rem; background: var(--selaras-resolved-color-primary-fill); color: var(--selaras-resolved-color-primary-on-fill); font-size: .85rem; font-weight: 700; }
 /* The header is sticky, so anchored headings need to stop below it instead of
    sliding underneath when a contents link is followed. */
 :deep(.selaras-prose :is(h1, h2, h3, h4)) {

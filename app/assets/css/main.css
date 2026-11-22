@@ -43,12 +43,12 @@
   /* TanStack Charts' categorical palette. The chart renderer resolves these
      inside SVG marks, so setting them here makes charts follow the active
      theme without rebuilding the chart definition. */
-  --ts-chart-1: #2563eb;
-  --ts-chart-2: #f97316;
-  --ts-chart-3: #10b981;
-  --ts-chart-4: #8b5cf6;
-  --ts-chart-5: #ec4899;
-  --ts-chart-6: #06b6d4;
+  --ts-chart-1: #0b7a5e;
+  --ts-chart-2: #c98a1b;
+  --ts-chart-3: #46598f;
+  --ts-chart-4: #e0281e;
+  --ts-chart-5: #8b4c86;
+  --ts-chart-6: #4e8c9a;
 }
 
 html {
@@ -129,12 +129,50 @@ input[type='search']::-webkit-search-decoration {
    Rosé Pine palette: https://rosepinetheme.com (MIT).
 --------------------------------------------------------------------------- */
 
+/* The default Serangkai theme: ivory porcelain in light mode and a jade-tinted
+   black in dark mode. Primary (jade) and accent (scarlet) are compiled from
+   seeds in nuxt.config.ts; these blocks supply the surfaces they sit on. The
+   chart palette keeps scarlet away from jade so the two never sit side by side
+   as adjacent series (they are hard to tell apart with red-green colour
+   blindness). */
+:root[data-serangkai-theme='serangkai'] {
+  --selaras-surface-canvas: #f7f3ea;
+  --selaras-surface-default: #fdfbf6;
+  --selaras-surface-elevated: #efe9dd;
+  --selaras-surface-inverted: #1c2320;
+  --selaras-text-default: #1c2320;
+  --selaras-text-muted: #61665f;
+  --selaras-text-inverted: #fdfbf6;
+  --selaras-border-default: #e1d9c9;
+  --selaras-border-muted: #ece5d8;
+  --selaras-border-hover: #cfc5b2;
+  --selaras-color-neutral-subtle: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 92%, var(--selaras-resolved-text-default));
+  --selaras-color-neutral-subtle-hover: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 86%, var(--selaras-resolved-text-default));
+  --selaras-color-neutral-subtle-pressed: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 80%, var(--selaras-resolved-text-default));
+}
+
 /* The compiled dark neutral fill matches the sidebar surface. Lift it using
    the existing surface/text tokens so active navigation remains visible. */
 :root.dark[data-serangkai-theme='serangkai'] {
+  --selaras-surface-canvas: #0f1312;
+  --selaras-surface-default: #151a18;
+  --selaras-surface-elevated: #1b211f;
+  --selaras-surface-inverted: #f2eee4;
+  --selaras-text-default: #f2eee4;
+  --selaras-text-muted: #a2a7a1;
+  --selaras-text-inverted: #151a18;
+  --selaras-border-default: #29302d;
+  --selaras-border-muted: #1f2523;
+  --selaras-border-hover: #3a423e;
   --selaras-color-neutral-subtle: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 88%, var(--selaras-resolved-text-default));
   --selaras-color-neutral-subtle-hover: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 84%, var(--selaras-resolved-text-default));
   --selaras-color-neutral-subtle-pressed: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 80%, var(--selaras-resolved-text-default));
+  --ts-chart-1: #2f9c7d;
+  --ts-chart-2: #e0a53a;
+  --ts-chart-3: #778dc7;
+  --ts-chart-4: #ff5746;
+  --ts-chart-5: #c07bba;
+  --ts-chart-6: #6fb2c1;
 }
 
 :root[data-serangkai-theme='rose-pine'] {

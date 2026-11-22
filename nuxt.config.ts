@@ -3,13 +3,16 @@ import { defineColorFromSeed } from '@sewadah/selaras/theme'
 import { selarasIconNames } from './shared/selaras-icons'
 import { SITE_DESCRIPTION, SITE_NAME } from './shared/site'
 
-// Design system generated with ui-ux-pro-max:
-//   Minimalism & Swiss Style · variance 3 / motion 3 / density 5
-//   Trust blue primary (#2563EB) with a warm orange call to action (#EA580C)
-//   Plus Jakarta Sans for UI copy
+// The default "Serangkai" theme: ivory porcelain surfaces, a jade lacquer
+// primary, and a scarlet signal accent used sparingly (the logo's piece, a
+// highlight). Seeds derive against the theme's own surfaces so text and fill
+// contrast is checked on ivory and on the jade-tinted dark, not on white.
+// Surfaces, text, and borders live in app/assets/css/main.css; keep
+// RANGKA_THEME_VALUES.serangkai in shared/selaras-tokens.ts in step.
+const surfaces = { light: '#FDFBF6', dark: '#151A18' }
 const theme = {
-  primary: defineColorFromSeed('#2563EB'),
-  accent: defineColorFromSeed('#EA580C'),
+  primary: defineColorFromSeed('#0B7A5E', { surfaces }),
+  accent: defineColorFromSeed('#E0281E', { surfaces }),
 }
 
 // Shared with the pages and the manifest so the product name and pitch are
@@ -54,8 +57,8 @@ export default defineNuxtConfig({
       titleTemplate: `%s · ${SITE_NAME}`,
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'theme-color', content: '#f8fafc', media: '(prefers-color-scheme: light)' },
-        { name: 'theme-color', content: '#090a0d', media: '(prefers-color-scheme: dark)' },
+        { name: 'theme-color', content: '#f7f3ea', media: '(prefers-color-scheme: light)' },
+        { name: 'theme-color', content: '#0f1312', media: '(prefers-color-scheme: dark)' },
         { name: 'description', content: SITE_DESCRIPTION },
         { property: 'og:site_name', content: 'Serangkai' },
         { property: 'og:type', content: 'website' },
