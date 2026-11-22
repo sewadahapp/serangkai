@@ -19,7 +19,6 @@ export default defineAppConfig({
       links: [
         { label: 'Docs', to: '/guide/getting-started' },
         { label: 'Demo', to: 'https://serangkai.onrender.com' },
-        { label: 'GitHub', to: 'https://github.com/sewadahapp/serangkai' },
       ],
     },
     sidebar: {

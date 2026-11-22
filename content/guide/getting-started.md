@@ -1,55 +1,67 @@
 ---
 title: Getting started
-description: Set up your project and make your first API request.
+description: Run Serangkai with Docker, sign in, and publish your first rangka.
+order: 1
 ---
 
 # Getting started
 
-This guide is a sample setup flow. Replace its commands, setup steps, and API details with the ones for your own project.
+Serangkai is a self-hosted workspace where you and your AI agents publish
+interactive work: reports, dashboards, small HTML apps, diagrams, and charts.
+Agents write over MCP and REST with scoped, revocable permissions. You browse,
+organize, edit, and share the results from a web UI on your own server.
 
-## Install dependencies
+Each piece of work is a **rangka**. The word is the same in the singular and
+the plural. A rangka has its own page, folder, version history, and optional
+share link, and it is private until you share it.
 
-Choose a package manager you already use:
-
-::SCodeGroup
-
-```sh [npm]
-npm install
-npm run dev
-```
-
-```sh [pnpm]
-pnpm install
-pnpm dev
-```
-
-```sh [Bun]
-bun install
-bun run dev
-```
-
+::SCallout{type="tip" title="Try it first"}
+The [live demo](https://serangkai.onrender.com) signs in with username
+`serangkai` and password `serangkai`. It is a shared sandbox that anyone can
+use, so don't store anything sensitive there.
 ::
 
-Open `http://localhost:3000` to see the starter. The docs layer provides the documentation layout and reads pages from `content/`.
+## Run it with Docker
 
-## Make your first request
-
-The example API uses a project token. Replace the sample URL and token with values from your own service:
+One container is all you need. SQLite and uploaded files live under `/data`,
+so a volume mounted there is the only persistence to manage.
 
 ```sh
-curl https://api.example.com/v1/projects \
-  -H "Authorization: Bearer $API_TOKEN"
+docker run -d -p 3000:3000 \
+  -v serangkai-data:/data \
+  -e ADMIN_USERNAME=admin \
+  -e ADMIN_PASSWORD='choose-a-strong-password' \
+  -e JWT_SECRET=$(openssl rand -base64 32) \
+  -e SHARE_SECRET=$(openssl rand -base64 32) \
+  ghcr.io/sewadahapp/serangkai:latest
 ```
 
-See the [API reference](../reference/api) for a sample endpoint and response.
+Open `http://localhost:3000` and sign in with the username and password you
+set. There is no sign-up page: a Serangkai instance has a single owner account
+that comes from the environment.
 
-## Make it yours
+Keep the four values stable across redeployments. See
+[Configuration](/reference/configuration) for what each one does and for the
+optional settings.
 
-1. Change the site name, description, and header links in `app/app.config.ts`.
-2. Replace the sample content with your guides and reference material.
-3. Set your repository URL in the `selarasDocs.repository` config to enable edit links.
-4. Run `npm run generate` to create a static site, or `npm run build` for a Nuxt server deployment.
+## Publish your first rangka
 
-::SCallout{type="note" title="No extra shell setup"}
-The docs layer already provides the default app shell and styles. Start by editing the content and app config; add a custom Nuxt component only when your docs need behavior the layer does not include.
-::
+You can create a rangka from the web UI, but the usual author is an agent:
+
+1. [Connect an agent](/guide/connect-an-agent) over MCP. Browser OAuth is the
+   quickest path for interactive clients.
+2. Ask it for something concrete, such as "write a short report on this week's
+   deploys as a rangka in Serangkai".
+3. The agent calls `get_rangka_capabilities`, reads the authoring guides, and
+   creates the rangka with `create_rangka`.
+4. Open the workspace. The rangka is there, private, with version 1 in its
+   history.
+
+From there you can move it into a folder, edit it, ask the agent to revise it,
+or [share it](/guide/workspace#sharing).
+
+## Next steps
+
+- [Connect an agent](/guide/connect-an-agent) over OAuth, device codes, or a token.
+- [Learn what a rangka can contain](/authoring/overview).
+- [Deploy somewhere other than Docker](/deploy/cloudflare).
