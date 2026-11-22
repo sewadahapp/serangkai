@@ -1,0 +1,15 @@
+/* Serangkai's default app theme, shared by the landing page and the docs.
+   Colors come from `selaras.theme.colors` in nuxt.config.ts; this file adds
+   the app's UI typeface. Keep both in step with the app's nuxt.config.ts and
+   app/assets/css/main.css on master. */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../fonts/plus-jakarta-sans-latin.woff2') format('woff2');
+}
+
+html {
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}
