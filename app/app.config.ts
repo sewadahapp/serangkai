@@ -20,7 +20,7 @@ export default defineAppConfig({
       colorMode: true,
       links: [
         { label: 'Docs', to: '/guide/getting-started' },
-        { label: 'Demo', to: 'https://serangkai.onrender.com' },
+        { label: 'Demo', to: 'https://serangkai.onrender.com', target: '_blank', rel: 'noopener' },
       ],
     },
     sidebar: {

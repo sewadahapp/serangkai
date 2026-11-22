@@ -45,3 +45,15 @@ html {
   --selaras-color-neutral-subtle-hover: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 84%, var(--selaras-resolved-text-default));
   --selaras-color-neutral-subtle-pressed: color-mix(in oklab, var(--selaras-resolved-surface-elevated) 80%, var(--selaras-resolved-text-default));
 }
+
+/* Navigation links that open in a new tab (the demo) end with an arrow. */
+nav a[target='_blank']::after {
+  content: '';
+  width: 1.05em;
+  height: 1.05em;
+  margin-inline-start: -0.3rem;
+  flex: none;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 6.65s6.938-.542 7.915.435S17.35 15 17.35 15m-.85-7.5l-10 10'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 6.65s6.938-.542 7.915.435S17.35 15 17.35 15m-.85-7.5l-10 10'/%3E%3C/svg%3E") center / contain no-repeat;
+}

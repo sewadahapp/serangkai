@@ -14,7 +14,7 @@ const NuxtLink = resolveComponent('NuxtLink')
             have your own instance running in a few minutes.
           </p>
           <div class="actions">
-            <SButton as="a" href="https://serangkai.onrender.com" color="primary" variant="solid" size="lg">
+            <SButton as="a" href="https://serangkai.onrender.com" target="_blank" rel="noopener" trailing-icon="hugeicons:arrow-up-right-01" color="primary" variant="solid" size="lg">
               Try the demo
             </SButton>
             <SButton :as="NuxtLink" to="/guide/getting-started" color="neutral" variant="outline" size="lg">
