@@ -46,7 +46,7 @@ rangka in Serangkai” to identify the intended workspace.
 
 ## Demo
 
-[![Serangkai workspace showing an interactive dashboard](https://github.com/user-attachments/assets/d985cacc-904a-434b-b73e-7e3f87fd52a8)](https://github.com/user-attachments/assets/4a852e25-9585-493a-90da-8ab7da98727a)
+[![Serangkai workspace showing an interactive dashboard](https://github.com/user-attachments/assets/d985cacc-904a-434b-b73e-7e3f87fd52a8)](https://github.com/user-attachments/assets/1a2b5a60-8400-4256-a504-f0d41b9c55fa)
 
 ## Features
 
