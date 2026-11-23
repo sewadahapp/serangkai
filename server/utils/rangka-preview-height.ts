@@ -1,3 +1,5 @@
+import { CANVAS_DIMENSIONS, MAX_CANVAS_DIMENSION, MIN_CANVAS_DIMENSION } from '../../shared/rangka-canvas'
+
 /**
  * Preview height bridge for sandboxed HTML delivery.
  *
@@ -13,12 +15,12 @@
  *
  *   <meta name="serangkai-presentation" content="app">
  *
- * The bridge then stays silent and the reader keeps a bounded frame. PDFs keep
- * the browser's own viewer.
+ * The reader keeps a bounded frame. Fixed canvases declare their dimensions
+ * with serangkai-canvas and report them instead of a document height.
  */
 export const MAX_PREVIEW_HEIGHT = 50_000
 
-const BOOTSTRAP = `(function () {
+const bootstrap = (reportHeight: boolean) => `(function () {
   // A direct visit has no framing app to report to.
   if (window.parent === window) return;
 
@@ -38,7 +40,18 @@ const BOOTSTRAP = `(function () {
   }
 
   function measure() {
-    if (usesBoundedFrame()) return;
+    var force = forceNext;
+    forceNext = false;
+    var canvas = doc.querySelector('meta[name="serangkai-canvas" i]');
+    var size = canvas ? (canvas.getAttribute('content') || '').trim() : '';
+    var dimensions = ${CANVAS_DIMENSIONS}.exec(size);
+    if (dimensions
+      && Number(dimensions[1]) >= ${MIN_CANVAS_DIMENSION} && Number(dimensions[1]) <= ${MAX_CANVAS_DIMENSION}
+      && Number(dimensions[2]) >= ${MIN_CANVAS_DIMENSION} && Number(dimensions[2]) <= ${MAX_CANVAS_DIMENSION}) {
+      if (force && doc.readyState === 'complete') parent.postMessage({ type: 'serangkai:canvas-size', size: size }, '*');
+      return;
+    }
+    if (!${reportHeight} || usesBoundedFrame()) return;
     var body = doc.body;
     var height = Math.max(
       root ? root.scrollHeight : 0,
@@ -49,8 +62,7 @@ const BOOTSTRAP = `(function () {
     // Automatic reports are deduped, but an explicit request must always
     // answer: the first report can fire before the framing app has hydrated
     // and attached its listener, so the parent asks again once it is ready.
-    if (!forceNext && height === last) return;
-    forceNext = false;
+    if (!force && height === last) return;
     last = height;
     try {
       parent.postMessage({
@@ -72,15 +84,17 @@ const BOOTSTRAP = `(function () {
     else setTimeout(run, 16);
   }
 
-  if (window.ResizeObserver) {
+  if (${reportHeight} && window.ResizeObserver) {
     var observer = new ResizeObserver(function () { schedule(false); });
     if (root) observer.observe(root);
     if (doc.body) observer.observe(doc.body);
   }
   window.addEventListener('message', function (event) {
+    if (event.source !== parent) return;
     var data = event && event.data;
     if (data && data.type === 'serangkai:height-request') schedule(true);
   });
+  if (!${reportHeight}) return;
   window.addEventListener('load', function () { schedule(false); });
   window.addEventListener('resize', function () { schedule(false); });
   doc.addEventListener('DOMContentLoaded', function () { schedule(false); });
@@ -90,19 +104,31 @@ const BOOTSTRAP = `(function () {
   setTimeout(function () { schedule(false); }, 1000);
 })();`
 
-const TAG = `<script data-serangkai-preview-height>${BOOTSTRAP}</script>`
+const previewTag = `<script data-serangkai-preview-height>${bootstrap(true)}</script>`
+const canvasTag = `<script data-serangkai-preview-height>${bootstrap(false)}</script>`
 
-export function withPreviewHeight(content: string): string {
+function withPreviewBridge(content: string, tag: string): string {
   if (/data-serangkai-preview-height\b/i.test(content)) return content
 
   if (/<head[^>]*>/i.test(content)) {
-    return content.replace(/<head[^>]*>/i, head => `${head}${TAG}`)
+    return content.replace(/<head[^>]*>/i, head => `${head}${tag}`)
   }
   if (/<html[^>]*>/i.test(content)) {
-    return content.replace(/<html[^>]*>/i, html => `${html}<head>${TAG}</head>`)
+    return content.replace(/<html[^>]*>/i, html => `${html}<head>${tag}</head>`)
   }
   if (/<body[^>]*>/i.test(content)) {
-    return content.replace(/<body[^>]*>/i, body => `${body}${TAG}`)
+    return content.replace(/<body[^>]*>/i, body => `${body}${tag}`)
   }
-  return TAG + content
+  return tag + content
+}
+
+export function withPreviewHeight(content: string): string {
+  return withPreviewBridge(content, previewTag)
+}
+
+// Only opted-in bundle pages need a bridge. Their height stays bounded.
+export function withBundleCanvas(content: Buffer): string | Buffer {
+  const html = content.toString()
+  if (!/<meta\b[^>]*\sname\s*=\s*(?:"serangkai-canvas"|'serangkai-canvas'|serangkai-canvas(?=[\s/>]))/i.test(html)) return content
+  return withPreviewBridge(html, canvasTag)
 }

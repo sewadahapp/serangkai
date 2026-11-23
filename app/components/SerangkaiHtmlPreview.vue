@@ -1,19 +1,26 @@
 <template>
-  <iframe
-    ref="frame"
-    :src="src"
-    :title="title"
-    sandbox="allow-scripts"
-    referrerpolicy="no-referrer"
-    :class="flush
-      ? 'block w-full border-0 bg-white dark:bg-[#111]'
-      : 'w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-white dark:bg-[#111]'"
-    :style="{ height: resolvedHeight }"
-    @load="sync"
-  />
+  <SerangkaiCanvasViewport :size="canvasSize">
+    <iframe
+      ref="frame"
+      v-bind="$attrs"
+      :src="src"
+      :title="title"
+      sandbox="allow-scripts"
+      referrerpolicy="no-referrer"
+      :class="flush || canvasSize
+        ? 'block w-full border-0 bg-white dark:bg-[#111]'
+        : 'w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-white dark:bg-[#111]'"
+      :style="canvasSize ? { height: '100%', minHeight: '0' } : { height: resolvedHeight }"
+      @load="onFrameLoad"
+    />
+  </SerangkaiCanvasViewport>
 </template>
 
 <script setup lang="ts">
+import { parseCanvasSize } from '#shared/rangka-canvas'
+
+defineOptions({ inheritAttrs: false })
+
 /**
  * HTML rangka preview.
  *
@@ -60,6 +67,7 @@ const HEIGHT_HEADROOM = 2
 const colorMode = useColorMode()
 const frame = ref<HTMLIFrameElement>()
 const reportedHeight = ref<number | null>(null)
+const canvasSize = shallowRef<ReturnType<typeof parseCanvasSize>>(null)
 
 const resolvedHeight = computed(() => {
   if (!props.autoHeight || reportedHeight.value === null) return props.height
@@ -76,16 +84,24 @@ function sync() {
   // a height request.
   const contentWindow = frame.value?.contentWindow
   contentWindow?.postMessage({ type: 'serangkai:color-mode', mode: resolvedMode.value }, '*')
-  if (props.autoHeight) contentWindow?.postMessage({ type: 'serangkai:height-request' }, '*')
+  contentWindow?.postMessage({ type: 'serangkai:height-request' }, '*')
+}
+
+function onFrameLoad() {
+  canvasSize.value = null
+  sync()
 }
 
 function onMessage(event: MessageEvent) {
-  if (!props.autoHeight) return
   // A sandboxed frame has an opaque origin, so `event.origin` is "null".
-  // Match the sender window instead, and accept only the height payload.
+  // Match the sender window instead, then validate its size report.
   if (event.source !== frame.value?.contentWindow) return
-  const data = event.data as { type?: unknown; height?: unknown } | null
-  if (!data || data.type !== 'serangkai:height') return
+  const data = event.data as { type?: unknown; height?: unknown; size?: unknown } | null
+  if (data?.type === 'serangkai:canvas-size') {
+    canvasSize.value ??= parseCanvasSize(data.size)
+    return
+  }
+  if (!props.autoHeight || canvasSize.value || data?.type !== 'serangkai:height') return
   const height = Math.round(Number(data.height))
   if (!Number.isFinite(height) || height <= 0) return
   const next = Math.min(height, MAX_HEIGHT)
@@ -102,7 +118,10 @@ function onMessage(event: MessageEvent) {
   reportedHeight.value = next
 }
 
-watch(() => props.src, () => { reportedHeight.value = null })
+watch(() => props.src, () => {
+  reportedHeight.value = null
+  canvasSize.value = null
+})
 watch(resolvedMode, sync)
 
 onMounted(() => {

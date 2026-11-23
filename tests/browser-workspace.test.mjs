@@ -5,8 +5,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { request as httpRequest } from 'node:http'
+import { buffer } from 'node:stream/consumers'
 import { test, before, after } from 'node:test'
 import { chromium } from 'playwright-core'
+import { ZipFile } from 'yazl'
 import { serverRuntime } from './helpers/server.mjs'
 import { adminEnv, adminPassword, adminUsername } from './helpers/auth.mjs'
 
@@ -483,6 +485,93 @@ test('HTML rangka render Mermaid and TanStack charts in the sandbox', async () =
   assert.equal(await frame.locator('.serangkai-mermaid svg').count(), 1)
   assert.equal(await frame.locator('.serangkai-runtime-error').count(), 0)
   assert.match(await frame.locator('.serangkai-mermaid').innerText(), /Draft/)
+})
+
+test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
+  const owner = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+  const guest = await browser.newContext({ viewport: { width: 390, height: 844 } })
+  try {
+    const signedIn = await owner.request.post(`${base}/api/auth/login`, {
+      data: { username: adminUsername, password: adminPassword },
+    })
+    assert.ok(signedIn.ok())
+    const content = `<!doctype html><html><head>
+      <meta name="serangkai-canvas" content="1920x1080">
+      <style>body { margin: 0; height: 100vh; display: grid; place-items: center }</style>
+      </head><body><button onclick="this.textContent = 'Board clicked'">Board control</button></body></html>`
+    const html = await owner.request.post(`${base}/api/rangka`, {
+      data: { title: 'HTML canvas', type: 'html', visibility: 'public', content },
+    })
+    assert.ok(html.ok())
+    const archive = new ZipFile()
+    archive.addBuffer(Buffer.from(content), 'index.html')
+    archive.end()
+    const bundle = await owner.request.post(`${base}/api/rangka/upload`, {
+      multipart: {
+        title: 'Bundle canvas', visibility: 'public',
+        file: { name: 'canvas.zip', mimeType: 'application/zip', buffer: await buffer(archive.outputStream) },
+      },
+    })
+    assert.ok(bundle.ok())
+
+    const workspace = await owner.newPage()
+    const share = await guest.newPage()
+    for (const response of [html, bundle]) {
+      const { rangka } = await response.json()
+      for (const [reader, path] of [[workspace, `/rangka/${rangka.id}`], [share, `/share/${rangka.slug}`]]) {
+        await reader.goto(base + path)
+        const canvas = reader.getByRole('region', { name: 'Rangka canvas', exact: true })
+        await canvas.waitFor()
+        const frame = canvas.locator('iframe')
+        assert.equal(await frame.getAttribute('sandbox'), 'allow-scripts')
+        const content = canvas.frameLocator('iframe')
+        const control = content.getByRole('button', { name: 'Board control' })
+        const controlPosition = await control.evaluate(element => {
+          const rect = element.getBoundingClientRect()
+          return {
+            x: rect.x + rect.width / 2, y: rect.y + rect.height / 2,
+            size: [window.innerWidth, window.innerHeight],
+          }
+        })
+        assert.deepEqual(controlPosition.size, [1920, 1080])
+        const bounds = await canvas.boundingBox()
+        const initial = await frame.boundingBox()
+        assert.ok(initial.width < bounds.width && initial.height < bounds.height)
+        // Playwright's locator click adds the iframe offset but does not scale
+        // the coordinates inside a transformed frame.
+        await reader.mouse.click(
+          initial.x + controlPosition.x * initial.width / controlPosition.size[0],
+          initial.y + controlPosition.y * initial.height / controlPosition.size[1],
+        )
+        await assert.doesNotReject(
+          () => content.getByRole('button', { name: 'Board clicked' }).waitFor({ timeout: 4000 }),
+          `Canvas content is clickable at ${path}`,
+        )
+        await reader.getByRole('button', { name: 'Zoom in', exact: true }).click()
+        assert.ok((await frame.boundingBox()).width > initial.width)
+        await reader.getByRole('button', { name: /^Actual size/ }).click()
+        const fullSize = await frame.boundingBox()
+        assert.equal(fullSize.width, 1920)
+        assert.equal(fullSize.height, 1080)
+
+        await reader.getByRole('button', { name: 'Pan', exact: true }).click()
+        await reader.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
+        await reader.mouse.down()
+        await reader.mouse.move(bounds.x + bounds.width / 2 + 48, bounds.y + bounds.height / 2 + 24)
+        await reader.mouse.up()
+        assert.ok((await frame.boundingBox()).x >= fullSize.x + 47)
+        await reader.keyboard.down('Control')
+        await reader.mouse.wheel(0, -100)
+        await reader.keyboard.up('Control')
+        await reader.waitForFunction(() => document.querySelector('[aria-label="Rangka canvas"] iframe')?.getBoundingClientRect().width > 1920)
+        await canvas.press('0')
+        const fitted = await frame.boundingBox()
+        assert.ok(Math.abs(fitted.x - initial.x) < 1 && Math.abs(fitted.width - initial.width) < 1)
+      }
+    }
+  } finally {
+    await Promise.all([owner.close(), guest.close()])
+  }
 })
 
 test('long HTML previews size to the document and scroll with the page', async () => {

@@ -3,6 +3,7 @@ import { rangkaItems } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
 import { isValidBundleViewKey, isValidShareKey } from '../../../utils/share'
 import { bundleMimeType, isBundleDocument, readBundleFile } from '../../../utils/bundles'
+import { withBundleCanvas } from '../../../utils/rangka-preview-height'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
@@ -62,7 +63,7 @@ export default defineEventHandler(async (event) => {
     if (isBundleDocument(kind)) {
       setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
     }
-    return content
+    return kind.startsWith('text/html') ? withBundleCanvas(content) : content
   } catch {
     throw createError({ statusCode: 404, message: 'File not found' })
   }

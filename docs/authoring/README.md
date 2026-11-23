@@ -154,6 +154,21 @@ opt into a bounded frame instead:
 The iframe then fills the space between the shared header and footer and scrolls
 internally. Document-style HTML (the default) needs no marker.
 
+For a fixed canvas, declare its width and height in CSS pixels in the HTML head.
+Each dimension must be between 240 and 4096 pixels.
+
+```html
+<meta name="serangkai-canvas" content="1920x1080">
+```
+
+Lay out the full report, dashboard, or design inside that viewport. It opens
+fitted to the available space in the workspace and on share links. Use **Pan**
+to drag the board, then turn it off to click or select content inside the board.
+The zoom percentage restores 100%, and **Fit** recenters and fits the board.
+In Pan mode, hold Ctrl or Command and scroll to zoom toward the pointer.
+With the canvas region focused, the arrow keys pan, `+` and `-` zoom, and `0`
+fits the board.
+
 ### Sandbox
 
 The frame is sandboxed, cannot reach the app origin, and has
@@ -164,6 +179,7 @@ The frame is sandboxed, cannot reach the app origin, and has
 Upload a ZIP of a static site. It is served sandboxed and authorization
 controlled. Bundles do not receive the Selaras document theme automatically.
 A prebuilt Vue application can import and bundle Selaras independently.
+The `serangkai-canvas` marker also works in a bundle's HTML.
 
 ## Verification note
 

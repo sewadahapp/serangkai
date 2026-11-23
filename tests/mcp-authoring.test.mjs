@@ -101,6 +101,7 @@ test('MCP exposes capabilities, guides, components, templates, and prompts', asy
   const htmlGuide = await rpc({ jsonrpc: '2.0', id: 7, method: 'resources/read', params: { uri: 'serangkai://guides/html' } })
   assert.match(htmlGuide.result.contents[0].text, /serangkai-theme/)
   assert.match(htmlGuide.result.contents[0].text, /serangkai-presentation/)
+  assert.match(htmlGuide.result.contents[0].text, /serangkai-canvas/)
   assert.match(htmlGuide.result.contents[0].text, /data-serangkai-chart/)
 
   const templates = await rpc({ jsonrpc: '2.0', id: 8, method: 'resources/read', params: { uri: 'serangkai://templates/report' } })
