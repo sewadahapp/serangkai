@@ -7,11 +7,13 @@ import {
   isAcceptableRedirectUri,
   normalizeScopes,
   oauthConsentFingerprint,
+  ownerConnectionLabel,
   parseResourceIndicator,
   parseScopes,
 } from '../../utils/oauth'
 import { mcpResourceUrl } from '../../utils/oauth-urls'
 import { consumeConsent, rememberConsent } from '../../utils/oauth-consent'
+import { connectionNameField, connectionNameStyles } from '../../utils/connection-name-field'
 import { readBoundedBody } from '../../utils/request-body'
 import { clientBucketKey, createRateLimiter } from '../../utils/rate-limit'
 
@@ -257,6 +259,7 @@ export default defineEventHandler(async (event) => {
       codeChallenge: input.codeChallenge,
       codeChallengeMethod: 'S256',
       resource: input.resource,
+      label: ownerConnectionLabel(body?.connection_name, client.clientName),
     })
 
     return sendRedirect(event, appendQuery(input.redirectUri, { code, state: input.state }), 302)
@@ -339,7 +342,7 @@ function renderConsentPage({ client, input, scopes, consentToken, owner }: Conse
   label{display:flex;gap:.65rem;align-items:flex-start;padding:.75rem;
     border:1px solid light-dark(#e1d9c9,#29302d);border-radius:.5rem;cursor:pointer}
   input[type=checkbox]{margin-top:.25rem}
-  label span{display:block}
+  label span{display:block}${connectionNameStyles}
   label small{display:block;color:light-dark(#61665f,#a2a7a1);font-size:.85rem}
   .actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1.5rem}
   button{font:inherit;font-weight:600;border-radius:.5rem;padding:.6rem 1rem;
@@ -372,6 +375,7 @@ function renderConsentPage({ client, input, scopes, consentToken, owner }: Conse
       ${hidden('resource', input.resource)}
       ${hidden('consent_token', consentToken)}
       <ul>${scopeRows}</ul>
+      ${connectionNameField(client.clientName || '')}
       <div class="actions">
         <button class="approve" type="submit" name="decision" value="approve">Allow access</button>
         <button class="deny" type="submit" name="decision" value="deny">Deny</button>

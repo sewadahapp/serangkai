@@ -272,6 +272,9 @@ per day and does not remove the current version.
 
 ### MCP Integration
 MCP server at `/api/mcp` (Streamable HTTP) providing tools:
+- `set_connection_name` - Name the OAuth connection the agent is using, so
+  Settings can tell two installs of the same app apart. It never replaces a
+  name the owner chose; API tokens cannot use it
 - `list_folders` - List folders
 - `search` - Search rangka and folders, optionally scoped to a folder subtree
 - `create_folder` - Create a folder, optionally nested
@@ -626,6 +629,12 @@ adding a second system to configure would buy nothing.
   transaction or a D1 batch: exactly one concurrent request wins, the loser's
   new access token is deleted, and the grant id stays stable so Settings still
   shows one connection.
+- **Connections are named per grant.** Clients register with their own
+  `client_name`, so every install of one app looks the same. The consent pages
+  ask the owner for a connection name (pre-filled with the client's), Settings
+  can rename it, and an agent may name itself with `set_connection_name` until
+  the owner has chosen one (`oauth_tokens.label_set_by`). Settings shows the
+  last use, stamped on each request and on refresh.
 - **Storage.** `oauth_clients`, `oauth_codes` (keyed by the code's SHA-256, so
   the database never holds a usable code), and `oauth_tokens` (which links to
   the hashed `api_tokens` row so the existing request middleware authenticates

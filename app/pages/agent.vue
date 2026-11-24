@@ -164,6 +164,7 @@ const starterPrompt = 'Create a Markdown rangka in Serangkai called Project note
 
 const toolList = [
   { name: 'get_rangka_capabilities', hint: 'Discover supported formats and components' },
+  { name: 'set_connection_name', hint: 'Name this connection in Settings' },
   { name: 'list_folders', hint: 'Folder tree' },
   { name: 'search', hint: 'Rangka and folders' },
   { name: 'create_folder', hint: 'Nested folders' },
@@ -226,7 +227,10 @@ const setupPrompt = computed(() => `Connect to my Serangkai workspace over MCP.
 - Transport: Streamable HTTP
 - Auth: OAuth browser sign-in. If your client can't do OAuth, ask me for an API token and send it as the header "Authorization: Bearer <token>".
 
-Add it using your own client's MCP configuration. After I approve access in the browser, call get_rangka_capabilities and tell me which formats you can publish.`)
+Add it using your own client's MCP configuration. After I approve access in the browser:
+
+1. Call set_connection_name with "<your app> – <this computer's hostname> – <your OS username>", so I can tell this connection apart from others in Settings. Leave out any part you can't determine.
+2. Call get_rangka_capabilities and tell me which formats you can publish.`)
 
 // The whole Reference section as one Markdown block an agent can keep as
 // guidance. Built from the same lists and examples the page shows.

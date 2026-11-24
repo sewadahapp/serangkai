@@ -46,6 +46,8 @@ export const oauthCodes = sqliteTable('oauth_codes', {
   codeChallenge: text('code_challenge').notNull(),
   codeChallengeMethod: text('code_challenge_method').notNull().default('S256'),
   resource: text('resource'),
+  /** Connection name the owner typed on the consent page, if any. */
+  label: text('label'),
   expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
   consumedAt: integer('consumed_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
@@ -75,6 +77,14 @@ export const oauthTokens = sqliteTable('oauth_tokens', {
    * first use or refresh.
    */
   resource: text('resource'),
+  /**
+   * Display name for this connection. Clients pick their own `client_name`,
+   * so two installs of the same agent look identical; the owner (or the agent
+   * itself, until the owner has chosen) names the connection instead.
+   */
+  label: text('label'),
+  /** `owner` or `agent`. An agent never replaces a name the owner chose. */
+  labelSetBy: text('label_set_by'),
   accessExpiresAt: integer('access_expires_at', { mode: 'timestamp' }).notNull(),
   refreshTokenHash: text('refresh_token_hash').notNull().unique(),
   refreshExpiresAt: integer('refresh_expires_at', { mode: 'timestamp' }).notNull(),
@@ -101,6 +111,8 @@ export const oauthDeviceCodes = sqliteTable('oauth_device_codes', {
   userCode: text('user_code').notNull().unique(),
   scopes: text('scopes', { mode: 'json' }).$type<string[]>().notNull().default([]),
   resource: text('resource'),
+  /** Connection name the owner typed when approving, if any. */
+  label: text('label'),
   /** Set when the owner approves or denies; null while pending. */
   approvedAt: integer('approved_at', { mode: 'timestamp' }),
   deniedAt: integer('denied_at', { mode: 'timestamp' }),

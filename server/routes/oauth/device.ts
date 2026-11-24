@@ -8,8 +8,10 @@ import {
   findDeviceByUserCode,
   formatUserCode,
   normalizeUserCode,
+  ownerConnectionLabel,
   parseScopes,
 } from '../../utils/oauth'
+import { connectionNameField, connectionNameStyles } from '../../utils/connection-name-field'
 import { consumeConsent, rememberConsent } from '../../utils/oauth-consent'
 import { readBoundedBody } from '../../utils/request-body'
 import { clientBucketKey, createRateLimiter } from '../../utils/rate-limit'
@@ -67,7 +69,7 @@ const PAGE_STYLE = `
   label{display:flex;gap:.65rem;align-items:flex-start;padding:.75rem;
     border:1px solid light-dark(#e1d9c9,#29302d);border-radius:.5rem;cursor:pointer}
   input[type=checkbox]{margin-top:.25rem}
-  label small{display:block;color:light-dark(#61665f,#a2a7a1);font-size:.85rem}
+  label small{display:block;color:light-dark(#61665f,#a2a7a1);font-size:.85rem}${connectionNameStyles}
   .actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1.5rem}
   button{font:inherit;font-weight:600;border-radius:.5rem;padding:.6rem 1rem;
     border:1px solid transparent;cursor:pointer}
@@ -105,7 +107,7 @@ function renderCodeForm(prefill: string, error?: string) {
   `)
 }
 
-function renderConsent(clientName: string, userCode: string, scopes: string[], consentToken: string, error?: string) {
+function renderConsent(clientName: string, userCode: string, scopes: string[], consentToken: string, error: string | undefined, connectionName: string) {
   const rows = scopes.map(scope => `
     <li>
       <label>
@@ -132,6 +134,7 @@ function renderConsent(clientName: string, userCode: string, scopes: string[], c
       <input type="hidden" name="user_code" value="${escapeHtml(userCode)}">
       <input type="hidden" name="consent_token" value="${escapeHtml(consentToken)}">
       <ul>${rows}</ul>
+      ${connectionNameField(connectionName)}
       <div class="actions">
         <button class="approve" type="submit" name="decision" value="approve">Allow access</button>
         <button class="deny" type="submit" name="decision" value="deny">Deny</button>
@@ -229,6 +232,8 @@ export default defineEventHandler(async (event) => {
 
   const client = await db.select().from(oauthClients).where(eq(oauthClients.id, device.clientId)).get()
   const clientName = client?.clientName || 'This client'
+  // Pre-fill the client's real name only; the fallback is not a name.
+  const suggestedName = client?.clientName || ''
   const user = event.context.user
 
   // Everything in the fingerprint comes from the stored request, so a POST
@@ -263,16 +268,17 @@ export default defineEventHandler(async (event) => {
       const chosen = parseScopes(body?.scopes).filter(scope => (device.scopes as string[]).includes(scope))
       if (!chosen.length) {
         const fresh = await rememberConsent(event, fingerprint, user.id)
-        return renderConsent(clientName, userCode, device.scopes as string[], fresh, 'Select at least one permission to continue.')
+        return renderConsent(clientName, userCode, device.scopes as string[], fresh, 'Select at least one permission to continue.', typeof body?.connection_name === 'string' ? body.connection_name : suggestedName)
       }
-      const approved = await approveDeviceAuthorization(db, device.id, user.id, chosen)
+      const label = ownerConnectionLabel(body?.connection_name, client?.clientName)
+      const approved = await approveDeviceAuthorization(db, device.id, user.id, chosen, label)
       return renderOutcome(db, userCode, 'approved', approved.ok)
     }
 
     if (decision === 'continue') {
       // The lookup form only renders the consent page; nothing is decided yet.
       const consentToken = await rememberConsent(event, fingerprint, user.id)
-      return renderConsent(clientName, userCode, device.scopes as string[], consentToken)
+      return renderConsent(clientName, userCode, device.scopes as string[], consentToken, undefined, suggestedName)
     }
 
     setResponseStatus(event, 400)
@@ -280,5 +286,5 @@ export default defineEventHandler(async (event) => {
   }
 
   const consentToken = await rememberConsent(event, fingerprint, user.id)
-  return renderConsent(clientName, userCode, device.scopes as string[], consentToken)
+  return renderConsent(clientName, userCode, device.scopes as string[], consentToken, undefined, suggestedName)
 })

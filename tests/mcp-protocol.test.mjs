@@ -88,7 +88,7 @@ test('supports MCP initialization and tool discovery', async () => {
 
   const tools = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} })
   const names = tools.result.tools.map(tool => tool.name)
-  assert.deepEqual(names, ['get_rangka_capabilities', 'list_folders', 'search', 'create_folder', 'list_rangka', 'get_rangka', 'create_rangka', 'update_rangka'])
+  assert.deepEqual(names, ['get_rangka_capabilities', 'set_connection_name', 'list_folders', 'search', 'create_folder', 'list_rangka', 'get_rangka', 'create_rangka', 'update_rangka'])
   for (const tool of tools.result.tools) {
     assert.equal(tool.outputSchema?.type, 'object', `${tool.name} declares an output schema`)
   }
