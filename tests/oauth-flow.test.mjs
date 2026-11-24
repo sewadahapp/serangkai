@@ -749,6 +749,46 @@ test('the owner can disconnect a client from Settings', async () => {
   assert.equal(mcp.status, 401)
 })
 
+test('a connected client stays out of the API token list and cannot be revoked there', async () => {
+  const minted = await fetch(`${base}/api/tokens`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'hand-minted', scopes: ['read'] }),
+  })
+  assert.equal(minted.status, 200)
+
+  const redirectUri = 'https://client.example/callback'
+  const { body: client } = await registerClient(redirectUri)
+  const { verifier, challenge } = pkcePair()
+  const approval = await authorize({ clientId: client.client_id, redirectUri, challenge })
+  const code = new URL(approval.headers.get('location')).searchParams.get('code')
+  const { body: tokens } = await exchangeCode({ clientId: client.client_id, code, redirectUri, verifier })
+
+  const { Database } = await import('bun:sqlite')
+  const db = new Database(join(dataDir, 'serangkai.db'))
+  const backing = db.query('SELECT api_token_id FROM oauth_tokens WHERE client_id = ?').get(client.client_id)
+  db.close()
+  assert.ok(backing?.api_token_id)
+
+  const listed = await (await fetch(`${base}/api/tokens`, { headers: { cookie } })).json()
+  assert.ok(listed.tokens.some(token => token.name === 'hand-minted'))
+  assert.ok(!listed.tokens.some(token => token.id === backing.api_token_id))
+
+  const removed = await fetch(`${base}/api/tokens/${backing.api_token_id}`, { method: 'DELETE', headers: { cookie } })
+  assert.equal(removed.status, 404)
+
+  const mcp = await fetch(`${base}/api/mcp`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${tokens.access_token}`,
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+  })
+  assert.equal(mcp.status, 200)
+})
+
 test('an unauthenticated caller cannot list or disconnect OAuth clients', async () => {
   assert.equal((await fetch(`${base}/api/oauth/clients`)).status, 401)
   assert.equal((await fetch(`${base}/api/oauth/clients/anything`, { method: 'DELETE' })).status, 401)
