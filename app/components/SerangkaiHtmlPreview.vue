@@ -1,5 +1,5 @@
 <template>
-  <SerangkaiCanvasViewport :size="canvasSize" :fill="fillCanvas">
+  <SerangkaiCanvasViewport ref="canvasViewport" :size="canvasSize" :fill="fillCanvas">
     <iframe
       ref="frame"
       v-bind="$attrs"
@@ -16,6 +16,7 @@
 
 <script setup lang="ts">
 import { parseCanvasSize } from '#shared/rangka-canvas'
+import SerangkaiCanvasViewport from './SerangkaiCanvasViewport.vue'
 
 defineOptions({ inheritAttrs: false })
 
@@ -56,6 +57,7 @@ const MAX_HEIGHT = 50_000
 const HEIGHT_HEADROOM = 2
 const colorMode = useColorMode()
 const frame = ref<HTMLIFrameElement>()
+const canvasViewport = useTemplateRef<InstanceType<typeof SerangkaiCanvasViewport>>('canvasViewport')
 const reportedHeight = ref<number | null>(null)
 const canvasSize = shallowRef<ReturnType<typeof parseCanvasSize>>(null)
 
@@ -83,11 +85,16 @@ function onFrameLoad() {
 
 function onMessage(event: MessageEvent) {
   // A sandboxed frame has an opaque origin, so `event.origin` is "null".
-  // Match the sender window instead, then validate its size report.
-  if (event.source !== frame.value?.contentWindow) return
-  const data = event.data as { type?: unknown; height?: unknown; size?: unknown } | null
+  // Match the sender window, then validate its dimensions or input.
+  const sender = frame.value
+  if (!sender || event.source !== sender.contentWindow) return
+  const data = event.data as { type?: unknown; height?: unknown; size?: unknown; kind?: unknown; gesture?: unknown } | null
   if (data?.type === 'serangkai:canvas-size') {
     canvasSize.value ??= parseCanvasSize(data.size)
+    return
+  }
+  if (canvasSize.value && data?.type === 'serangkai:canvas-input') {
+    canvasViewport.value?.onFrameInput(sender, data.kind, data.gesture)
     return
   }
   if (!props.autoHeight || canvasSize.value || data?.type !== 'serangkai:height') return

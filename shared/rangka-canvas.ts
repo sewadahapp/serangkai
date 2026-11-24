@@ -16,3 +16,23 @@ export function parseCanvasSize(value: unknown) {
 }
 
 export type CanvasSize = NonNullable<ReturnType<typeof parseCanvasSize>>
+
+export const CANVAS_KEYS = {
+  '+': 'zoom-in',
+  '=': 'zoom-in',
+  '-': 'zoom-out',
+  '0': 'fit',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  h: 'hand',
+  Escape: 'escape',
+} as const
+
+export const CANVAS_MODIFIED_KEYS = {
+  '+': 'zoom-in',
+  '=': 'zoom-in',
+  '-': 'zoom-out',
+  '0': 'fit',
+} as const

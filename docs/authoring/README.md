@@ -162,12 +162,17 @@ Each dimension must be between 240 and 4096 pixels.
 ```
 
 Lay out the full report, dashboard, or design inside that viewport. It opens
-fitted to the available space in the workspace and on share links. Use **Pan**
-to drag the board, then turn it off to click or select content inside the board.
-The zoom percentage restores 100%, and **Fit** recenters and fits the board.
-In Pan mode, hold Ctrl or Command and scroll to zoom toward the pointer.
-With the canvas region focused, the arrow keys pan, `+` and `-` zoom, and `0`
-fits the board.
+fitted to the available space in the workspace and on share links.
+
+- Hold Space and drag to pan, or slide two fingers on a trackpad. **Pan** or
+  `H` keeps the hand tool active until you toggle it or press Escape.
+- Pinch or hold Ctrl or Command and scroll to zoom toward the pointer.
+  Select the zoom percentage to restore 100%, or **Fit** to see the whole board.
+- With the canvas focused, the arrow keys pan, `+` and `-` zoom, and
+  `0` or Shift+1 fits the board.
+
+Buttons, editable fields, and scrollable regions inside the rangka keep their
+usual behavior during normal interaction.
 
 ### Sandbox
 

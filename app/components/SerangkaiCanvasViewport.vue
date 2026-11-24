@@ -1,49 +1,63 @@
 <template>
-  <div :class="size ? ['canvas-shell', { 'canvas-shell-fill': fill }] : 'canvas-pass-through'">
-    <div v-if="size" class="canvas-controls" role="group" aria-label="Canvas controls">
+  <div ref="shell" :class="size ? ['canvas-shell', { 'canvas-shell-fill': fill }] : 'canvas-pass-through'">
+    <div v-if="size" class="canvas-controls" role="group" aria-label="Canvas controls" @click="focusAfterPointerClick">
       <SButton variant="ghost" color="neutral" size="sm" icon="lucide:minus" aria-label="Zoom out" :disabled="camera.scale <= minimumScale" @click="zoomBy(1 / zoomStep)" />
       <SButton variant="ghost" color="neutral" size="sm" :aria-label="`Actual size, current zoom ${zoomLabel}`" title="Show at 100%" @click="zoomTo(1)">{{ zoomLabel }}</SButton>
       <SButton variant="ghost" color="neutral" size="sm" icon="lucide:plus" aria-label="Zoom in" :disabled="camera.scale >= maximumScale" @click="zoomBy(zoomStep)" />
-      <SButton variant="ghost" color="neutral" size="sm" aria-label="Fit canvas" @click="fit">Fit</SButton>
-      <SButton :variant="panMode ? 'soft' : 'ghost'" color="neutral" size="sm" icon="lucide:hand" :aria-pressed="panMode" @click="panMode = !panMode">Pan</SButton>
+      <SButton variant="ghost" color="neutral" size="sm" aria-label="Fit canvas" title="Fit canvas (Shift + 1)" @click="fit">Fit</SButton>
+      <SButton :variant="panMode ? 'soft' : 'ghost'" color="neutral" size="sm" icon="lucide:hand" title="Pan (H) or hold Space and drag" :aria-pressed="panMode" @click="panMode = !panMode">Pan</SButton>
     </div>
 
     <div
       ref="viewport"
-      :class="size ? ['canvas-viewport serangkai-canvas-pattern', { 'canvas-dragging': dragging }] : 'canvas-pass-through'"
+      :class="size ? ['canvas-viewport serangkai-canvas-pattern', { 'canvas-dragging': dragging, 'canvas-hand': handActive }] : 'canvas-pass-through'"
       :role="size ? 'region' : undefined"
       :aria-label="size ? 'Rangka canvas' : undefined"
       :tabindex="size ? 0 : undefined"
-      @keydown.self="onKeydown"
       @wheel="onWheel"
       @pointerdown.self="startDrag"
       @pointermove="moveDrag"
       @pointerup="stopDrag"
       @pointercancel="stopDrag"
       @lostpointercapture="stopDrag"
+      @touchstart="onTouch"
+      @touchmove="onTouch"
+      @touchend="onTouch"
+      @touchcancel="onTouch"
+      @gesturestart="onGestureStart"
+      @gesturechange="onGestureChange"
+      @gestureend="endGesture"
     >
       <div :class="size ? 'canvas-board' : 'canvas-pass-through'" :style="boardStyle">
         <slot />
       </div>
-      <div v-if="size && panMode" class="canvas-pan-surface" aria-hidden="true" @pointerdown="startDrag" />
+      <div v-if="size && handActive" class="canvas-pan-surface" aria-hidden="true" @pointerdown="startDrag" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { CanvasSize } from '#shared/rangka-canvas'
+import { CANVAS_KEYS, CANVAS_MODIFIED_KEYS, type CanvasSize } from '#shared/rangka-canvas'
 
 const props = defineProps<{ size: CanvasSize | null; fill?: boolean }>()
 
 const zoomStep = 1.25
 const maximumScale = 4
+const shell = ref<HTMLElement>()
 const viewport = ref<HTMLElement>()
 const view = shallowRef({ width: 0, height: 0 })
 const camera = shallowRef({ x: 0, y: 0, scale: 1 })
 const fitted = ref(true)
 const panMode = ref(false)
+const spaceHeld = ref(false)
+const frameSpaceHeld = ref(false)
+const handActive = computed(() => panMode.value || spaceHeld.value || frameSpaceHeld.value)
 const dragging = ref(false)
 let drag: { pointer: number; x: number; y: number } | null = null
+let frameHovered = false
+let pinch: { x: number; y: number; camera: typeof camera.value } | null = null
+let touchStart: { x: number; y: number; distance: number } | null = null
+let multiTouch = false
 
 const fitScale = computed(() => {
   if (!props.size) return 1
@@ -84,12 +98,12 @@ function fit() {
   positionCamera((view.value.width - props.size.width * scale) / 2, (view.value.height - props.size.height * scale) / 2, scale)
 }
 
-function zoomTo(value: number, x = view.value.width / 2, y = view.value.height / 2) {
-  const previous = camera.value
+function zoomTo(value: number, x = view.value.width / 2, y = view.value.height / 2, from = { x, y, camera: camera.value }) {
+  const previous = from.camera
   const scale = Math.max(minimumScale.value, Math.min(maximumScale, value))
   const ratio = scale / previous.scale
   fitted.value = false
-  positionCamera(x - (x - previous.x) * ratio, y - (y - previous.y) * ratio, scale)
+  positionCamera(x - (from.x - previous.x) * ratio, y - (from.y - previous.y) * ratio, scale)
 }
 
 function zoomBy(factor: number) {
@@ -105,15 +119,18 @@ function measureViewport() {
   if (!props.size || !viewport.value) return
   const previous = view.value
   const { clientWidth: width, clientHeight: height } = viewport.value
+  if (width === previous.width && height === previous.height && !fitted.value) return
+  if (width !== previous.width || height !== previous.height) pinch = null
   view.value = { width, height }
   if (fitted.value) fit()
   else panBy((width - previous.width) / 2, (height - previous.height) / 2)
 }
 
 function startDrag(event: PointerEvent) {
-  if (!props.size || drag || event.button !== 0 || !viewport.value) return
+  if (!props.size || drag || multiTouch || event.button !== 0 || !viewport.value) return
   event.preventDefault()
-  viewport.value.focus({ preventScroll: true })
+  // Keep focus in the frame when Space was pressed there, so it sees keyup.
+  if (!frameSpaceHeld.value) viewport.value.focus({ preventScroll: true })
   viewport.value.setPointerCapture(event.pointerId)
   drag = { pointer: event.pointerId, x: event.clientX, y: event.clientY }
   dragging.value = true
@@ -126,38 +143,204 @@ function moveDrag(event: PointerEvent) {
   drag.y = event.clientY
 }
 
-function stopDrag(event: PointerEvent) {
-  if (drag?.pointer !== event.pointerId) return
+function releaseDrag() {
+  const previous = drag
   drag = null
   dragging.value = false
+  if (previous && viewport.value?.hasPointerCapture(previous.pointer)) viewport.value.releasePointerCapture(previous.pointer)
+}
+
+function stopDrag(event: PointerEvent) {
+  if (drag?.pointer === event.pointerId) releaseDrag()
+}
+
+function wheel(dx: number, dy: number, mode: number, zoom: boolean, x: number, y: number) {
+  const pixels = mode === 1 ? 16 : mode === 2 ? view.value.height : 1
+  if (zoom) zoomTo(camera.value.scale * Math.exp(-dy * pixels / 350), x, y)
+  else panBy(-dx * pixels, -dy * pixels)
 }
 
 function onWheel(event: WheelEvent) {
-  if (!panMode.value || !viewport.value || !(event.ctrlKey || event.metaKey) || !event.deltaY) return
+  if (!props.size || !viewport.value || !event.cancelable || event.defaultPrevented) return
+  const mode = event.deltaMode
+  const zoom = event.ctrlKey || event.metaKey
+  const horizontal = !zoom && event.shiftKey && !event.deltaX
+  const dx = horizontal ? event.deltaY : event.deltaX
+  const dy = horizontal ? 0 : event.deltaY
+  if (zoom ? !dy : (!dx && !dy)) return
   event.preventDefault()
   const bounds = viewport.value.getBoundingClientRect()
-  const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? bounds.height : 1)
-  zoomTo(camera.value.scale * Math.exp(-pixels / 350), event.clientX - bounds.left, event.clientY - bounds.top)
+  wheel(dx, dy, mode, zoom, event.clientX - bounds.left, event.clientY - bounds.top)
+}
+
+function keyCommand(command: unknown, fast: boolean) {
+  const step = fast ? 160 : 40
+  switch (command) {
+    case 'zoom-in': zoomBy(zoomStep); break
+    case 'zoom-out': zoomBy(1 / zoomStep); break
+    case 'fit': fit(); break
+    case 'left': panBy(step, 0); break
+    case 'right': panBy(-step, 0); break
+    case 'up': panBy(0, step); break
+    case 'down': panBy(0, -step); break
+    case 'hand': panMode.value = !panMode.value; break
+    case 'escape':
+      if (!handActive.value && !drag) return false
+      panMode.value = false
+      resetInput()
+      break
+    default: return false
+  }
+  return true
+}
+
+function focusAfterPointerClick(event: MouseEvent) {
+  if (event.detail > 0 && event.target instanceof Element && event.target.closest('button')) {
+    viewport.value?.focus({ preventScroll: true })
+  }
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if (!props.size || event.ctrlKey || event.metaKey || event.altKey) return
-  switch (event.key) {
-    case '+':
-    case '=': zoomBy(zoomStep); break
-    case '-': zoomBy(1 / zoomStep); break
-    case '0': fit(); break
-    case 'ArrowLeft': panBy(40, 0); break
-    case 'ArrowRight': panBy(-40, 0); break
-    case 'ArrowUp': panBy(0, 40); break
-    case 'ArrowDown': panBy(0, -40); break
-    case 'Escape': panMode.value = false; break
-    default: return
+  if (!props.size || event.defaultPrevented || event.isComposing || event.altKey || !viewport.value) return
+  const inCanvas = event.target === viewport.value
+    || (event.target === document.body && (frameHovered || viewport.value.matches(':hover')))
+  const leavingHandTool = event.key === 'Escape' && event.target instanceof Node && shell.value?.contains(event.target)
+  if (!inCanvas && !leavingHandTool) return
+  const modified = event.ctrlKey || event.metaKey
+  if (event.code === 'Space' && !modified && !event.shiftKey) {
+    spaceHeld.value = true
+    event.preventDefault()
+    return
   }
-  event.preventDefault()
+  const map: Partial<Record<string, string>> = modified ? CANVAS_MODIFIED_KEYS : CANVAS_KEYS
+  const key = event.shiftKey && event.code === 'Digit1' && !modified ? '0' : event.key
+  if (!Object.hasOwn(map, key)) return
+  const command = map[key]
+  if (command === 'hand' && event.repeat) return
+  if (keyCommand(command, event.shiftKey)) event.preventDefault()
 }
 
+function onKeyup(event: KeyboardEvent) {
+  if (event.code !== 'Space' || (!spaceHeld.value && !frameSpaceHeld.value)) return
+  spaceHeld.value = false
+  frameSpaceHeld.value = false
+  if (!panMode.value) releaseDrag()
+}
+
+function startPinch(x: number, y: number) {
+  releaseDrag()
+  pinch = { x, y, camera: camera.value }
+}
+
+function movePinch(dx: number, dy: number, factor: number) {
+  if (pinch && Number.isFinite(factor)) zoomTo(pinch.camera.scale * factor, pinch.x + dx, pinch.y + dy, pinch)
+}
+
+function onTouch(event: TouchEvent) {
+  if (!props.size || !viewport.value || (event.touches.length < 2 && !multiTouch)) return
+  if (event.cancelable) event.preventDefault()
+  multiTouch = event.touches.length > 0
+  if (event.touches.length !== 2) {
+    touchStart = null
+    pinch = null
+    return
+  }
+  const [a, b] = Array.from(event.touches)
+  const x = (a.clientX + b.clientX) / 2
+  const y = (a.clientY + b.clientY) / 2
+  const distance = Math.max(1, Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY))
+  if (!touchStart) {
+    const bounds = viewport.value.getBoundingClientRect()
+    startPinch(x - bounds.left, y - bounds.top)
+    touchStart = { x, y, distance }
+  } else {
+    movePinch(x - touchStart.x, y - touchStart.y, distance / touchStart.distance)
+  }
+}
+
+function onGestureStart(event: Event) {
+  if (!props.size || !viewport.value || !event.isTrusted || event.defaultPrevented) return
+  event.preventDefault()
+  if (multiTouch) return
+  const { clientX, clientY } = event as MouseEvent
+  const bounds = viewport.value.getBoundingClientRect()
+  startPinch(clientX - bounds.left, clientY - bounds.top)
+}
+
+function onGestureChange(event: Event) {
+  if (!props.size || !event.isTrusted || event.defaultPrevented) return
+  event.preventDefault()
+  if (!multiTouch) movePinch(0, 0, (event as Event & { scale: number }).scale)
+}
+
+function endGesture() {
+  if (!multiTouch) pinch = null
+}
+
+function resetInput() {
+  spaceHeld.value = false
+  frameSpaceHeld.value = false
+  clearFrameHover()
+  releaseDrag()
+  pinch = null
+  touchStart = null
+  multiTouch = false
+}
+
+function clearFrameHover() {
+  frameHovered = false
+}
+
+function finite(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
+}
+
+function onFrameInput(frame: HTMLIFrameElement, kind: unknown, payload: unknown) {
+  if (!props.size || !viewport.value || !payload || typeof payload !== 'object') return
+  const { x, y, dx, dy, factor, zoom, mode, command, fast, held, inside } = payload as Record<string, unknown>
+  if (kind === 'hover') {
+    frameHovered = inside === true
+    return
+  }
+  if (kind === 'space') {
+    if (held === true && document.activeElement === frame) frameSpaceHeld.value = true
+    if (held === false && frameSpaceHeld.value) {
+      frameSpaceHeld.value = false
+      if (!panMode.value) releaseDrag()
+    }
+    return
+  }
+  if (kind === 'key') {
+    if (document.activeElement !== frame) return
+    keyCommand(command, fast === true)
+    if (command === 'hand' && panMode.value) viewport.value.focus({ preventScroll: true })
+    return
+  }
+  if (kind === 'pinch') {
+    if (finite(dx, -16384, 16384) && finite(dy, -16384, 16384) && finite(factor, 0, 16384)) movePinch(dx, dy, factor)
+    return
+  }
+  if (kind === 'pinch-end') {
+    pinch = null
+    return
+  }
+  if (kind !== 'wheel' && kind !== 'pinch-start') return
+  if (!finite(x, 0, props.size.width) || !finite(y, 0, props.size.height)) return
+  const bounds = viewport.value.getBoundingClientRect()
+  const board = frame.getBoundingClientRect()
+  const anchorX = board.left - bounds.left + x * board.width / props.size.width
+  const anchorY = board.top - bounds.top + y * board.height / props.size.height
+  if (kind === 'pinch-start') {
+    startPinch(anchorX, anchorY)
+  } else if (finite(dx, -16384, 16384) && finite(dy, -16384, 16384) && (mode === 0 || mode === 1 || mode === 2)) {
+    wheel(dx, dy, mode, zoom === true, anchorX, anchorY)
+  }
+}
+
+defineExpose({ onFrameInput })
+
 watch(() => props.size, () => {
+  resetInput()
   panMode.value = false
   fitted.value = true
   measureViewport()
@@ -165,22 +348,33 @@ watch(() => props.size, () => {
 
 let observer: ResizeObserver | undefined
 onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('keyup', onKeyup)
+  window.addEventListener('blur', resetInput)
+  window.addEventListener('pointerover', clearFrameHover, { passive: true })
   if (!viewport.value) return
   measureViewport()
   observer = new ResizeObserver(measureViewport)
   observer.observe(viewport.value)
 })
-onBeforeUnmount(() => observer?.disconnect())
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('keyup', onKeyup)
+  window.removeEventListener('blur', resetInput)
+  window.removeEventListener('pointerover', clearFrameHover)
+  observer?.disconnect()
+})
 </script>
 
 <style scoped>
 .canvas-pass-through { display: contents; }
 .canvas-shell { min-width: 0; overflow: hidden; border: 1px solid var(--selaras-resolved-border-default); border-radius: var(--selaras-resolved-radius-md); }
 .canvas-controls { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .25rem; padding: .375rem .5rem; border-bottom: 1px solid var(--selaras-resolved-border-default); background: var(--selaras-resolved-surface-default); font-variant-numeric: tabular-nums; }
-.canvas-viewport { position: relative; height: max(17rem, 65dvh); overflow: clip; background-color: var(--selaras-resolved-surface-canvas); }
+.canvas-viewport { position: relative; height: max(17rem, 65dvh); overflow: clip; background-color: var(--selaras-resolved-surface-canvas); touch-action: none; }
 .canvas-viewport:focus-visible { outline: 2px solid var(--selaras-resolved-color-primary-border); outline-offset: -2px; }
 .canvas-board { position: absolute; inset: 0 auto auto 0; overflow: clip; transform-origin: top left; box-shadow: 0 0 0 1px var(--selaras-resolved-border-default); }
-.canvas-pan-surface { position: absolute; inset: 0; cursor: grab; touch-action: none; }
+.canvas-pan-surface { position: absolute; inset: 0; }
+.canvas-hand { cursor: grab; }
 .canvas-dragging, .canvas-dragging .canvas-pan-surface { cursor: grabbing; }
 .canvas-shell-fill { display: grid; grid-template-rows: auto minmax(0, 1fr); height: var(--rangka-reader-height); min-height: 17rem; border: 0; border-radius: 0; }
 .canvas-shell-fill .canvas-controls { padding-inline: 1rem; background: var(--selaras-resolved-surface-canvas); }

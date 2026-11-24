@@ -1,4 +1,5 @@
 import { CANVAS_DIMENSIONS, MAX_CANVAS_DIMENSION, MIN_CANVAS_DIMENSION } from '../../shared/rangka-canvas'
+import { canvasInput } from './rangka-canvas-input'
 
 /**
  * Preview height bridge for sandboxed HTML delivery.
@@ -29,6 +30,9 @@ const bootstrap = (reportHeight: boolean) => `(function () {
   var last = -1;
   var scheduled = false;
   var forceNext = false;
+  var hasCanvasInput = false;
+
+  ${canvasInput}
 
   // Apps that set their own viewport-sized layout are not documents: growing
   // the frame to their reported height would fight their internal scrolling.
@@ -48,7 +52,13 @@ const bootstrap = (reportHeight: boolean) => `(function () {
     if (dimensions
       && Number(dimensions[1]) >= ${MIN_CANVAS_DIMENSION} && Number(dimensions[1]) <= ${MAX_CANVAS_DIMENSION}
       && Number(dimensions[2]) >= ${MIN_CANVAS_DIMENSION} && Number(dimensions[2]) <= ${MAX_CANVAS_DIMENSION}) {
-      if (force && doc.readyState === 'complete') parent.postMessage({ type: 'serangkai:canvas-size', size: size }, '*');
+      if (force && doc.readyState === 'complete') {
+        if (!hasCanvasInput) {
+          hasCanvasInput = true;
+          installCanvasInput();
+        }
+        parent.postMessage({ type: 'serangkai:canvas-size', size: size }, '*');
+      }
       return;
     }
     if (!${reportHeight} || usesBoundedFrame()) return;

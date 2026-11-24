@@ -446,9 +446,12 @@ server. Error results carry text only.
   rangka scroll with the page. Reports that equal the current frame height
   are ignored, which keeps `100vh` rangka from growing in a feedback loop.
 - HTML and bundle pages can opt into a fixed canvas with the
-  `serangkai-canvas` meta tag. The bridge reports the bounded dimensions.
-  The viewer pans and scales the sandboxed iframe around its fixed viewport,
-  so content layout and input coordinates stay consistent while zooming.
+  `serangkai-canvas` meta tag. The bridge reports the bounded dimensions and
+  forwards canvas gestures from the active frame. The viewer validates input
+  messages against that frame and pans and scales the fixed viewport. Holding
+  Space temporarily engages a hand surface in the viewer so drag coordinates
+  stay stable as the iframe moves. Normal clicks, editing, and scrollable
+  regions keep their native behavior inside the frame.
 - Sandboxed HTML rangka can render Mermaid and TanStack charts without a CDN
   by opting into a same-origin runtime. `server/utils/rangka-runtime.ts` scans
   the delivered HTML and injects only the bundles it needs:

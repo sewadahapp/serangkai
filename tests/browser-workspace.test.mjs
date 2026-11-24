@@ -489,7 +489,7 @@ test('HTML rangka render Mermaid and TanStack charts in the sandbox', async () =
 
 test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
   const owner = await browser.newContext({ viewport: { width: 1280, height: 900 } })
-  const guest = await browser.newContext({ viewport: { width: 390, height: 844 } })
+  const guest = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true })
   try {
     const signedIn = await owner.request.post(`${base}/api/auth/login`, {
       data: { username: adminUsername, password: adminPassword },
@@ -497,8 +497,17 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
     assert.ok(signedIn.ok())
     const content = `<!doctype html><html><head>
       <meta name="serangkai-canvas" content="1920x1080">
-      <style>body { margin: 0; height: 100vh; display: grid; place-items: center }</style>
-      </head><body><button onclick="this.textContent = 'Board clicked'">Board control</button></body></html>`
+      <style>
+        body { margin: 0; height: 100vh; display: grid; place-items: center }
+        input, #scroll-panel { position: absolute; left: calc(50% + 180px); width: 240px }
+        input { top: calc(50% - 60px) }
+        #scroll-panel { top: 50%; height: 150px; overflow: auto }
+      </style>
+      </head><body>
+        <button id="board-control" data-clicks="0" onclick="this.dataset.clicks = Number(this.dataset.clicks) + 1">Board control</button>
+        <input aria-label="Board text">
+        <div id="scroll-panel"><div style="height: 1000px">Scrollable report</div></div>
+      </body></html>`
     const html = await owner.request.post(`${base}/api/rangka`, {
       data: { title: 'HTML canvas', type: 'html', visibility: 'public', content },
     })
@@ -516,6 +525,7 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
 
     const workspace = await owner.newPage()
     const share = await guest.newPage()
+    const touch = await guest.newCDPSession(share)
     for (const response of [html, bundle]) {
       const { rangka } = await response.json()
       for (const [reader, path] of [[workspace, `/rangka/${rangka.id}`], [share, `/share/${rangka.slug}`]]) {
@@ -525,8 +535,10 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
         await canvas.waitFor()
         const frame = canvas.locator('iframe')
         assert.equal(await frame.getAttribute('sandbox'), 'allow-scripts')
+        const inner = await (await frame.elementHandle()).contentFrame()
         const content = canvas.frameLocator('iframe')
         const control = content.getByRole('button', { name: 'Board control' })
+        const input = content.getByRole('textbox', { name: 'Board text' })
         const controlPosition = await control.evaluate(element => {
           const rect = element.getBoundingClientRect()
           return {
@@ -535,8 +547,9 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
           }
         })
         assert.deepEqual(controlPosition.size, [1920, 1080])
+        const settleBoard = () => canvas.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
         // Let Chromium commit the new iframe transform before using raw device coordinates.
-        await canvas.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+        await settleBoard()
         const bounds = await canvas.boundingBox()
         const initial = await frame.boundingBox()
         assert.ok(initial.width < bounds.width && initial.height < bounds.height)
@@ -547,14 +560,116 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
         }
         // Playwright's locator click adds the iframe offset but does not scale
         // the coordinates inside a transformed frame.
-        await reader.mouse.click(
-          initial.x + controlPosition.x * initial.width / controlPosition.size[0],
-          initial.y + controlPosition.y * initial.height / controlPosition.size[1],
+        const point = (rect, x, y) => ({
+          x: rect.x + x * rect.width / controlPosition.size[0],
+          y: rect.y + y * rect.height / controlPosition.size[1],
+        })
+        const center = point(initial, controlPosition.x, controlPosition.y)
+        const waitForFrame = (axis, comparison, value) => reader.waitForFunction(
+          ({ axis, comparison, value }) => {
+            const rect = document.querySelector('[aria-label="Rangka canvas"] iframe')?.getBoundingClientRect()
+            return rect && (comparison === 'above' ? rect[axis] > value : rect[axis] < value)
+          },
+          { axis, comparison, value },
+          { timeout: 4000 },
         )
-        await assert.doesNotReject(
-          () => content.getByRole('button', { name: 'Board clicked' }).waitFor({ timeout: 4000 }),
-          `Canvas content is clickable at ${path}`,
+        const waitForClicks = (count) => inner.waitForFunction(
+          clicks => document.getElementById('board-control').dataset.clicks === clicks,
+          String(count),
+          { timeout: 4000 },
         )
+        const handSurface = canvas.locator('.canvas-pan-surface')
+        await reader.mouse.move(center.x, center.y)
+        await settleBoard()
+        await reader.keyboard.down('Space')
+        await handSurface.waitFor({ state: 'visible', timeout: 4000 })
+        await reader.keyboard.up('Space')
+        await handSurface.waitFor({ state: 'hidden', timeout: 4000 })
+        await reader.mouse.click(center.x, center.y)
+        await assert.doesNotReject(() => waitForClicks(1), `Canvas content is clickable at ${path}`)
+
+        // Wheel zoom works over content while the hand tool is off. The point
+        // just left of the control stays under the pointer across the zoom.
+        await reader.mouse.move(center.x - 24, center.y)
+        await reader.keyboard.down('Control')
+        await reader.mouse.wheel(0, -100)
+        await reader.keyboard.up('Control')
+        await waitForFrame('width', 'above', initial.width + 10)
+        const zoomed = await frame.boundingBox()
+        const anchor = (center.x - 24 - initial.x) / initial.width
+        assert.ok(Math.abs(zoomed.x + zoomed.width * anchor - (center.x - 24)) <= 2)
+
+        // Focus the board without focusing a control, then start Space-drag
+        // directly over the button. It must pan without activating the button.
+        await settleBoard()
+        const zoomedControl = point(zoomed, controlPosition.x, controlPosition.y)
+        await reader.mouse.click(zoomedControl.x, zoomedControl.y - 23)
+        await reader.keyboard.down('Space')
+        await reader.mouse.move(zoomedControl.x, zoomedControl.y)
+        await reader.mouse.down()
+        await reader.mouse.move(zoomedControl.x + 36, zoomedControl.y + 18, { steps: 6 })
+        await reader.mouse.up()
+        await reader.keyboard.up('Space')
+        await waitForFrame('x', 'above', zoomed.x + 34)
+        const panned = await frame.boundingBox()
+        assert.ok(Math.abs(panned.x - zoomed.x - 36) <= 2)
+        assert.ok(Math.abs(panned.y - zoomed.y - 18) <= 2)
+        assert.equal(await control.getAttribute('data-clicks'), '1', 'Space-drag must not click the report')
+        await settleBoard()
+        const movedControl = point(panned, controlPosition.x, controlPosition.y)
+        await reader.mouse.click(movedControl.x, movedControl.y)
+        await assert.doesNotReject(() => waitForClicks(2), 'Releasing Space restores clicks immediately')
+
+        await control.press('Space')
+        await assert.doesNotReject(() => waitForClicks(3), 'Space still activates a focused button')
+        await input.press('Space')
+        await input.press('h')
+        assert.equal(await input.inputValue(), ' h')
+        assert.equal(await reader.getByRole('button', { name: 'Pan', exact: true }).getAttribute('aria-pressed'), 'false')
+
+        await canvas.press('Shift+Digit1')
+        const refit = await frame.boundingBox()
+        assert.ok(Math.abs(refit.x - initial.x) < 1 && Math.abs(refit.width - initial.width) < 1)
+        await settleBoard()
+        const panel = point(initial, 1200, 610)
+        await reader.mouse.move(panel.x, panel.y)
+        await reader.mouse.wheel(0, 82)
+        await inner.waitForFunction(() => document.getElementById('scroll-panel').scrollTop > 0, undefined, { timeout: 4000 })
+        assert.equal((await frame.boundingBox()).y, initial.y, 'Wheel scroll over a panel stays in the panel')
+        await reader.mouse.move(center.x - 40, center.y)
+        await reader.mouse.wheel(24, 32)
+        await waitForFrame('x', 'below', initial.x - 15)
+        const wheelPan = await frame.boundingBox()
+        assert.ok(Math.abs(wheelPan.y - initial.y + 32) <= 2)
+
+        if (reader === share) {
+          await canvas.press('0')
+          await settleBoard()
+          const y = Math.round(center.y)
+          const x = Math.round(center.x) + 25
+          await touch.send('Input.dispatchTouchEvent', {
+            type: 'touchStart', touchPoints: [{ x: x - 25, y, id: 0 }, { x: x + 25, y, id: 1 }],
+          })
+          for (const [left, right, down] of [[28, 31, 2], [32, 37, 4], [36, 44, 6]]) {
+            await touch.send('Input.dispatchTouchEvent', {
+              type: 'touchMove', touchPoints: [{ x: x - left, y: y + down, id: 0 }, { x: x + right, y: y + down, id: 1 }],
+            })
+            await settleBoard()
+          }
+          await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+          await waitForFrame('width', 'above', initial.width * 1.4)
+          const pinched = await frame.boundingBox()
+          const touchAnchor = point(pinched, (x - initial.x) * 1920 / initial.width, (y - initial.y) * 1080 / initial.height)
+          assert.ok(Math.abs(touchAnchor.x - x - 4) <= 2)
+          assert.ok(Math.abs(touchAnchor.y - y - 6) <= 2)
+          assert.equal(await control.getAttribute('data-clicks'), '3', 'Pinching does not activate controls')
+          await canvas.press('0')
+          await settleBoard()
+          await reader.touchscreen.tap(center.x, center.y)
+          await assert.doesNotReject(() => waitForClicks(4), 'A normal tap still activates the report control')
+        }
+
+        await canvas.press('0')
         await reader.getByRole('button', { name: 'Zoom in', exact: true }).click()
         assert.ok((await frame.boundingBox()).width > initial.width)
         await reader.getByRole('button', { name: /^Actual size/ }).click()
@@ -575,6 +690,13 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
         await canvas.press('0')
         const fitted = await frame.boundingBox()
         assert.ok(Math.abs(fitted.x - initial.x) < 1 && Math.abs(fitted.width - initial.width) < 1)
+        const handTool = reader.getByRole('button', { name: 'Pan', exact: true })
+        await handTool.press('Escape')
+        assert.equal(await handTool.getAttribute('aria-pressed'), 'false')
+        await canvas.press('h')
+        assert.equal(await handTool.getAttribute('aria-pressed'), 'true')
+        await reader.keyboard.press('Escape')
+        assert.equal(await handTool.getAttribute('aria-pressed'), 'false')
       }
     }
   } finally {
