@@ -1,75 +1,138 @@
-# Choose providers and deploy
+# Deploy to Cloudflare
 
-Choose a database and a place to store rangka content and uploaded files.
-Each **Deploy** link opens Cloudflare with exactly that combination. There is
-no preselected combination; this page creates no resources and collects no
-credentials.
+Serangkai runs on Cloudflare Workers from **your own fork** of this repository.
+Cloudflare builds the fork, and you get updates by syncing it: one click on
+GitHub, then Cloudflare redeploys by itself.
 
-| Database | File storage | Cloudflare data resources provisioned | Continue |
+You need a GitHub account and a Cloudflare account. No terminal is required.
+
+## 1. Choose a database and file storage
+
+| Database | File storage | Deploy command | Cloudflare creates on first deploy |
 | --- | --- | --- | --- |
-| D1 | R2 | D1 database + R2 bucket | [Deploy D1 + R2](https://deploy.workers.cloudflare.com/?url=https://github.com/sewadahapp/serangkai) |
-| D1 | Backblaze B2 | D1 database | [Deploy D1 + B2](https://deploy.workers.cloudflare.com/?url=https://github.com/sewadahapp/serangkai/tree/master/deploy/cloudflare-b2) |
-| Turso | R2 | R2 bucket | [Deploy Turso + R2](https://deploy.workers.cloudflare.com/?url=https://github.com/sewadahapp/serangkai/tree/master/deploy/cloudflare-turso) |
-| Turso | Backblaze B2 | None | [Deploy Turso + B2](https://deploy.workers.cloudflare.com/?url=https://github.com/sewadahapp/serangkai/tree/master/deploy/cloudflare-turso-b2) |
+| D1 | R2 | `bun run deploy` | D1 database + R2 bucket |
+| D1 | Backblaze B2 | `bun run deploy:b2` | D1 database |
+| Turso | R2 | `bun run deploy:turso` | R2 bucket |
+| Turso | Backblaze B2 | `bun run deploy:turso-b2` | Nothing |
 
-**Turso + B2 requires neither a D1 nor an R2 binding.** Every combination still
-runs the application and serves its static assets on Cloudflare Workers.
-External services are created in their own accounts before deploying.
+**D1 + R2** keeps everything inside Cloudflare and is the simplest choice. R2
+needs to be enabled once in your Cloudflare account, which asks for a payment
+method even on the free tier. If you would rather not, choose **D1 + B2**.
 
-## Prepare your selected providers
+The deploy command picks the matching Wrangler configuration, so the rest of
+this guide is the same for every combination.
 
-**D1:** Cloudflare provisions the database during setup. The Worker creates
-its schema on the first database request; no separate migration command is
-needed.
+## 2. Prepare outside providers
+
+Skip this step for D1 + R2.
 
 **Turso:** Create a Turso/libSQL database and a read/write **database token**.
-Copy its `libsql://` URL and token for the `TURSO_DATABASE_URL` and
-`TURSO_AUTH_TOKEN` prompts. A platform API token is different and should not be
-used here. See [Turso's quickstart](https://docs.turso.tech/sdk/ts/quickstart).
-
-**R2:** Enable R2 in your Cloudflare account. The selected template provisions
-and binds a bucket. R2 is only requested by the two R2 choices.
+Keep its `libsql://` URL and the token for `TURSO_DATABASE_URL` and
+`TURSO_AUTH_TOKEN`. A platform API token is different and does not work here.
+See [Turso's quickstart](https://docs.turso.tech/sdk/ts/quickstart).
 
 **Backblaze B2:** Create a private bucket and a bucket-scoped application key
-with read, write, delete, and list permissions. Note the full S3 endpoint
-(`https://s3.<region>.backblazeb2.com`), region, bucket name, key ID, and
-application key. They become `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`,
-`S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`. B2 choices require no R2
-activation. Keep the bucket private and use an application key scoped to that
-bucket.
+with read, write, delete, and list permissions. Keep the full S3 endpoint
+(`https://s3.<region>.backblazeb2.com`), the region, the bucket name, the key
+ID, and the application key. They become `S3_ENDPOINT`, `S3_REGION`,
+`S3_BUCKET`, `S3_ACCESS_KEY_ID`, and `S3_SECRET_ACCESS_KEY`.
 
-B2 retains old object versions by default. Set a lifecycle rule with an empty
-file prefix to keep only the last version: use **Keep only the last version of
-the file**, or set **Days from hiding to deleting** to `1` and leave **Days from
-uploading to hiding** empty. Setting an upload-to-hiding age would hide current files too.
-Lifecycle rules run daily, so replaced versions can temporarily count toward
-storage. Provider usage limits and billing still apply.
+B2 keeps old file versions by default. Add a lifecycle rule with an empty file
+prefix that keeps only the last version: use **Keep only the last version of the
+file**, or set **Days from hiding to deleting** to `1` and leave **Days from
+uploading to hiding** empty. Setting an upload-to-hiding age would hide current
+files too. Lifecycle rules run daily, so replaced versions can count toward
+storage for a day.
 
-## Complete the Cloudflare setup
+## 3. Fork the repository
 
-Every combination prompts for these five owner/session values:
+Open [sewadahapp/serangkai](https://github.com/sewadahapp/serangkai), click
+**Fork**, and keep the name `serangkai`.
 
-- `ADMIN_USERNAME` and a strong `ADMIN_PASSWORD`.
-- `JWT_SECRET`, `SHARE_SECRET`, and `NUXT_APP_SECRET`: generate each separately
-  with `openssl rand -base64 32` and keep them stable across redeployments.
+## 4. Import the fork into Cloudflare
 
-Workers cannot run `scripts/start.mjs` to derive the session key, so
-`NUXT_APP_SECRET` must be supplied explicitly. Each template's
-`.dev.vars.example` adds only the credentials for its chosen external
-providers. Enter secrets on Cloudflare's setup page, never in this chooser or
-in committed configuration files.
+1. In the Cloudflare dashboard, open **Workers & Pages → Create → Import a
+   repository**. Connect GitHub if asked, and allow access to the fork.
+2. Pick your fork.
+3. Keep the project name **`serangkai`**. It must match the name in the
+   Wrangler configuration.
+4. Set the build settings:
 
-The deploy script builds the `cloudflare_module` preset with Bun before running
-Wrangler. If Cloudflare pre-populates a separate build command, it may be left
-blank because the deploy script performs the build itself. After deployment,
-verify owner login, a rangka write, and an upload/download. The health endpoint
-alone checks neither database nor file storage.
+   | Setting | Value |
+   | --- | --- |
+   | Build command | leave empty |
+   | Deploy command | the command from step 1, for example `bun run deploy` |
+   | Root directory | `/` |
+   | Preview builds | off |
 
-## Manual deployments
+   The deploy command builds Serangkai for Workers and then deploys it, so no
+   separate build command is needed. Keep preview builds off: they would run
+   other branches against your real database and files.
+5. Deploy.
 
-Run the matching command from the full repository. Create the selected D1/R2
-resources first and add their `database_id`/`bucket_name` to that configuration
-when deploying manually.
+The first deploy creates the D1 database and R2 bucket your combination needs.
+Later deploys reuse them.
+
+## 5. Add the secrets
+
+Open the Worker, go to **Settings → Variables and Secrets**, and add each value
+below as type **Secret**. Saving a secret applies it right away, without a
+rebuild. Serangkai cannot sign you in until the first five are set.
+
+| Secret | Value |
+| --- | --- |
+| `ADMIN_USERNAME` | Your login name |
+| `ADMIN_PASSWORD` | A strong password, at least 8 characters |
+| `JWT_SECRET` | A random value |
+| `SHARE_SECRET` | A different random value |
+| `NUXT_APP_SECRET` | A different random value |
+| `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | Turso choices only, from step 2 |
+| `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | B2 choices only, from step 2 |
+
+For each random value, use your password manager's generator with 32 or more
+characters, or run `openssl rand -base64 32`. Use a different value for each
+one and never change them later: changing `JWT_SECRET` or `NUXT_APP_SECRET`
+signs everyone out, and changing `SHARE_SECRET` breaks existing share links.
+
+## 6. Check it works
+
+Open the Worker's URL (or add a custom domain under **Settings → Domains &
+Routes**), then sign in, create a rangka, and upload a file and download it
+again. This checks the database and file storage; `/api/health` alone checks
+neither.
+
+## Updating
+
+When Serangkai releases an update, open your fork on GitHub and click **Sync
+fork → Update branch**. Cloudflare sees the new commit and redeploys. Your
+data, secrets, and domain stay as they are.
+
+Do not commit changes to your fork's `master` branch if you want syncing to
+stay a single click.
+
+## Moving from a Deploy to Cloudflare copy
+
+Earlier versions of this guide used Cloudflare's Deploy button, which copies
+the repository into your account instead of forking it, so it never receives
+updates. To switch without losing data:
+
+1. On GitHub, rename your copy (for example to `serangkai-old`), then fork
+   [sewadahapp/serangkai](https://github.com/sewadahapp/serangkai) as
+   `serangkai`.
+2. In the Worker, open **Settings → Build**. Write down the current build
+   settings, click **Disconnect**, then **Connect** your fork.
+3. Set the build settings as in step 4. Copies made from the B2 or Turso
+   buttons now use the matching `deploy:*` command from step 1.
+4. Sync the fork or trigger a deploy, and check that your existing rangka and
+   files are still there.
+5. Delete the old copy once everything works.
+
+The Worker keeps its secrets, domain, database, and bucket, because they
+belong to the Worker rather than the repository.
+
+## Deploying from a terminal
+
+Run the matching command from a checkout of the repository:
 
 | Database + storage | Wrangler configuration | Command |
 | --- | --- | --- |
@@ -78,28 +141,10 @@ when deploying manually.
 | Turso + R2 | [`wrangler.turso.jsonc`](../wrangler.turso.jsonc) | `bun run deploy:turso` |
 | Turso + B2 | [`wrangler.turso-b2.jsonc`](../wrangler.turso-b2.jsonc) | `bun run deploy:turso-b2` |
 
-Set each required Worker secret with
-`bunx --bun wrangler secret put NAME --config <chosen-config>` before deploying.
-Switching providers does not move your data: import the database explicitly,
-copy the corresponding content/files, and retain the stable secrets. See the
+Set each secret with
+`bunx --bun wrangler secret put NAME --config <chosen-config>`.
+[`.dev.vars.example`](../.dev.vars.example) lists every secret.
+
+Switching providers later does not move your data: import the database
+explicitly, copy the files, and keep the same secrets. See the
 [Turso adapter notes](../README.md#turso--remote-libsql).
-
-## How the chooser works
-
-Cloudflare's native button reads one Wrangler configuration and secret list.
-Its [documented setup flow](https://developers.cloudflare.com/workers/platform/deploy-buttons/)
-does not describe conditional provider selectors. This chooser therefore
-routes to four fixed configurations so unselected resources and credential
-prompts are omitted. It is a GitHub document and requires no separate hosting.
-
-The D1 + R2 choice clones the full repository. Other choices use standalone
-launchers under `deploy/`, since Cloudflare copies a subdirectory as the new
-repository root. These launchers download a pinned application commit and
-record it in `.output/serangkai-source.json`. To upgrade, edit `serangkai.ref`
-or explicitly set `SERANGKAI_REF` and redeploy. `SERANGKAI_REPO` selects a fork;
-`SERANGKAI_LOCAL_SOURCE` builds a local checkout for rehearsals.
-
-Local tests use the real Workers runtime with SQLite-backed libSQL and signed
-S3 fixtures. Hosted button flows and real provider accounts still need
-deployment verification. The public links require these templates and their
-pinned application commits to be available on the repository's `master` branch.

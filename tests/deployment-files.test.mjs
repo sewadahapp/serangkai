@@ -136,35 +136,24 @@ test('the rehearsal builds and smoke tests without publishing', async () => {
   assert.doesNotMatch(workflow, /docker\/login-action/)
 })
 
-test('the Deploy to Cloudflare button has a build path, secrets, and auto-provisioned bindings', async () => {
+test('the Cloudflare deploy script builds the Workers preset and lets Wrangler provision bindings', async () => {
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
-  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
   const devVars = await readFile(new URL('../.dev.vars.example', import.meta.url), 'utf8')
   const config = await readFile(new URL('../wrangler.jsonc', import.meta.url), 'utf8')
   const gitignore = await readFile(new URL('../.gitignore', import.meta.url), 'utf8')
-
-  // One README entry opens the chooser; its explicit D1 + R2 choice uses the
-  // full repository and preserves the existing provisioning flow.
-  assert.match(readme, /deploy\.workers\.cloudflare\.com\/button/)
-  assert.match(readme, /\]\(docs\/deploy-cloudflare\.md\)/)
-  const chooser = await readFile(new URL('../docs/deploy-cloudflare.md', import.meta.url), 'utf8')
-  assert.match(chooser, /deploy\.workers\.cloudflare\.com\/\?url=https:\/\/github\.com\/sewadahapp\/serangkai\)/)
 
   // The deploy script must build the Cloudflare preset before Wrangler runs;
   // a node-server build would pull in better-sqlite3 and fail on Workers.
   assert.match(pkg.scripts.deploy, /build:cloudflare/)
   assert.match(pkg.scripts.deploy, /wrangler deploy/)
 
-  // Every runtime secret is prompted from the example file and described in
-  // the deploy setup page.
   for (const key of ['ADMIN_USERNAME', 'ADMIN_PASSWORD', 'JWT_SECRET', 'SHARE_SECRET', 'NUXT_APP_SECRET']) {
     assert.match(devVars, new RegExp(`^${key}=`, 'm'), `${key} must be in .dev.vars.example`)
-    assert.ok(pkg.cloudflare?.bindings?.[key], `${key} must have a Cloudflare binding description`)
   }
   assert.match(gitignore, /!\.dev\.vars\.example/)
 
-  // Account-specific ids and bucket names are omitted so the button and
-  // Wrangler can provision them for the deploying account.
+  // Account-specific ids and bucket names are omitted so Wrangler provisions
+  // them for the deploying account and later deploys reuse them.
   assert.doesNotMatch(config, /"database_id"/)
   assert.doesNotMatch(config, /"bucket_name"/)
 })
