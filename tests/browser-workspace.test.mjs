@@ -662,6 +662,17 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
           { timeout: 4000 },
         )
         const handSurface = canvas.locator('.canvas-pan-surface')
+        if (checkLoading) {
+          await reader.mouse.click(bounds.x + 8, bounds.y - 8)
+          assert.equal(await reader.evaluate(() => document.activeElement === document.body), true)
+          await inner.evaluate(() => parent.postMessage({
+            type: 'serangkai:canvas-input', kind: 'hover', gesture: { inside: true },
+          }, '*'))
+          await settleBoard()
+          await reader.keyboard.press('ArrowRight')
+          assert.equal((await frame.boundingBox()).x, initial.x, 'An iframe hover report cannot take over page shortcuts')
+        }
+        await reader.mouse.move(initial.x - 8, center.y)
         await reader.mouse.move(center.x, center.y)
         await settleBoard()
         await reader.keyboard.down('Space')
@@ -828,6 +839,53 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
     }
   } finally {
     await Promise.all([owner.close(), guest.close()])
+  }
+})
+
+test('a preview with a missing layout reply stays hidden and can recover', async () => {
+  const owner = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+  try {
+    const signedIn = await owner.request.post(`${base}/api/auth/login`, {
+      data: { username: adminUsername, password: adminPassword },
+    })
+    assert.ok(signedIn.ok())
+    const html = '<!doctype html><html><head><meta name="serangkai-canvas" content="1920x1080"></head><body><p>Delayed canvas</p></body></html>'
+    const created = await owner.request.post(`${base}/api/rangka`, {
+      data: { title: 'Delayed canvas', type: 'html', content: html, visibility: 'public' },
+    })
+    assert.ok(created.ok())
+    const { rangka } = await created.json()
+    const preview = await owner.newPage()
+    await preview.clock.install()
+    const url = `${base}/api/share/${rangka.slug}`
+    const frame = preview.locator('main iframe')
+    const dock = preview.getByRole('group', { name: 'Canvas controls' })
+    const retry = preview.getByRole('button', { name: 'Retry preview' })
+    for (const recovery of ['late reply', 'retry']) {
+      await preview.route(url, async (route) => {
+        const response = await route.fetch()
+        await route.fulfill({ response, body: html })
+      }, { times: 1 })
+      await preview.goto(`${base}/share/${rangka.slug}`)
+      const inner = await (await frame.elementHandle()).contentFrame()
+      await inner.getByText('Delayed canvas').waitFor({ state: 'attached' })
+      await inner.waitForLoadState('load')
+      await preview.clock.fastForward(8100)
+      await retry.waitFor()
+      assert.equal(await frame.isVisible(), false)
+      assert.equal(await dock.isVisible(), false)
+
+      if (recovery === 'late reply') {
+        await inner.evaluate(() => parent.postMessage({ type: 'serangkai:canvas-size', size: '1920x1080' }, '*'))
+      } else {
+        await retry.click()
+      }
+      await dock.waitFor()
+      await retry.waitFor({ state: 'hidden' })
+      assert.ok((await frame.boundingBox()).width < 1280, 'The recovered preview is fitted')
+    }
+  } finally {
+    await owner.close()
   }
 })
 

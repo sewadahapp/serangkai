@@ -53,9 +53,12 @@
       <div :class="[size ? 'canvas-board' : 'canvas-pass-through', { 'canvas-loading-content': loading }]" :style="boardStyle">
         <slot />
       </div>
-      <div v-if="loading" class="canvas-loading-status" role="status">
-        <SerangkaiLogo class="canvas-loading-logo" />
-        <span>Loading preview…</span>
+      <div v-if="loading" class="canvas-loading-status">
+        <div class="canvas-loading-message" role="status">
+          <SerangkaiLogo class="canvas-loading-logo" :class="{ 'canvas-loading-logo-active': !delayed }" />
+          <span>{{ delayed ? 'Preview is taking longer than expected.' : 'Loading preview…' }}</span>
+        </div>
+        <SButton v-if="delayed" variant="soft" color="neutral" size="sm" icon="lucide:rotate-cw" @click="emit('retry')">Retry preview</SButton>
       </div>
       <div v-if="size && handActive" class="canvas-pan-surface" aria-hidden="true" @pointerdown="startDrag" />
     </div>
@@ -65,7 +68,8 @@
 <script setup lang="ts">
 import { CANVAS_KEYS, CANVAS_MODIFIED_KEYS, type CanvasSize } from '#shared/rangka-canvas'
 
-const props = defineProps<{ size: CanvasSize | null; fill?: boolean; loading?: boolean }>()
+const props = defineProps<{ size: CanvasSize | null; fill?: boolean; loading?: boolean; delayed?: boolean }>()
+const emit = defineEmits<{ retry: [] }>()
 
 const zoomStep = 1.25
 const maximumScale = 4
@@ -81,7 +85,6 @@ const frameSpaceHeld = ref(false)
 const handActive = computed(() => panMode.value || spaceHeld.value || frameSpaceHeld.value)
 const dragging = ref(false)
 let drag: { pointer: number; x: number; y: number } | null = null
-let frameHovered = false
 let pinch: { x: number; y: number; camera: typeof camera.value } | null = null
 let touchStart: { x: number; y: number; distance: number } | null = null
 let multiTouch = false
@@ -238,17 +241,17 @@ function focusAfterPointerClick(event: MouseEvent) {
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if (!props.size || event.defaultPrevented || event.isComposing || event.altKey || !viewport.value) return
-  const inCanvas = event.target === viewport.value
-    || (event.target === document.body && (frameHovered || viewport.value.matches(':hover')))
-  const leavingHandTool = event.key === 'Escape' && event.target instanceof Node && shell.value?.contains(event.target)
-  if (!inCanvas && !leavingHandTool) return
+  if (!props.size || !event.isTrusted || event.defaultPrevented || event.isComposing || event.altKey || !viewport.value) return
+  const focused = event.target === viewport.value
   const modified = event.ctrlKey || event.metaKey
-  if (event.code === 'Space' && !modified && !event.shiftKey) {
+  const hoverPan = event.target === document.body && viewport.value.matches(':hover')
+  if (event.code === 'Space' && !modified && !event.shiftKey && (focused || hoverPan)) {
     spaceHeld.value = true
     event.preventDefault()
     return
   }
+  const leavingHandTool = event.key === 'Escape' && event.target instanceof Node && shell.value?.contains(event.target)
+  if (!focused && !leavingHandTool) return
   const map: Partial<Record<string, string>> = modified ? CANVAS_MODIFIED_KEYS : CANVAS_KEYS
   const key = event.shiftKey && event.code === 'Digit1' && !modified ? '0' : event.key
   if (!Object.hasOwn(map, key)) return
@@ -317,15 +320,10 @@ function endGesture() {
 function resetInput() {
   spaceHeld.value = false
   frameSpaceHeld.value = false
-  clearFrameHover()
   releaseDrag()
   pinch = null
   touchStart = null
   multiTouch = false
-}
-
-function clearFrameHover() {
-  frameHovered = false
 }
 
 function finite(value: unknown, min: number, max: number): value is number {
@@ -334,11 +332,7 @@ function finite(value: unknown, min: number, max: number): value is number {
 
 function onFrameInput(frame: HTMLIFrameElement, kind: unknown, payload: unknown) {
   if (!props.size || !viewport.value || !payload || typeof payload !== 'object') return
-  const { x, y, dx, dy, factor, zoom, mode, command, fast, held, inside } = payload as Record<string, unknown>
-  if (kind === 'hover') {
-    frameHovered = inside === true
-    return
-  }
+  const { x, y, dx, dy, factor, zoom, mode, command, fast, held } = payload as Record<string, unknown>
   if (kind === 'space') {
     if (held === true && document.activeElement === frame) frameSpaceHeld.value = true
     if (held === false && frameSpaceHeld.value) {
@@ -392,7 +386,6 @@ onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('keyup', onKeyup)
   window.addEventListener('blur', resetInput)
-  window.addEventListener('pointerover', clearFrameHover, { passive: true })
   if (!viewport.value) return
   measureViewport()
   observer = new ResizeObserver(measureViewport)
@@ -403,7 +396,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('keyup', onKeyup)
   window.removeEventListener('blur', resetInput)
-  window.removeEventListener('pointerover', clearFrameHover)
   observer?.disconnect()
 })
 </script>
@@ -441,11 +433,12 @@ onBeforeUnmount(() => {
   color: var(--selaras-resolved-text-muted);
   font-size: .875rem;
 }
+.canvas-loading-message { display: flex; flex-direction: column; align-items: center; gap: .875rem; }
 .canvas-loading-logo { width: 2.75rem; height: 2.75rem; }
 @media (prefers-reduced-motion: no-preference) {
-  .canvas-loading-logo :deep(rect) { animation: canvas-logo-piece 1.4s ease-in-out infinite; }
-  .canvas-loading-logo :deep(rect:nth-of-type(2)) { animation-delay: .12s; }
-  .canvas-loading-logo :deep(rect:nth-of-type(3)) { animation-delay: .24s; }
+  .canvas-loading-logo-active :deep(rect) { animation: canvas-logo-piece 1.4s ease-in-out infinite; }
+  .canvas-loading-logo-active :deep(rect:nth-of-type(2)) { animation-delay: .12s; }
+  .canvas-loading-logo-active :deep(rect:nth-of-type(3)) { animation-delay: .24s; }
   @keyframes canvas-logo-piece {
     0%, 45%, 100% { transform: translateY(0); opacity: 1; }
     22% { transform: translateY(-2px); opacity: .58; }

@@ -6,7 +6,6 @@ export const canvasInput = `function installCanvasInput() {
   var keys = ${JSON.stringify(CANVAS_KEYS)};
   var modifiedKeys = ${JSON.stringify(CANVAS_MODIFIED_KEYS)};
   var spaceHeld = false;
-  var hovered = false;
   var suppressClick = false;
   var pinch = null;
   var multiTouch = false;
@@ -20,19 +19,6 @@ export const canvasInput = `function installCanvasInput() {
     spaceHeld = held;
     send('space', { held: held });
   }
-
-  function reportHover(inside) {
-    if (hovered === inside) return;
-    hovered = inside;
-    send('hover', { inside: inside });
-  }
-
-  window.addEventListener('pointerover', function (event) {
-    if (event.isTrusted && event.pointerType === 'mouse') reportHover(true);
-  }, true);
-  window.addEventListener('pointerout', function (event) {
-    if (event.isTrusted && event.pointerType === 'mouse' && !event.relatedTarget) reportHover(false);
-  }, true);
 
   function canScroll(event, dx, dy) {
     return event.composedPath().some(function (node) {

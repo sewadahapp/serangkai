@@ -1,8 +1,8 @@
 <template>
-  <SerangkaiCanvasViewport ref="canvasViewport" :size="canvasSize" :fill="fillCanvas" :loading="loading">
+  <SerangkaiCanvasViewport ref="canvasViewport" :size="canvasSize" :fill="fillCanvas" :loading="loading" :delayed="delayed" @retry="startPreview">
     <iframe
       v-if="mounted"
-      :key="src"
+      :key="previewAttempt"
       ref="frame"
       v-bind="$attrs"
       :src="src"
@@ -11,7 +11,7 @@
       referrerpolicy="no-referrer"
       class="block w-full border-0 bg-white dark:bg-[#111]"
       :style="canvasSize ? { height: '100%', minHeight: '0' } : { height: resolvedHeight }"
-      @load="onFrameLoad"
+      @load="sync"
     />
   </SerangkaiCanvasViewport>
 </template>
@@ -46,11 +46,9 @@ const props = withDefaults(defineProps<{
   fillCanvas?: boolean
 }>(), { height: '70vh', autoHeight: false })
 
-// Keep this in sync with MAX_PREVIEW_HEIGHT in the server bridge. The detail
-// panel keeps its 70vh floor and the share reader fills the row between the
-// header and footer, so a failed report degrades to a bounded frame rather
-// than a collapsed one.
+// Keep this in sync with MAX_PREVIEW_HEIGHT in the server bridge.
 const MAX_HEIGHT = 50_000
+const PREVIEW_RETRY_DELAY = 8000
 // Leave a little slack below the reported content. A 1px residual overflow is
 // enough to make the iframe a scroll target, so on macOS with overlay
 // scrollbars the document scrolls first and the page only afterwards. The
@@ -62,6 +60,8 @@ const frame = ref<HTMLIFrameElement>()
 const canvasViewport = useTemplateRef<InstanceType<typeof SerangkaiCanvasViewport>>('canvasViewport')
 const mounted = ref(false)
 const loading = ref(true)
+const delayed = ref(false)
+const previewAttempt = ref(0)
 const reportedHeight = ref<number | null>(null)
 const canvasSize = shallowRef<ReturnType<typeof parseCanvasSize>>(null)
 let readyTimeout: ReturnType<typeof setTimeout> | undefined
@@ -83,24 +83,30 @@ function sync() {
   contentWindow?.postMessage({ type: 'serangkai:height-request' }, '*')
 }
 
-function onFrameLoad() {
-  // A blocked document or an HTTP error may load without the preview bridge.
+function startPreview() {
   clearTimeout(readyTimeout)
+  loading.value = true
+  delayed.value = false
+  reportedHeight.value = null
+  canvasSize.value = null
+  previewAttempt.value++
+  // A failed request may never send a layout message. Keep the iframe hidden
+  // and offer a retry while still accepting a late reply from this attempt.
   readyTimeout = setTimeout(() => {
-    canvasSize.value = null
-    reportedHeight.value = null
-    finishLoading()
-  }, 350)
-  sync()
+    delayed.value = true
+  }, PREVIEW_RETRY_DELAY)
 }
 
 function finishLoading() {
   clearTimeout(readyTimeout)
   if (!loading.value) return
-  const loadedFrame = frame.value
+  const attempt = previewAttempt.value
   // Let the canvas render its controls and measure Fit before revealing either.
   void nextTick(() => {
-    if (frame.value === loadedFrame) loading.value = false
+    if (previewAttempt.value === attempt) {
+      loading.value = false
+      delayed.value = false
+    }
   })
 }
 
@@ -151,12 +157,7 @@ function onMessage(event: MessageEvent) {
   reportedHeight.value = next
 }
 
-watch(() => props.src, () => {
-  clearTimeout(readyTimeout)
-  loading.value = true
-  reportedHeight.value = null
-  canvasSize.value = null
-})
+watch(() => props.src, startPreview)
 watch(resolvedMode, sync)
 
 onMounted(() => {
@@ -165,6 +166,7 @@ onMounted(() => {
     colorMode.value = colorMode.preference === 'system' ? 'system' : colorMode.preference
   }
   // Start the iframe after the listener is ready, including for cached previews.
+  startPreview()
   mounted.value = true
 })
 

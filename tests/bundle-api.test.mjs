@@ -29,6 +29,8 @@ test('uploads and serves a public static bundle safely', async () => {
   const form = new FormData(); form.append('file', new Blob([await zip([['index.html', '<h1>Bundle</h1>'], ['assets/app.js', 'console.log(1)']])], { type: 'application/zip' }), 'site.zip'); form.append('title', 'Static site'); form.append('visibility', 'public')
   const upload = await fetch(`${base}/api/rangka/upload`, { method: 'POST', headers: { cookie }, body: form }); const body = await upload.json(); assert.equal(upload.status, 200); assert.equal(body.rangka.type, 'bundle')
   const page = await fetch(`${base}/api/share/${body.rangka.slug}/index.html`); assert.equal(page.status, 200); assert.match(await page.text(), /Bundle/); assert.match(page.headers.get('content-security-policy'), /sandbox allow-scripts/)
+  const preview = await fetch(`${base}/api/share/${body.rangka.slug}/index.html`, { headers: { accept: 'text/html' } })
+  assert.match(await preview.text(), /serangkai:preview-ready/, 'An HTML navigation can load the preview bridge without Fetch Metadata')
   const script = await fetch(`${base}/api/share/${body.rangka.slug}/assets/app.js`); assert.equal(script.status, 200); assert.equal(await script.text(), 'console.log(1)')
   assert.equal((await fetch(`${base}/api/share/${body.rangka.slug}/..%2Fcontent`)).status, 404)
 })

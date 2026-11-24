@@ -136,7 +136,8 @@ const readyTag = `<script data-serangkai-preview-height>
         parent.postMessage({ type: 'serangkai:preview-ready' }, '*');
       }
     }
-    document.addEventListener('DOMContentLoaded', ready, { once: true });
+    document.addEventListener('readystatechange', ready, { once: true });
+    if (document.body) ready();
     window.addEventListener('message', function (event) {
       if (event.source === parent && event.data?.type === 'serangkai:height-request') ready();
     });

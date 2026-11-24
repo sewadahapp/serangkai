@@ -64,7 +64,11 @@ export default defineEventHandler(async (event) => {
       setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
     }
     if (kind.startsWith('text/html')) {
-      return withBundleCanvas(content, getHeader(event, 'sec-fetch-dest') === 'iframe')
+      const destination = getHeader(event, 'sec-fetch-dest')
+      // Older browsers and HTTP readers can omit Fetch Metadata headers.
+      const htmlNavigation = !destination && getHeader(event, 'accept')?.includes('text/html')
+      appendHeader(event, 'Vary', 'Sec-Fetch-Dest, Accept')
+      return withBundleCanvas(content, destination === 'iframe' || !!htmlNavigation)
     }
     return content
   } catch {
