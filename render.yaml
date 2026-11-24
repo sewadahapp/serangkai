@@ -1,0 +1,25 @@
+# Render Blueprint for Serangkai.
+# Deploys the published GHCR image with a persistent /data volume.
+services:
+  - type: web
+    name: serangkai
+    runtime: image
+    image:
+      url: ghcr.io/sewadahapp/serangkai:0.5.0
+    plan: 0.5c-512mb
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SHARE_SECRET
+        generateValue: true
+    disk:
+      name: serangkai-data
+      mountPath: /data
+      sizeGB: 1
