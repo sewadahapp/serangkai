@@ -167,7 +167,8 @@ fitted to the available space in the workspace and on share links.
 - Hold Space and drag to pan, or slide two fingers on a trackpad. **Pan** or
   `H` keeps the hand tool active until you toggle it or press Escape.
 - Pinch or hold Ctrl or Command and scroll to zoom toward the pointer.
-  Select the zoom percentage to restore 100%, or **Fit** to see the whole board.
+  Open the zoom percentage menu in the floating controls for preset zoom levels,
+  including 100% actual size. Select **Fit** to see the whole board.
 - With the canvas focused, the arrow keys pan, `+` and `-` zoom, and
   `0` or Shift+1 fits the board.
 

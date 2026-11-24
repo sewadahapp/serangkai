@@ -1,11 +1,33 @@
 <template>
   <div ref="shell" :class="size ? ['canvas-shell', { 'canvas-shell-fill': fill }] : 'canvas-pass-through'">
-    <div v-if="size" class="canvas-controls" role="group" aria-label="Canvas controls" @click="focusAfterPointerClick">
+    <div v-if="size" ref="controls" class="canvas-controls" role="group" aria-label="Canvas controls" @click="focusAfterPointerClick">
+      <SButton
+        :variant="handActive ? 'soft' : 'ghost'"
+        :color="handActive ? 'primary' : 'neutral'"
+        size="sm"
+        icon="lucide:hand"
+        aria-label="Pan"
+        aria-keyshortcuts="H"
+        title="Pan (H) or hold Space and drag"
+        :aria-pressed="panMode"
+        @click="panMode = !panMode"
+      />
+      <span class="canvas-controls-divider" aria-hidden="true" />
       <SButton variant="ghost" color="neutral" size="sm" icon="lucide:minus" aria-label="Zoom out" :disabled="camera.scale <= minimumScale" @click="zoomBy(1 / zoomStep)" />
-      <SButton variant="ghost" color="neutral" size="sm" :aria-label="`Actual size, current zoom ${zoomLabel}`" title="Show at 100%" @click="zoomTo(1)">{{ zoomLabel }}</SButton>
+      <SDropdown :items="zoomMenu" :positioning="{ side: 'top', align: 'center', sideOffset: 10, collisionPadding: 12 }">
+        <SButton
+          class="canvas-zoom-label"
+          variant="ghost"
+          color="neutral"
+          size="sm"
+          trailing-icon="lucide:chevron-down"
+          :ui="{ trailingIcon: 'size-3 text-[var(--selaras-resolved-text-muted)]' }"
+          :aria-label="`Zoom options, current zoom ${zoomLabel}`"
+        >{{ zoomLabel }}</SButton>
+      </SDropdown>
       <SButton variant="ghost" color="neutral" size="sm" icon="lucide:plus" aria-label="Zoom in" :disabled="camera.scale >= maximumScale" @click="zoomBy(zoomStep)" />
-      <SButton variant="ghost" color="neutral" size="sm" aria-label="Fit canvas" title="Fit canvas (Shift + 1)" @click="fit">Fit</SButton>
-      <SButton :variant="panMode ? 'soft' : 'ghost'" color="neutral" size="sm" icon="lucide:hand" title="Pan (H) or hold Space and drag" :aria-pressed="panMode" @click="panMode = !panMode">Pan</SButton>
+      <span class="canvas-controls-divider" aria-hidden="true" />
+      <SButton variant="ghost" color="neutral" size="sm" icon="lucide:scan" aria-label="Fit canvas" aria-keyshortcuts="Shift+1" title="Fit canvas (Shift + 1)" @click="fit">Fit</SButton>
     </div>
 
     <div
@@ -44,8 +66,9 @@ const props = defineProps<{ size: CanvasSize | null; fill?: boolean }>()
 const zoomStep = 1.25
 const maximumScale = 4
 const shell = ref<HTMLElement>()
+const controls = ref<HTMLElement>()
 const viewport = ref<HTMLElement>()
-const view = shallowRef({ width: 0, height: 0 })
+const view = shallowRef({ width: 0, height: 0, fitHeight: 0 })
 const camera = shallowRef({ x: 0, y: 0, scale: 1 })
 const fitted = ref(true)
 const panMode = ref(false)
@@ -62,11 +85,18 @@ let multiTouch = false
 const fitScale = computed(() => {
   if (!props.size) return 1
   const width = Math.max(1, view.value.width - 32)
-  const height = Math.max(1, view.value.height - 32)
+  const height = Math.max(1, view.value.fitHeight - 32)
   return Math.min(1, width / props.size.width, height / props.size.height)
 })
 const minimumScale = computed(() => Math.min(0.25, fitScale.value))
 const zoomLabel = computed(() => `${Math.max(1, Math.round(camera.value.scale * 100))}%`)
+const zoomMenu = [
+  [{ label: 'Fit canvas', icon: 'lucide:scan', shortcut: 'Shift+1', onSelect: fit }],
+  [25, 50, 100, 200, 400].map(percent => ({
+    label: percent === 100 ? '100% (actual size)' : `${percent}%`,
+    onSelect: () => zoomTo(percent / 100),
+  })),
+]
 const boardStyle = computed(() => {
   if (!props.size) return undefined
   const { x, y, scale } = camera.value
@@ -95,10 +125,10 @@ function fit() {
   if (!props.size) return
   fitted.value = true
   const scale = fitScale.value
-  positionCamera((view.value.width - props.size.width * scale) / 2, (view.value.height - props.size.height * scale) / 2, scale)
+  positionCamera((view.value.width - props.size.width * scale) / 2, (view.value.fitHeight - props.size.height * scale) / 2, scale)
 }
 
-function zoomTo(value: number, x = view.value.width / 2, y = view.value.height / 2, from = { x, y, camera: camera.value }) {
+function zoomTo(value: number, x = view.value.width / 2, y = view.value.fitHeight / 2, from = { x, y, camera: camera.value }) {
   const previous = from.camera
   const scale = Math.max(minimumScale.value, Math.min(maximumScale, value))
   const ratio = scale / previous.scale
@@ -119,11 +149,13 @@ function measureViewport() {
   if (!props.size || !viewport.value) return
   const previous = view.value
   const { clientWidth: width, clientHeight: height } = viewport.value
-  if (width === previous.width && height === previous.height && !fitted.value) return
+  // The dock floats over the viewport. Fit leaves the whole board above it.
+  const fitHeight = controls.value?.offsetTop ?? height
+  if (width === previous.width && height === previous.height && fitHeight === previous.fitHeight && !fitted.value) return
   if (width !== previous.width || height !== previous.height) pinch = null
-  view.value = { width, height }
+  view.value = { width, height, fitHeight }
   if (fitted.value) fit()
-  else panBy((width - previous.width) / 2, (height - previous.height) / 2)
+  else panBy((width - previous.width) / 2, (fitHeight - previous.fitHeight) / 2)
 }
 
 function startDrag(event: PointerEvent) {
@@ -195,7 +227,8 @@ function keyCommand(command: unknown, fast: boolean) {
 }
 
 function focusAfterPointerClick(event: MouseEvent) {
-  if (event.detail > 0 && event.target instanceof Element && event.target.closest('button')) {
+  const button = event.target instanceof Element ? event.target.closest('button') : null
+  if (event.detail > 0 && button && !button.hasAttribute('aria-haspopup')) {
     viewport.value?.focus({ preventScroll: true })
   }
 }
@@ -347,6 +380,10 @@ watch(() => props.size, () => {
 }, { flush: 'post' })
 
 let observer: ResizeObserver | undefined
+watch(controls, (next, previous) => {
+  if (previous) observer?.unobserve(previous)
+  if (next) observer?.observe(next)
+})
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('keyup', onKeyup)
@@ -356,6 +393,7 @@ onMounted(() => {
   measureViewport()
   observer = new ResizeObserver(measureViewport)
   observer.observe(viewport.value)
+  if (controls.value) observer.observe(controls.value)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
@@ -368,19 +406,39 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .canvas-pass-through { display: contents; }
-.canvas-shell { min-width: 0; overflow: hidden; border: 1px solid var(--selaras-resolved-border-default); border-radius: var(--selaras-resolved-radius-md); }
-.canvas-controls { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .25rem; padding: .375rem .5rem; border-bottom: 1px solid var(--selaras-resolved-border-default); background: var(--selaras-resolved-surface-default); font-variant-numeric: tabular-nums; }
+.canvas-shell { position: relative; min-width: 0; overflow: hidden; border: 1px solid var(--selaras-resolved-border-default); border-radius: var(--selaras-resolved-radius-md); }
+.canvas-controls {
+  --canvas-control-size: 2.25rem;
+  position: absolute;
+  inset-block-end: max(2.75rem, env(safe-area-inset-bottom));
+  inset-inline: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: .125rem;
+  width: max-content;
+  margin-inline: auto;
+  padding: .25rem;
+  border: 1px solid var(--selaras-resolved-border-default);
+  border-radius: var(--selaras-resolved-radius-lg);
+  background: var(--selaras-resolved-surface-elevated);
+  box-shadow: var(--selaras-resolved-shadow-md);
+  font-variant-numeric: tabular-nums;
+}
+.canvas-controls :deep(button) { min-width: var(--canvas-control-size); min-height: var(--canvas-control-size); }
+.canvas-controls-divider { width: 1px; height: 1.25rem; margin-inline: .125rem; background: var(--selaras-resolved-border-default); }
+.canvas-zoom-label { width: 4.375rem; padding-inline: .375rem; }
+.canvas-zoom-label[data-state='open'] { background: var(--selaras-resolved-color-neutral-subtle); }
 .canvas-viewport { position: relative; height: max(17rem, 65dvh); overflow: clip; background-color: var(--selaras-resolved-surface-canvas); touch-action: none; }
 .canvas-viewport:focus-visible { outline: 2px solid var(--selaras-resolved-color-primary-border); outline-offset: -2px; }
 .canvas-board { position: absolute; inset: 0 auto auto 0; overflow: clip; transform-origin: top left; box-shadow: 0 0 0 1px var(--selaras-resolved-border-default); }
 .canvas-pan-surface { position: absolute; inset: 0; }
 .canvas-hand { cursor: grab; }
 .canvas-dragging, .canvas-dragging .canvas-pan-surface { cursor: grabbing; }
-.canvas-shell-fill { display: grid; grid-template-rows: auto minmax(0, 1fr); height: var(--rangka-reader-height); min-height: 17rem; border: 0; border-radius: 0; }
-.canvas-shell-fill .canvas-controls { padding-inline: 1rem; background: var(--selaras-resolved-surface-canvas); }
-.canvas-shell-fill .canvas-viewport { height: auto; background: none; }
+.canvas-shell-fill { height: var(--rangka-reader-height); min-height: 17rem; border: 0; border-radius: 0; }
+.canvas-shell-fill .canvas-viewport { height: 100%; background: none; }
 .canvas-shell-fill .canvas-board { box-shadow: none; }
 @media (pointer: coarse) {
-  .canvas-controls :deep(button) { min-width: 2.75rem; min-height: 2.75rem; }
+  .canvas-controls { --canvas-control-size: 2.75rem; }
 }
 </style>
