@@ -20,7 +20,7 @@ const targets = [
     name: 'Cloudflare Workers',
     rows: 'D1 or Turso',
     files: 'R2 or Backblaze B2',
-    note: 'Choose any of the four combinations; only the resources you pick are provisioned.',
+    note: 'Deploy your own fork in any of four combinations, and update it with Sync fork.',
     to: '/deploy/cloudflare',
   },
   {
