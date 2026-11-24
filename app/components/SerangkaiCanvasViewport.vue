@@ -1,5 +1,5 @@
 <template>
-  <div ref="shell" :class="size ? ['canvas-shell', { 'canvas-shell-fill': fill }] : 'canvas-pass-through'">
+  <div ref="shell" :class="size || loading ? ['canvas-shell', { 'canvas-shell-fill': fill, 'canvas-loading': loading }] : 'canvas-pass-through'">
     <div v-if="size" ref="controls" class="canvas-controls" role="group" aria-label="Canvas controls" @click="focusAfterPointerClick">
       <SButton
         :variant="handActive ? 'soft' : 'ghost'"
@@ -32,7 +32,7 @@
 
     <div
       ref="viewport"
-      :class="size ? ['canvas-viewport serangkai-canvas-pattern', { 'canvas-dragging': dragging, 'canvas-hand': handActive }] : 'canvas-pass-through'"
+      :class="size || loading ? ['canvas-viewport serangkai-canvas-pattern', { 'canvas-dragging': dragging, 'canvas-hand': handActive }] : 'canvas-pass-through'"
       :role="size ? 'region' : undefined"
       :aria-label="size ? 'Rangka canvas' : undefined"
       :tabindex="size ? 0 : undefined"
@@ -50,8 +50,12 @@
       @gesturechange="onGestureChange"
       @gestureend="endGesture"
     >
-      <div :class="size ? 'canvas-board' : 'canvas-pass-through'" :style="boardStyle">
+      <div :class="[size ? 'canvas-board' : 'canvas-pass-through', { 'canvas-loading-content': loading }]" :style="boardStyle">
         <slot />
+      </div>
+      <div v-if="loading" class="canvas-loading-status" role="status">
+        <SerangkaiLogo class="canvas-loading-logo" />
+        <span>Loading preview…</span>
       </div>
       <div v-if="size && handActive" class="canvas-pan-surface" aria-hidden="true" @pointerdown="startDrag" />
     </div>
@@ -61,7 +65,7 @@
 <script setup lang="ts">
 import { CANVAS_KEYS, CANVAS_MODIFIED_KEYS, type CanvasSize } from '#shared/rangka-canvas'
 
-const props = defineProps<{ size: CanvasSize | null; fill?: boolean }>()
+const props = defineProps<{ size: CanvasSize | null; fill?: boolean; loading?: boolean }>()
 
 const zoomStep = 1.25
 const maximumScale = 4
@@ -424,6 +428,28 @@ onBeforeUnmount(() => {
   background: var(--selaras-resolved-surface-elevated);
   box-shadow: var(--selaras-resolved-shadow-md);
   font-variant-numeric: tabular-nums;
+}
+.canvas-loading .canvas-controls, .canvas-loading-content { visibility: hidden; }
+.canvas-loading-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .875rem;
+  color: var(--selaras-resolved-text-muted);
+  font-size: .875rem;
+}
+.canvas-loading-logo { width: 2.75rem; height: 2.75rem; }
+@media (prefers-reduced-motion: no-preference) {
+  .canvas-loading-logo :deep(rect) { animation: canvas-logo-piece 1.4s ease-in-out infinite; }
+  .canvas-loading-logo :deep(rect:nth-of-type(2)) { animation-delay: .12s; }
+  .canvas-loading-logo :deep(rect:nth-of-type(3)) { animation-delay: .24s; }
+  @keyframes canvas-logo-piece {
+    0%, 45%, 100% { transform: translateY(0); opacity: 1; }
+    22% { transform: translateY(-2px); opacity: .58; }
+  }
 }
 .canvas-controls :deep(button) { min-width: var(--canvas-control-size); min-height: var(--canvas-control-size); }
 .canvas-controls-divider { width: 1px; height: 1.25rem; margin-inline: .125rem; background: var(--selaras-resolved-border-default); }

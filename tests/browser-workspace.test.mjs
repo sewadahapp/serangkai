@@ -507,6 +507,7 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
         <button id="board-control" data-clicks="0" onclick="this.dataset.clicks = Number(this.dataset.clicks) + 1">Board control</button>
         <input aria-label="Board text">
         <div id="scroll-panel"><div style="height: 1000px">Scrollable report</div></div>
+        <img src="/api/health?canvas-loading-probe" alt="" hidden>
       </body></html>`
     const html = await owner.request.post(`${base}/api/rangka`, {
       data: { title: 'HTML canvas', type: 'html', visibility: 'public', content },
@@ -538,9 +539,53 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
       const { rangka } = await response.json()
       for (const [reader, path] of [[workspace, `/rangka/${rangka.id}`], [share, `/share/${rangka.slug}`]]) {
         await reader.bringToFront()
-        await reader.goto(base + path)
+        const checkLoading = reader === share && response === html
+        if (checkLoading) {
+          const assetStarted = Promise.withResolvers()
+          const releaseAsset = Promise.withResolvers()
+          const asset = '**/api/health?canvas-loading-probe'
+          await reader.route(asset, async (route) => {
+            assetStarted.resolve()
+            await releaseAsset.promise
+            await route.fulfill({ status: 204 })
+          }, { times: 1 })
+          try {
+            await reader.goto(base + path, { waitUntil: 'domcontentloaded' })
+            await reader.locator('iframe').waitFor({ state: 'attached' })
+            await assetStarted.promise
+            const loader = reader.getByRole('status').filter({ hasText: 'Loading preview…' })
+            await loader.waitFor()
+            assert.equal(await reader.locator('iframe').isVisible(), false, 'The loading preview must hide the unscaled HTML')
+            assert.equal(await reader.getByRole('group', { name: 'Canvas controls' }).isVisible(), false)
+            const piece = loader.locator('.serangkai-logo rect').first()
+            assert.notEqual(await piece.evaluate(element => getComputedStyle(element).animationName), 'none')
+            await reader.emulateMedia({ reducedMotion: 'reduce' })
+            assert.equal(await piece.evaluate(element => getComputedStyle(element).animationName), 'none')
+            await reader.emulateMedia({ reducedMotion: 'no-preference' })
+            await reader.evaluate(() => {
+              function sampleFirstVisibleFrame() {
+                const frame = document.querySelector('main iframe')
+                if (getComputedStyle(frame).visibility === 'hidden') {
+                  requestAnimationFrame(sampleFirstVisibleFrame)
+                  return
+                }
+                const controls = document.querySelector('[aria-label="Canvas controls"]')
+                window.firstCanvasPaint = {
+                  fitted: frame.getBoundingClientRect().width < innerWidth,
+                  controlsVisible: controls && getComputedStyle(controls).visibility === 'visible',
+                }
+              }
+              requestAnimationFrame(sampleFirstVisibleFrame)
+            })
+          } finally {
+            releaseAsset.resolve()
+          }
+        } else {
+          await reader.goto(base + path)
+        }
         const canvas = reader.getByRole('region', { name: 'Rangka canvas', exact: true })
         await canvas.waitFor()
+        await reader.getByRole('group', { name: 'Canvas controls' }).waitFor()
         const frame = canvas.locator('iframe')
         assert.equal(await frame.getAttribute('sandbox'), 'allow-scripts')
         const inner = await (await frame.elementHandle()).contentFrame()
@@ -558,6 +603,9 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
         const settleBoard = () => canvas.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
         // Let Chromium commit the new iframe transform before using raw device coordinates.
         await settleBoard()
+        if (checkLoading) {
+          assert.deepEqual(await reader.evaluate(() => window.firstCanvasPaint), { fitted: true, controlsVisible: true })
+        }
         const bounds = await canvas.boundingBox()
         const initial = await frame.boundingBox()
         assert.ok(initial.width < bounds.width && initial.height < bounds.height)

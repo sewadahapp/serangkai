@@ -48,11 +48,14 @@ test('caps the reported height', () => {
   assert.match(withPreviewHeight(plain), new RegExp(`Math\\.min\\(height, ${MAX_PREVIEW_HEIGHT}\\)`))
 })
 
-test('only adds the bridge to bundle HTML that opts into canvas mode', () => {
+test('adds a ready signal to framed bundles and a canvas bridge to opted-in bundles', () => {
   const unmarked = Buffer.from(plain)
   assert.equal(withBundleCanvas(unmarked), unmarked)
+  const framed = withBundleCanvas(unmarked, true)
+  assert.match(framed, /serangkai:preview-ready/)
+  assert.doesNotMatch(framed, /serangkai:canvas-size/)
   const canvas = Buffer.from(plain.replace('<head>', '<head><meta name="serangkai-canvas" content="1920x1080">'))
-  assert.match(withBundleCanvas(canvas), /data-serangkai-preview-height/)
+  assert.match(withBundleCanvas(canvas), /serangkai:canvas-size/)
 })
 
 test('accepts a bounded pair of canvas dimensions', () => {

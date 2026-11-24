@@ -63,7 +63,10 @@ export default defineEventHandler(async (event) => {
     if (isBundleDocument(kind)) {
       setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
     }
-    return kind.startsWith('text/html') ? withBundleCanvas(content) : content
+    if (kind.startsWith('text/html')) {
+      return withBundleCanvas(content, getHeader(event, 'sec-fetch-dest') === 'iframe')
+    }
+    return content
   } catch {
     throw createError({ statusCode: 404, message: 'File not found' })
   }

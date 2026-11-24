@@ -29,7 +29,6 @@ const bootstrap = (reportHeight: boolean) => `(function () {
   var root = doc.documentElement;
   var last = -1;
   var scheduled = false;
-  var forceNext = false;
   var hasCanvasInput = false;
 
   ${canvasInput}
@@ -43,16 +42,15 @@ const bootstrap = (reportHeight: boolean) => `(function () {
     return value === 'app';
   }
 
-  function measure() {
-    var force = forceNext;
-    forceNext = false;
+  function measure(force) {
+    var ready = force && doc.readyState === 'complete';
     var canvas = doc.querySelector('meta[name="serangkai-canvas" i]');
     var size = canvas ? (canvas.getAttribute('content') || '').trim() : '';
     var dimensions = ${CANVAS_DIMENSIONS}.exec(size);
     if (dimensions
       && Number(dimensions[1]) >= ${MIN_CANVAS_DIMENSION} && Number(dimensions[1]) <= ${MAX_CANVAS_DIMENSION}
       && Number(dimensions[2]) >= ${MIN_CANVAS_DIMENSION} && Number(dimensions[2]) <= ${MAX_CANVAS_DIMENSION}) {
-      if (force && doc.readyState === 'complete') {
+      if (ready) {
         if (!hasCanvasInput) {
           hasCanvasInput = true;
           installCanvasInput();
@@ -61,61 +59,64 @@ const bootstrap = (reportHeight: boolean) => `(function () {
       }
       return;
     }
-    if (!${reportHeight} || usesBoundedFrame()) return;
-    var body = doc.body;
-    var height = Math.max(
-      root ? root.scrollHeight : 0,
-      body ? body.scrollHeight : 0,
-      body ? body.offsetHeight : 0
-    );
-    if (!height) return;
-    // Automatic reports are deduped, but an explicit request must always
-    // answer: the first report can fire before the framing app has hydrated
-    // and attached its listener, so the parent asks again once it is ready.
-    if (!force && height === last) return;
-    last = height;
-    try {
-      parent.postMessage({
-        type: 'serangkai:height',
-        height: Math.min(height, ${MAX_PREVIEW_HEIGHT})
-      }, '*');
-    } catch (error) {}
+    if (${reportHeight} && !usesBoundedFrame()) {
+      var body = doc.body;
+      var height = Math.max(
+        root ? root.scrollHeight : 0,
+        body ? body.scrollHeight : 0,
+        body ? body.offsetHeight : 0
+      );
+      if (height && (force || height !== last)) {
+        last = height;
+        parent.postMessage({
+          type: 'serangkai:height',
+          height: Math.min(height, ${MAX_PREVIEW_HEIGHT})
+        }, '*');
+      }
+    }
+    if (ready) parent.postMessage({ type: 'serangkai:preview-ready' }, '*');
   }
 
-  function schedule(force) {
-    if (force) forceNext = true;
+  function schedule() {
     if (scheduled) return;
     scheduled = true;
     var run = function () {
       scheduled = false;
-      measure();
+      measure(false);
     };
     if (window.requestAnimationFrame) window.requestAnimationFrame(run);
     else setTimeout(run, 16);
   }
 
   if (${reportHeight} && window.ResizeObserver) {
-    var observer = new ResizeObserver(function () { schedule(false); });
+    var observer = new ResizeObserver(schedule);
     if (root) observer.observe(root);
     if (doc.body) observer.observe(doc.body);
   }
   window.addEventListener('message', function (event) {
     if (event.source !== parent) return;
     var data = event && event.data;
-    if (data && data.type === 'serangkai:height-request') schedule(true);
+    // Respond immediately. Hidden frames may wait before their next animation frame.
+    if (data && data.type === 'serangkai:height-request') measure(true);
   });
   if (!${reportHeight}) return;
-  window.addEventListener('load', function () { schedule(false); });
-  window.addEventListener('resize', function () { schedule(false); });
-  doc.addEventListener('DOMContentLoaded', function () { schedule(false); });
-  if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(function () { schedule(false); }).catch(function () {});
-  setTimeout(function () { schedule(false); }, 0);
-  setTimeout(function () { schedule(false); }, 250);
-  setTimeout(function () { schedule(false); }, 1000);
+  window.addEventListener('load', schedule);
+  window.addEventListener('resize', schedule);
+  doc.addEventListener('DOMContentLoaded', schedule);
+  if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(schedule).catch(function () {});
+  setTimeout(schedule, 0);
+  setTimeout(schedule, 250);
+  setTimeout(schedule, 1000);
 })();`
 
 const previewTag = `<script data-serangkai-preview-height>${bootstrap(true)}</script>`
 const canvasTag = `<script data-serangkai-preview-height>${bootstrap(false)}</script>`
+const readyTag = `<script data-serangkai-preview-height>
+  if (window.parent !== window) window.addEventListener('message', function (event) {
+    if (event.source !== parent || event.data?.type !== 'serangkai:height-request') return;
+    if (document.readyState === 'complete') parent.postMessage({ type: 'serangkai:preview-ready' }, '*');
+  });
+</script>`
 
 function withPreviewBridge(content: string, tag: string): string {
   if (/data-serangkai-preview-height\b/i.test(content)) return content
@@ -129,16 +130,18 @@ function withPreviewBridge(content: string, tag: string): string {
   if (/<body[^>]*>/i.test(content)) {
     return content.replace(/<body[^>]*>/i, body => `${body}${tag}`)
   }
-  return tag + content
+  return content.replace(/^(\s*<!doctype[^>]*>)?/i, declaration => declaration + tag)
 }
 
 export function withPreviewHeight(content: string): string {
   return withPreviewBridge(content, previewTag)
 }
 
-// Only opted-in bundle pages need a bridge. Their height stays bounded.
-export function withBundleCanvas(content: Buffer): string | Buffer {
+// Bundle documents stay bounded. Only the preview needs a ready signal.
+export function withBundleCanvas(content: Buffer, framed = false): string | Buffer {
   const html = content.toString()
-  if (!/<meta\b[^>]*\sname\s*=\s*(?:"serangkai-canvas"|'serangkai-canvas'|serangkai-canvas(?=[\s/>]))/i.test(html)) return content
-  return withPreviewBridge(html, canvasTag)
+  if (/<meta\b[^>]*\sname\s*=\s*(?:"serangkai-canvas"|'serangkai-canvas'|serangkai-canvas(?=[\s/>]))/i.test(html)) {
+    return withPreviewBridge(html, canvasTag)
+  }
+  return framed ? withPreviewBridge(html, readyTag) : content
 }

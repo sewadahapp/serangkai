@@ -1,6 +1,8 @@
 <template>
-  <SerangkaiCanvasViewport ref="canvasViewport" :size="canvasSize" :fill="fillCanvas">
+  <SerangkaiCanvasViewport ref="canvasViewport" :size="canvasSize" :fill="fillCanvas" :loading="loading">
     <iframe
+      v-if="mounted"
+      :key="src"
       ref="frame"
       v-bind="$attrs"
       :src="src"
@@ -58,8 +60,12 @@ const HEIGHT_HEADROOM = 2
 const colorMode = useColorMode()
 const frame = ref<HTMLIFrameElement>()
 const canvasViewport = useTemplateRef<InstanceType<typeof SerangkaiCanvasViewport>>('canvasViewport')
+const mounted = ref(false)
+const loading = ref(true)
 const reportedHeight = ref<number | null>(null)
 const canvasSize = shallowRef<ReturnType<typeof parseCanvasSize>>(null)
+let readyTimeout: ReturnType<typeof setTimeout> | undefined
+let awaitingReady = false
 
 const resolvedHeight = computed(() => {
   if (!props.autoHeight || reportedHeight.value === null) return props.height
@@ -79,8 +85,25 @@ function sync() {
 }
 
 function onFrameLoad() {
+  loading.value = true
   canvasSize.value = null
+  reportedHeight.value = null
+  // A blocked document or an HTTP error may load without the preview bridge.
+  awaitingReady = true
+  clearTimeout(readyTimeout)
+  readyTimeout = setTimeout(finishLoading, 350)
   sync()
+}
+
+function finishLoading() {
+  if (!awaitingReady) return
+  awaitingReady = false
+  clearTimeout(readyTimeout)
+  const loadedFrame = frame.value
+  // Let the canvas render its controls and measure Fit before revealing either.
+  void nextTick(() => {
+    if (frame.value === loadedFrame) loading.value = false
+  })
 }
 
 function onMessage(event: MessageEvent) {
@@ -91,6 +114,11 @@ function onMessage(event: MessageEvent) {
   const data = event.data as { type?: unknown; height?: unknown; size?: unknown; kind?: unknown; gesture?: unknown } | null
   if (data?.type === 'serangkai:canvas-size') {
     canvasSize.value ??= parseCanvasSize(data.size)
+    if (canvasSize.value) finishLoading()
+    return
+  }
+  if (data?.type === 'serangkai:preview-ready') {
+    finishLoading()
     return
   }
   if (canvasSize.value && data?.type === 'serangkai:canvas-input') {
@@ -115,6 +143,9 @@ function onMessage(event: MessageEvent) {
 }
 
 watch(() => props.src, () => {
+  clearTimeout(readyTimeout)
+  awaitingReady = false
+  loading.value = true
   reportedHeight.value = null
   canvasSize.value = null
 })
@@ -125,11 +156,12 @@ onMounted(() => {
   if (colorMode.unknown) {
     colorMode.value = colorMode.preference === 'system' ? 'system' : colorMode.preference
   }
-  // A server-rendered frame may finish loading before hydration attaches the
-  // listener, so its first height reports are lost. Ask for the current height
-  // once the listener is in place.
-  sync()
+  // Start the iframe after the listener is ready, including for cached previews.
+  mounted.value = true
 })
 
-onBeforeUnmount(() => window.removeEventListener('message', onMessage))
+onBeforeUnmount(() => {
+  clearTimeout(readyTimeout)
+  window.removeEventListener('message', onMessage)
+})
 </script>
