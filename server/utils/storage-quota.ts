@@ -4,6 +4,8 @@ import { formatByteSize } from '../../shared/byte-size'
 import { getServerConfig } from './config'
 import { rangkaStorage } from './rangka-storage'
 
+declare const __SERANGKAI_CLOUDFLARE__: boolean
+
 /**
  * Storage accounting and limits.
  *
@@ -136,12 +138,18 @@ export async function saveStorageSettings(db: any, userId: string, settings: Sto
 
 /** Real filesystem size for local/Docker storage; null for object storage or edge runtimes. */
 async function diskCapacity(): Promise<StorageStatus['disk']> {
+  // Workers store rangka in R2 (or S3) even when STORAGE_DRIVER is unset, and
+  // their virtual filesystem reports a zero-sized disk.
+  if (__SERANGKAI_CLOUDFLARE__) return null
   const config = getServerConfig()
   if (config.storageDriver !== 'local') return null
   try {
     const { statfs } = await import('node:fs/promises')
     const stats = await statfs(config.storagePath)
-    return { totalBytes: stats.blocks * stats.bsize, freeBytes: stats.bavail * stats.bsize }
+    const totalBytes = stats.blocks * stats.bsize
+    // A filesystem that cannot report its size is unknown, not full.
+    if (!(totalBytes > 0)) return null
+    return { totalBytes, freeBytes: stats.bavail * stats.bsize }
   } catch {
     return null
   }

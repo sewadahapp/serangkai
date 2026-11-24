@@ -67,6 +67,14 @@ test('Cloudflare local D1 runtime supports owner login, rangka creation, and lis
   assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()), png)
   assert.doesNotMatch(stderr, /ephemeral memory storage/)
 
+  // R2 is object storage: usage is reported without a disk size, never as a
+  // full zero-byte disk.
+  const storageResponse = await fetch(`${base}/api/storage`, { headers: { cookie } })
+  assert.equal(storageResponse.status, 200, await storageResponse.clone().text())
+  const { storage } = await storageResponse.json()
+  assert.ok(storage.usedBytes > 0)
+  assert.equal(storage.disk, null)
+
   const tokenResponse = await fetch(`${base}/api/tokens`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Edge agent', scopes: ['read'] }) })
   if (tokenResponse.status !== 200) assert.fail(await tokenResponse.text())
   const { token } = await tokenResponse.json()
