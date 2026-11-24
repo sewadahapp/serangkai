@@ -74,7 +74,6 @@
       <template v-if="rangka">
         <SerangkaiHtmlPreview
           v-if="isFramed && rangka.rawUrl"
-          flush
           :src="rangka.rawUrl"
           :title="`${rangka.title} preview`"
           :auto-height="rangka.type === 'html'"

@@ -519,6 +519,7 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
     for (const response of [html, bundle]) {
       const { rangka } = await response.json()
       for (const [reader, path] of [[workspace, `/rangka/${rangka.id}`], [share, `/share/${rangka.slug}`]]) {
+        await reader.bringToFront()
         await reader.goto(base + path)
         const canvas = reader.getByRole('region', { name: 'Rangka canvas', exact: true })
         await canvas.waitFor()
@@ -534,9 +535,16 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
           }
         })
         assert.deepEqual(controlPosition.size, [1920, 1080])
+        // Let Chromium commit the new iframe transform before using raw device coordinates.
+        await canvas.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
         const bounds = await canvas.boundingBox()
         const initial = await frame.boundingBox()
         assert.ok(initial.width < bounds.width && initial.height < bounds.height)
+        if (reader === workspace) {
+          const section = await reader.getByRole('region', { name: 'Rangka content', exact: true }).boundingBox()
+          assert.ok(Math.abs(bounds.x - section.x) < 1 && Math.abs(bounds.width - section.width) < 1)
+          assert.ok(Math.abs(bounds.y + bounds.height - reader.viewportSize().height) <= 2)
+        }
         // Playwright's locator click adds the iframe offset but does not scale
         // the coordinates inside a transformed frame.
         await reader.mouse.click(
@@ -615,18 +623,21 @@ test('long HTML previews size to the document and scroll with the page', async (
     const content = frame?.parentElement
     const rect = (element) => {
       const bounds = element.getBoundingClientRect()
-      return { top: Math.round(bounds.top), bottom: Math.round(bounds.bottom), height: Math.round(bounds.height) }
+      return { left: Math.round(bounds.left), right: Math.round(bounds.right), top: Math.round(bounds.top), bottom: Math.round(bounds.bottom), height: Math.round(bounds.height) }
     }
     return {
       viewport: window.innerHeight,
       pageHeight: document.documentElement.scrollHeight,
       section: section ? { ...rect(section), paddingBottom: parseFloat(getComputedStyle(section).paddingBottom) } : null,
       content: content ? rect(content) : null,
-      frame: frame ? rect(frame) : null,
+      frame: frame ? { ...rect(frame), border: getComputedStyle(frame).borderTopWidth } : null,
     }
   })
 
   assert.ok(layout.frame, 'the HTML preview iframe must render')
+  assert.equal(layout.frame.border, '0px')
+  assert.equal(layout.frame.left, layout.section.left)
+  assert.equal(layout.frame.right, layout.section.right)
   assert.ok(layout.frame.height > layout.viewport, `frame height ${layout.frame.height}`)
   // The content ends with the document plus its own bottom padding.
   assert.ok(Math.abs(layout.section.bottom - layout.frame.bottom - layout.section.paddingBottom) <= 2, `section bottom ${layout.section.bottom} vs frame ${layout.frame.bottom}`)

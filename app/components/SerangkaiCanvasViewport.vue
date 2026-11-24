@@ -1,5 +1,5 @@
 <template>
-  <div :class="size ? 'canvas-shell' : 'canvas-pass-through'">
+  <div :class="size ? ['canvas-shell', { 'canvas-shell-fill': fill }] : 'canvas-pass-through'">
     <div v-if="size" class="canvas-controls" role="group" aria-label="Canvas controls">
       <SButton variant="ghost" color="neutral" size="sm" icon="lucide:minus" aria-label="Zoom out" :disabled="camera.scale <= minimumScale" @click="zoomBy(1 / zoomStep)" />
       <SButton variant="ghost" color="neutral" size="sm" :aria-label="`Actual size, current zoom ${zoomLabel}`" title="Show at 100%" @click="zoomTo(1)">{{ zoomLabel }}</SButton>
@@ -33,7 +33,7 @@
 <script setup lang="ts">
 import type { CanvasSize } from '#shared/rangka-canvas'
 
-const props = defineProps<{ size: CanvasSize | null }>()
+const props = defineProps<{ size: CanvasSize | null; fill?: boolean }>()
 
 const zoomStep = 1.25
 const maximumScale = 4
@@ -182,6 +182,10 @@ onBeforeUnmount(() => observer?.disconnect())
 .canvas-board { position: absolute; inset: 0 auto auto 0; overflow: clip; transform-origin: top left; box-shadow: 0 0 0 1px var(--selaras-resolved-border-default); }
 .canvas-pan-surface { position: absolute; inset: 0; cursor: grab; touch-action: none; }
 .canvas-dragging, .canvas-dragging .canvas-pan-surface { cursor: grabbing; }
+.canvas-shell-fill { display: grid; grid-template-rows: auto minmax(0, 1fr); height: var(--rangka-reader-height); min-height: 17rem; border: 0; border-radius: 0; }
+.canvas-shell-fill .canvas-controls { padding-inline: 1rem; background: var(--selaras-resolved-surface-canvas); }
+.canvas-shell-fill .canvas-viewport { height: auto; background: none; }
+.canvas-shell-fill .canvas-board { box-shadow: none; }
 @media (pointer: coarse) {
   .canvas-controls :deep(button) { min-width: 2.75rem; min-height: 2.75rem; }
 }

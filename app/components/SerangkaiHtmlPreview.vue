@@ -1,5 +1,5 @@
 <template>
-  <SerangkaiCanvasViewport :size="canvasSize">
+  <SerangkaiCanvasViewport :size="canvasSize" :fill="fillCanvas">
     <iframe
       ref="frame"
       v-bind="$attrs"
@@ -7,9 +7,7 @@
       :title="title"
       sandbox="allow-scripts"
       referrerpolicy="no-referrer"
-      :class="flush || canvasSize
-        ? 'block w-full border-0 bg-white dark:bg-[#111]'
-        : 'w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-white dark:bg-[#111]'"
+      class="block w-full border-0 bg-white dark:bg-[#111]"
       :style="canvasSize ? { height: '100%', minHeight: '0' } : { height: resolvedHeight }"
       @load="onFrameLoad"
     />
@@ -41,28 +39,20 @@ const props = withDefaults(defineProps<{
    * which leaves the frame bounded and scrolling internally.
    */
   autoHeight?: boolean
-  /**
-   * Fill the parent edge to edge instead of sitting in a bordered card. Used by
-   * the share reader, where the document is the page rather than a preview.
-   */
-  flush?: boolean
-}>(), { height: '70vh', autoHeight: false, flush: false })
+  /** Let an opted-in canvas fill the workspace reader below its toolbar. */
+  fillCanvas?: boolean
+}>(), { height: '70vh', autoHeight: false })
 
 // Keep this in sync with MAX_PREVIEW_HEIGHT in the server bridge. The detail
 // panel keeps its 70vh floor and the share reader fills the row between the
 // header and footer, so a failed report degrades to a bounded frame rather
 // than a collapsed one.
 const MAX_HEIGHT = 50_000
-// The bordered preview uses 1px on each edge; without this the frame's content
-// viewport is 2px shorter than the reported document and always has a tiny
-// scrollbar. `box-sizing: border-box` is global.
-const VERTICAL_BORDER = 2
 // Leave a little slack below the reported content. A 1px residual overflow is
 // enough to make the iframe a scroll target, so on macOS with overlay
 // scrollbars the document scrolls first and the page only afterwards. The
 // parent's guard ignores corrections that small, so the frame would otherwise
-// keep that sliver forever. The share reader's flush frame accidentally had the
-// same slack because it still added VERTICAL_BORDER; make it explicit for both.
+// keep that sliver forever.
 const HEIGHT_HEADROOM = 2
 const colorMode = useColorMode()
 const frame = ref<HTMLIFrameElement>()
@@ -71,8 +61,7 @@ const canvasSize = shallowRef<ReturnType<typeof parseCanvasSize>>(null)
 
 const resolvedHeight = computed(() => {
   if (!props.autoHeight || reportedHeight.value === null) return props.height
-  const chrome = (props.flush ? 0 : VERTICAL_BORDER) + HEIGHT_HEADROOM
-  return `${reportedHeight.value + chrome}px`
+  return `${reportedHeight.value + HEIGHT_HEADROOM}px`
 })
 
 // Resolve "system" to the concrete mode the rangka should render in.

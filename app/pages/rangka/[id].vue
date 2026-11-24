@@ -62,7 +62,14 @@
       <p v-if="message" class="rangka-notice" role="status">{{ message }}</p>
       <SAlert v-if="deleteMessage" color="danger" variant="subtle" :title="deleteMessage" />
 
-      <section class="rangka-document" aria-label="Rangka content" :class="{ 'rangka-document-markdown': rangka.type === 'markdown' }">
+      <section
+        class="rangka-document"
+        aria-label="Rangka content"
+        :class="{
+          'rangka-document-markdown': rangka.type === 'markdown',
+          'rangka-document-embed': rangka.type === 'html' || rangka.type === 'bundle',
+        }"
+      >
             <img
               v-if="rangka.type === 'image'"
               :src="`/api/rangka/${rangka.id}/preview`"
@@ -80,6 +87,7 @@
               :src="`/api/rangka/${rangka.id}/preview`"
               :title="`${rangka.title} HTML preview`"
               auto-height
+              fill-canvas
               class="min-h-[70vh]"
             />
             <!-- A bundle fills the reading area and scrolls inside its frame. -->
@@ -87,7 +95,8 @@
               v-else-if="rangka.type === 'bundle' && bundleUrl"
               :src="bundleUrl"
               :title="`${rangka.title} website`"
-              height="calc(100dvh - 9rem)"
+              height="var(--rangka-reader-height)"
+              fill-canvas
             />
             <div v-else-if="rangka.type === 'markdown'" class="min-w-0 w-full">
               <MarkdownDocument :body="contentBody" />
@@ -751,8 +760,8 @@ const save = async () => {
 .history-title { display: flex; align-items: center; gap: .5rem; font-size: .875rem; font-weight: 600; color: var(--selaras-resolved-text-default); }
 .history-meta { display: flex; flex-wrap: wrap; gap: .375rem; font-size: .75rem; color: var(--selaras-resolved-text-muted); font-variant-numeric: tabular-nums; }
 .history-actions { display: flex; flex: none; align-items: center; gap: .125rem; }
-.rangka-reader { min-width: 0; }
-.rangka-toolbar { position: sticky; top: 4rem; z-index: 10; display: flex; align-items: center; gap: .5rem; min-height: 3.5rem; padding: .5rem 1rem; border-bottom: 1px solid var(--selaras-resolved-border-muted); background: var(--selaras-resolved-surface-canvas); }
+.rangka-reader { --rangka-toolbar-top: 4rem; --rangka-toolbar-height: calc(3.5rem + 1px); --rangka-reader-height: calc(100dvh - var(--rangka-toolbar-top) - var(--rangka-toolbar-height)); min-width: 0; }
+.rangka-toolbar { position: sticky; top: var(--rangka-toolbar-top); z-index: 10; display: flex; align-items: center; gap: .5rem; min-height: var(--rangka-toolbar-height); padding: .5rem 1rem; border-bottom: 1px solid var(--selaras-resolved-border-muted); background: var(--selaras-resolved-surface-canvas); }
 .rangka-document { min-width: 0; padding: 1.5rem 1rem 4rem; }
 .rangka-document-markdown { max-width: 58rem; margin-inline: auto; padding-top: 2.5rem; }
 .rangka-document-markdown :deep(.selaras-prose :is(h1, h2, h3, h4):first-child) { margin-block-start: 0; }
@@ -769,5 +778,6 @@ const save = async () => {
 @media (max-width: 639px) { .rangka-crumbs :deep(li:not(:last-child)) { display: none; } }
 @media (min-width: 1024px) { .rangka-meta { display: flex; } }
 @media (min-width: 768px) { .rangka-document { padding-inline: 2.5rem; }.rangka-toolbar { padding-inline: 1.5rem; } }
-@media (min-width: 1024px) { .rangka-toolbar { top: 0; }.rangka-document-markdown { padding-top: 3.5rem; } }
+@media (min-width: 1024px) { .rangka-reader { --rangka-toolbar-top: 0px; }.rangka-document-markdown { padding-top: 3.5rem; } }
+.rangka-document-embed { padding: 0; }
 </style>
