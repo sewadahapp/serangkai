@@ -21,8 +21,13 @@ a consent screen, and you approve the requested scopes. No secret is pasted
 into the client.
 
 Authorization codes use PKCE (S256), and every grant is bound to the MCP
-resource. Approved grants are listed in **Settings**, where you can disconnect
-any of them.
+resource. Approved grants are listed in **Settings**, where you can rename or
+disconnect any of them.
+
+Every install of an app registers under the same name, such as "Codex". To tell
+two of them apart, change **Connection name** on the consent screen, for
+example to "Codex – work laptop". The setup prompt also asks the agent to name
+itself with `set_connection_name`, which never replaces a name you chose.
 
 ## Device authorization
 

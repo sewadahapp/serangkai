@@ -14,6 +14,7 @@ Serangkai serves MCP over Streamable HTTP at `/api/mcp`. See
 | Tool | Scope | Does |
 | --- | --- | --- |
 | `get_rangka_capabilities` | `read` | Describes supported types, components, and limits |
+| `set_connection_name` | `read` | Names this connection in Settings, unless the owner already named it |
 | `list_folders` | `read` | Lists folders |
 | `search` | `read` | Searches rangka and folders, optionally within a folder subtree |
 | `list_rangka` | `read` | Lists rangka |
