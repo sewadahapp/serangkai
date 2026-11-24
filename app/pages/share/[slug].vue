@@ -77,6 +77,7 @@
           :src="rangka.rawUrl"
           :title="`${rangka.title} preview`"
           :auto-height="rangka.type === 'html'"
+          fill-canvas
           height="100%"
           class="min-h-full"
         />

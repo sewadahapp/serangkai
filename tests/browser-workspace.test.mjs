@@ -526,6 +526,14 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
     const workspace = await owner.newPage()
     const share = await guest.newPage()
     const touch = await guest.newCDPSession(share)
+    async function assertShareCanvasHeight(bounds) {
+      const header = await share.getByRole('banner').boundingBox()
+      const footer = await share.getByRole('contentinfo').boundingBox()
+      assert.ok(Math.abs(bounds.y - header.y - header.height) <= 1, 'Canvas starts below the share header')
+      assert.ok(Math.abs(bounds.y + bounds.height - footer.y) <= 1, 'Canvas fills the share reader down to its footer')
+      assert.ok(Math.abs(footer.y + footer.height - share.viewportSize().height) <= 1, 'A canvas share fits the viewport')
+    }
+
     for (const response of [html, bundle]) {
       const { rangka } = await response.json()
       for (const [reader, path] of [[workspace, `/rangka/${rangka.id}`], [share, `/share/${rangka.slug}`]]) {
@@ -561,6 +569,7 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
         if (reader === share) {
           const pan = await dock.getByRole('button', { name: 'Pan', exact: true }).boundingBox()
           assert.ok(pan.width >= 44 && pan.height >= 44)
+          await assertShareCanvasHeight(bounds)
         }
         if (reader === workspace) {
           const section = await reader.getByRole('region', { name: 'Rangka content', exact: true }).boundingBox()
@@ -617,6 +626,8 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
         const zoomedControl = point(zoomed, controlPosition.x, controlPosition.y)
         await reader.mouse.click(zoomedControl.x, zoomedControl.y - 23)
         await reader.keyboard.down('Space')
+        await handSurface.waitFor({ state: 'visible', timeout: 4000 })
+        await settleBoard()
         await reader.mouse.move(zoomedControl.x, zoomedControl.y)
         await reader.mouse.down()
         await reader.mouse.move(zoomedControl.x + 36, zoomedControl.y + 18, { steps: 6 })
@@ -720,6 +731,13 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
         assert.equal(await handTool.getAttribute('aria-pressed'), 'true')
         await reader.keyboard.press('Escape')
         assert.equal(await handTool.getAttribute('aria-pressed'), 'false')
+        if (reader === share) {
+          const portrait = share.viewportSize()
+          await share.setViewportSize({ width: 900, height: 350 })
+          await settleBoard()
+          await assertShareCanvasHeight(await canvas.boundingBox())
+          await share.setViewportSize(portrait)
+        }
       }
     }
   } finally {

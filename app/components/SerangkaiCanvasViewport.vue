@@ -435,7 +435,7 @@ onBeforeUnmount(() => {
 .canvas-pan-surface { position: absolute; inset: 0; }
 .canvas-hand { cursor: grab; }
 .canvas-dragging, .canvas-dragging .canvas-pan-surface { cursor: grabbing; }
-.canvas-shell-fill { height: var(--rangka-reader-height); min-height: 17rem; border: 0; border-radius: 0; }
+.canvas-shell-fill { height: var(--rangka-reader-height, 100%); min-height: 12rem; border: 0; border-radius: 0; }
 .canvas-shell-fill .canvas-viewport { height: 100%; background: none; }
 .canvas-shell-fill .canvas-board { box-shadow: none; }
 @media (pointer: coarse) {

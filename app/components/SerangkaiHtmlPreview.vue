@@ -40,7 +40,7 @@ const props = withDefaults(defineProps<{
    * which leaves the frame bounded and scrolling internally.
    */
   autoHeight?: boolean
-  /** Let an opted-in canvas fill the workspace reader below its toolbar. */
+  /** Let an opted-in canvas fill the reader's available height. */
   fillCanvas?: boolean
 }>(), { height: '70vh', autoHeight: false })
 
