@@ -60,6 +60,8 @@ export const canvasInput = `function installCanvasInput() {
   window.addEventListener('keydown', function (event) {
     if (!event.isTrusted || event.defaultPrevented || event.isComposing || event.altKey
       || (event.target instanceof Element && event.target.closest(interactive))) return;
+    var keyboard = doc.head?.querySelector('meta[name="serangkai-canvas-keys" i]');
+    if (keyboard?.content.trim().toLowerCase() === 'none') return;
     var modified = event.ctrlKey || event.metaKey;
     if (event.code === 'Space' && !modified && !event.shiftKey) {
       event.preventDefault();

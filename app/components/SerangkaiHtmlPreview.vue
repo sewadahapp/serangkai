@@ -65,7 +65,6 @@ const loading = ref(true)
 const reportedHeight = ref<number | null>(null)
 const canvasSize = shallowRef<ReturnType<typeof parseCanvasSize>>(null)
 let readyTimeout: ReturnType<typeof setTimeout> | undefined
-let awaitingReady = false
 
 const resolvedHeight = computed(() => {
   if (!props.autoHeight || reportedHeight.value === null) return props.height
@@ -85,20 +84,19 @@ function sync() {
 }
 
 function onFrameLoad() {
-  loading.value = true
-  canvasSize.value = null
-  reportedHeight.value = null
   // A blocked document or an HTTP error may load without the preview bridge.
-  awaitingReady = true
   clearTimeout(readyTimeout)
-  readyTimeout = setTimeout(finishLoading, 350)
+  readyTimeout = setTimeout(() => {
+    canvasSize.value = null
+    reportedHeight.value = null
+    finishLoading()
+  }, 350)
   sync()
 }
 
 function finishLoading() {
-  if (!awaitingReady) return
-  awaitingReady = false
   clearTimeout(readyTimeout)
+  if (!loading.value) return
   const loadedFrame = frame.value
   // Let the canvas render its controls and measure Fit before revealing either.
   void nextTick(() => {
@@ -113,11 +111,21 @@ function onMessage(event: MessageEvent) {
   if (!sender || event.source !== sender.contentWindow) return
   const data = event.data as { type?: unknown; height?: unknown; size?: unknown; kind?: unknown; gesture?: unknown } | null
   if (data?.type === 'serangkai:canvas-size') {
-    canvasSize.value ??= parseCanvasSize(data.size)
-    if (canvasSize.value) finishLoading()
+    const size = parseCanvasSize(data.size)
+    if (!size) return
+    if (canvasSize.value?.width !== size.width || canvasSize.value?.height !== size.height) {
+      canvasSize.value = size
+      loading.value = true
+      reportedHeight.value = null
+    }
+    finishLoading()
     return
   }
   if (data?.type === 'serangkai:preview-ready') {
+    if (canvasSize.value) {
+      canvasSize.value = null
+      sync()
+    }
     finishLoading()
     return
   }
@@ -126,7 +134,8 @@ function onMessage(event: MessageEvent) {
     return
   }
   if (!props.autoHeight || canvasSize.value || data?.type !== 'serangkai:height') return
-  const height = Math.round(Number(data.height))
+  if (typeof data.height !== 'number') return
+  const height = Math.round(data.height)
   if (!Number.isFinite(height) || height <= 0) return
   const next = Math.min(height, MAX_HEIGHT)
 
@@ -144,7 +153,6 @@ function onMessage(event: MessageEvent) {
 
 watch(() => props.src, () => {
   clearTimeout(readyTimeout)
-  awaitingReady = false
   loading.value = true
   reportedHeight.value = null
   canvasSize.value = null

@@ -175,6 +175,16 @@ fitted to the available space in the workspace and on share links.
 Buttons, editable fields, and scrollable regions inside the rangka keep their
 usual behavior during normal interaction.
 
+For a slide deck or another HTML app with its own keyboard commands, add this
+tag to reserve keys for the app while the frame has focus:
+
+```html
+<meta name="serangkai-canvas-keys" content="none">
+```
+
+The viewer's toolbar, pointer gestures, and shortcuts with the canvas viewport
+focused are still available.
+
 ### Sandbox
 
 The frame is sandboxed, cannot reach the app origin, and has

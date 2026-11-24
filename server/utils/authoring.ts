@@ -251,6 +251,10 @@ Lay out the board within the declared viewport in CSS pixels (240 to 4096 per
 dimension). The workspace and share reader fit the board and provide zoom
 and pan controls. This marker also works in bundle HTML.
 
+For a canvas app with its own keyboard commands, add
+\`<meta name="serangkai-canvas-keys" content="none">\` to reserve keys for the app
+while its frame has focus. The viewer toolbar and pointer gestures remain available.
+
 ## Security
 
 - The frame is sandboxed and cannot reach the app origin.

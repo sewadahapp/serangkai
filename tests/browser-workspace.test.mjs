@@ -543,7 +543,12 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
         if (checkLoading) {
           const assetStarted = Promise.withResolvers()
           const releaseAsset = Promise.withResolvers()
+          const releaseDocument = Promise.withResolvers()
           const asset = '**/api/health?canvas-loading-probe'
+          await reader.route(base + '/api/share/' + rangka.slug, async (route) => {
+            await releaseDocument.promise
+            await route.continue()
+          }, { times: 1 })
           await reader.route(asset, async (route) => {
             assetStarted.resolve()
             await releaseAsset.promise
@@ -552,7 +557,6 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
           try {
             await reader.goto(base + path, { waitUntil: 'domcontentloaded' })
             await reader.locator('iframe').waitFor({ state: 'attached' })
-            await assetStarted.promise
             const loader = reader.getByRole('status').filter({ hasText: 'Loading preview…' })
             await loader.waitFor()
             assert.equal(await reader.locator('iframe').isVisible(), false, 'The loading preview must hide the unscaled HTML')
@@ -577,7 +581,20 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
               }
               requestAnimationFrame(sampleFirstVisibleFrame)
             })
+            releaseDocument.resolve()
+            await assetStarted.promise
+            const controls = reader.getByRole('group', { name: 'Canvas controls' })
+            await controls.waitFor()
+            const firstCanvas = reader.getByRole('region', { name: 'Rangka canvas' })
+            const fittedWidth = (await firstCanvas.locator('iframe').boundingBox()).width
+            await controls.getByRole('button', { name: 'Zoom in', exact: true }).click()
+            releaseAsset.resolve()
+            const loaded = await (await firstCanvas.locator('iframe').elementHandle()).contentFrame()
+            await loaded.waitForLoadState('load')
+            assert.ok((await firstCanvas.locator('iframe').boundingBox()).width > fittedWidth, 'Late assets preserve the user zoom')
+            await controls.getByRole('button', { name: 'Fit canvas' }).click()
           } finally {
+            releaseDocument.resolve()
             releaseAsset.resolve()
           }
         } else {
@@ -779,6 +796,27 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
         assert.equal(await handTool.getAttribute('aria-pressed'), 'true')
         await reader.keyboard.press('Escape')
         assert.equal(await handTool.getAttribute('aria-pressed'), 'false')
+        if (checkLoading) {
+          const beforeKey = await frame.boundingBox()
+          await inner.evaluate(() => {
+            const meta = document.createElement('meta')
+            meta.name = 'serangkai-canvas-keys'
+            meta.content = 'none'
+            document.head.append(meta)
+            document.body.tabIndex = -1
+            document.body.focus()
+            document.addEventListener('keydown', (event) => {
+              if (event.key === 'ArrowRight') document.body.dataset.advanced = 'true'
+            })
+          })
+          await reader.keyboard.press('ArrowRight')
+          await inner.waitForFunction(() => document.body.dataset.advanced === 'true')
+          await settleBoard()
+          assert.equal((await frame.boundingBox()).x, beforeKey.x, 'The authored key does not also pan the canvas')
+          await canvas.press('ArrowRight')
+          assert.ok((await frame.boundingBox()).x < beforeKey.x, 'Viewer shortcuts work when the viewport has focus')
+          await canvas.press('0')
+        }
         if (reader === share) {
           const portrait = share.viewportSize()
           await share.setViewportSize({ width: 900, height: 350 })

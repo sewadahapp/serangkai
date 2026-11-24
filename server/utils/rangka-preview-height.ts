@@ -30,6 +30,7 @@ const bootstrap = (reportHeight: boolean) => `(function () {
   var last = -1;
   var scheduled = false;
   var hasCanvasInput = false;
+  var reportedLayout = null;
 
   ${canvasInput}
 
@@ -43,19 +44,20 @@ const bootstrap = (reportHeight: boolean) => `(function () {
   }
 
   function measure(force) {
-    var ready = force && doc.readyState === 'complete';
+    var ready = doc.body || doc.readyState !== 'loading';
     var canvas = doc.querySelector('meta[name="serangkai-canvas" i]');
     var size = canvas ? (canvas.getAttribute('content') || '').trim() : '';
     var dimensions = ${CANVAS_DIMENSIONS}.exec(size);
     if (dimensions
       && Number(dimensions[1]) >= ${MIN_CANVAS_DIMENSION} && Number(dimensions[1]) <= ${MAX_CANVAS_DIMENSION}
       && Number(dimensions[2]) >= ${MIN_CANVAS_DIMENSION} && Number(dimensions[2]) <= ${MAX_CANVAS_DIMENSION}) {
-      if (ready) {
+      if (ready && (force || reportedLayout !== size)) {
         if (!hasCanvasInput) {
           hasCanvasInput = true;
           installCanvasInput();
         }
         parent.postMessage({ type: 'serangkai:canvas-size', size: size }, '*');
+        reportedLayout = size;
       }
       return;
     }
@@ -74,7 +76,10 @@ const bootstrap = (reportHeight: boolean) => `(function () {
         }, '*');
       }
     }
-    if (ready) parent.postMessage({ type: 'serangkai:preview-ready' }, '*');
+    if (ready && (force || reportedLayout !== '')) {
+      parent.postMessage({ type: 'serangkai:preview-ready' }, '*');
+      reportedLayout = '';
+    }
   }
 
   function schedule() {
@@ -99,10 +104,22 @@ const bootstrap = (reportHeight: boolean) => `(function () {
     // Respond immediately. Hidden frames may wait before their next animation frame.
     if (data && data.type === 'serangkai:height-request') measure(true);
   });
+  // The head declares the presentation. Let the viewer fit it when the body
+  // arrives, even if an image, font, or later script holds up the load event.
+  var layoutObserver = new MutationObserver(function () {
+    if (!doc.body) return;
+    layoutObserver.disconnect();
+    measure(false);
+  });
+  if (doc.body) measure(false);
+  else if (root) layoutObserver.observe(root, { childList: true });
+  doc.addEventListener('DOMContentLoaded', function () {
+    layoutObserver.disconnect();
+    measure(false);
+  });
   if (!${reportHeight}) return;
   window.addEventListener('load', schedule);
   window.addEventListener('resize', schedule);
-  doc.addEventListener('DOMContentLoaded', schedule);
   if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(schedule).catch(function () {});
   setTimeout(schedule, 0);
   setTimeout(schedule, 250);
@@ -112,10 +129,18 @@ const bootstrap = (reportHeight: boolean) => `(function () {
 const previewTag = `<script data-serangkai-preview-height>${bootstrap(true)}</script>`
 const canvasTag = `<script data-serangkai-preview-height>${bootstrap(false)}</script>`
 const readyTag = `<script data-serangkai-preview-height>
-  if (window.parent !== window) window.addEventListener('message', function (event) {
-    if (event.source !== parent || event.data?.type !== 'serangkai:height-request') return;
-    if (document.readyState === 'complete') parent.postMessage({ type: 'serangkai:preview-ready' }, '*');
-  });
+  (function () {
+    if (window.parent === window) return;
+    function ready() {
+      if (document.body || document.readyState !== 'loading') {
+        parent.postMessage({ type: 'serangkai:preview-ready' }, '*');
+      }
+    }
+    document.addEventListener('DOMContentLoaded', ready, { once: true });
+    window.addEventListener('message', function (event) {
+      if (event.source === parent && event.data?.type === 'serangkai:height-request') ready();
+    });
+  })();
 </script>`
 
 function withPreviewBridge(content: string, tag: string): string {
