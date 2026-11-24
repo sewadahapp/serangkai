@@ -405,10 +405,10 @@ const formatDate = (value: string) => {
   const diff = Date.now() - date.getTime()
   if (diff < 60_000) return 'just now'
   if (diff < 86_400_000) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  return humanDate(date)
 }
 
-const fullDate = (value: string) => new Date(value).toLocaleString()
+const fullDate = (value: string) => humanDateTime(value)
 
 const formatBytes = (bytes: number) => {
   if (!bytes) return '0 B'
