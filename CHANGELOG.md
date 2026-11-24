@@ -1,6 +1,33 @@
 # Changelog
 
 
+## v0.6.0
+
+[compare changes](https://github.com/sewadahapp/serangkai/compare/v0.5.0...v0.6.0)
+
+### 🚀 Enhancements
+
+- Prototype fixed canvases for HTML rangka and bundles ([0b3e19b](https://github.com/sewadahapp/serangkai/commit/0b3e19b))
+- Add direct canvas pan and zoom gestures ([f3d445b](https://github.com/sewadahapp/serangkai/commit/f3d445b))
+- Float rangka canvas controls ([d7f4527](https://github.com/sewadahapp/serangkai/commit/d7f4527))
+
+### 🩹 Fixes
+
+- Use a borderless layout for rangka details ([e888fcf](https://github.com/sewadahapp/serangkai/commit/e888fcf))
+- Fill the shared canvas reader height ([c7e1f9c](https://github.com/sewadahapp/serangkai/commit/c7e1f9c))
+- Reveal canvases after fitting the preview ([437e3d6](https://github.com/sewadahapp/serangkai/commit/437e3d6))
+- Resolve canvas preview review findings ([8e6287d](https://github.com/sewadahapp/serangkai/commit/8e6287d))
+- Keep unresolved canvas previews hidden ([a06925f](https://github.com/sewadahapp/serangkai/commit/a06925f))
+
+### 📖 Documentation
+
+- **deploy:** Add Render one-click deploy blueprint ([171027d](https://github.com/sewadahapp/serangkai/commit/171027d))
+- **deploy:** Clarify manual Render image updates ([f00635e](https://github.com/sewadahapp/serangkai/commit/f00635e))
+
+### ❤️ Contributors
+
+- Wicaksana Pratama <wicaksanapratama@gmail.com>
+
 ## v0.5.0
 
 [compare changes](https://github.com/sewadahapp/serangkai/compare/v0.4.0...v0.5.0)
