@@ -7,7 +7,6 @@ services:
     image:
       url: ghcr.io/sewadahapp/serangkai:0.5.0
     plan: 0.5c-512mb
-    autoDeployTrigger: off
     healthCheckPath: /api/health
     envVars:
       - key: PORT

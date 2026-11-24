@@ -85,9 +85,8 @@ the only persistence you need.
 The [Render Blueprint](render.yaml) deploys the published image with a
 persistent `/data` disk. Render will ask you for `ADMIN_USERNAME` and
 `ADMIN_PASSWORD`; `JWT_SECRET` and `SHARE_SECRET` are generated for you. A paid
-Render plan is required for the persistent disk, and auto-deploys are off so
-pushes to this repository don't redeploy your instance. Health checks use
-`/api/health`.
+Render plan is required for the persistent disk. Deploy image updates manually
+from the Render Dashboard. Health checks use `/api/health`.
 
 These four values must stay configured across redeployments:
 
