@@ -47,15 +47,34 @@ To pin one scheme:
 <meta name="color-scheme" content="only light">
 ```
 
-## Presentation mode
+## Presentation modes
 
-By default the reader sizes HTML to its content, so the page owns the scrollbar
-and the footer follows the document. Full-viewport apps that manage their own
-layout and scrolling can ask for a bounded frame instead:
+An HTML rangka is shown one of three ways, in the workspace and on shared
+links alike. Pick one with a meta tag in `<head>`; the default needs none.
 
-```html
-<meta name="serangkai-presentation" content="app">
-```
+| Mode | Marker | Who scrolls | Use for |
+| --- | --- | --- | --- |
+| Document | none | The page; the frame grows to the content | Reports, articles, long dashboards |
+| App | `<meta name="serangkai-presentation" content="app">` | The HTML, inside a screen-sized frame | Chat UIs, tools, layouts with a fixed sidebar or bottom bar |
+| Canvas | `<meta name="serangkai-canvas" content="1920x1080">` | Nobody; viewers zoom and pan | Kanban boards, whiteboards, mind maps, slides, posters |
+
+In app mode, toolbars and inputs the HTML pins with `100vh` or
+`position: fixed` stay on screen, because the frame never grows taller than the
+space between the header and footer.
+
+### Canvas
+
+Declare the board size in CSS pixels (240 to 4096 per side) and lay the board
+out at exactly that size. Viewers then see it like a design file: fitted to the
+screen, with zoom (Ctrl/Cmd + wheel, pinch, `+`/`-`), pan (wheel, the hand tool
+`H`, Space + drag), and fit (`0`).
+
+Everything on the board belongs to the HTML. A plain drag inside the board
+reaches your script, so draggable cards or sticky notes work with ordinary
+pointer events; the `canvasBoard` template is a kanban board built that way.
+If the board has its own keyboard shortcuts, add
+`<meta name="serangkai-canvas-keys" content="none">` so the viewer leaves those
+keys alone.
 
 ## Sandbox
 

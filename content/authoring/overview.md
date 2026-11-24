@@ -33,5 +33,5 @@ interaction or layout that Markdown components cannot express.
 ## Prompts
 
 The MCP server also ships prompts that give an agent a starting point:
-`create_report`, `create_dashboard`, `create_html_document`, and
-`create_custom_dashboard`.
+`create_report`, `create_dashboard`, `create_html_document`,
+`create_custom_dashboard`, and `create_canvas_board`.

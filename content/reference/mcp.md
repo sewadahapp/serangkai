@@ -51,9 +51,9 @@ agent-written code on the server.
 | `serangkai://guides/html` | Self-styled HTML, the document theme, markers, and sandbox rules |
 | `serangkai://components/selaras` | Supported component tags, props, slots, and examples |
 | `serangkai://tokens/selaras` | Theme-aware CSS custom properties for HTML rangka |
-| `serangkai://templates/*` | Starting points: `report`, `technicalDoc`, `dashboard`, `diagram`, `interactiveApp` |
+| `serangkai://templates/*` | Starting points: `report`, `technicalDoc`, `dashboard`, `diagram`, `interactiveApp`, `canvasBoard` |
 
 ## Prompts
 
-`create_report`, `create_dashboard`, `create_html_document`, and
-`create_custom_dashboard` give an agent starting instructions for common work.
+`create_report`, `create_dashboard`, `create_html_document`,
+`create_custom_dashboard`, and `create_canvas_board` give an agent starting instructions for common work.
