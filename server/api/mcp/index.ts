@@ -66,7 +66,7 @@ const rangkaOutput = z.object({
 })
 
 function createMcpServer(userId: string, canWrite: boolean, db: any, grantId: string | null) {
-  const server = new McpServer({ name: 'serangkai', version: '0.1.0' }, { maxToolInputElements: 100, instructions: 'Rangka are documents, files, and interactive content stored in the connected Serangkai workspace. Use create_rangka to create them in Serangkai and get_rangka/update_rangka to read or revise them. The workspace owns persistence, versions, folders, and sharing.' })
+  const server = new McpServer({ name: 'serangkai', version: '0.1.0' }, { maxToolInputElements: 100, instructions: 'Rangka are documents, files, and interactive content stored in the connected Serangkai workspace. Use create_rangka to create them in Serangkai and get_rangka/update_rangka to read or revise them. The workspace owns persistence, versions, folders, and sharing. HTML rangka can be documents, full-screen apps, or zoomable canvases such as kanban boards and whiteboards; get_rangka_capabilities explains each.' })
   const findFolder = (folderId: string) => db.select().from(folders)
     .where(and(eq(folders.id, folderId), eq(folders.userId, userId))).get()
 
@@ -209,7 +209,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, grantId: st
 
   server.registerTool('create_rangka', {
     title: 'Create rangka',
-    description: 'Create a private-by-default rangka in the Serangkai workspace. Call get_rangka_capabilities for authoring syntax.',
+    description: 'Create a private-by-default rangka in the Serangkai workspace. For a board viewers zoom and pan, such as a kanban or whiteboard, create HTML with <meta name="serangkai-canvas" content="WIDTHxHEIGHT">. Call get_rangka_capabilities for authoring syntax and presentation modes.',
     inputSchema: {
       title: z.string().min(1).max(200),
       type: rangkaType,
@@ -362,6 +362,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, grantId: st
     ['create_dashboard', 'Create a Markdown dashboard with Selaras cards and a chart.', promptMessages.createDashboard],
     ['create_html_document', 'Create a styled HTML report with the Selaras document theme.', promptMessages.createHtmlDocument],
     ['create_custom_dashboard', 'Create a custom-designed HTML dashboard without Selaras styling.', promptMessages.createCustomDashboard],
+    ['create_canvas_board', 'Create a zoomable, pannable HTML canvas, such as a kanban board with draggable cards.', promptMessages.createCanvasBoard],
   ] as const
   for (const [name, description, text] of promptEntries) {
     server.registerPrompt(name, { title: description, description }, async () => ({
