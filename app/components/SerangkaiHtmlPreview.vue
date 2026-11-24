@@ -1,19 +1,27 @@
 <template>
-  <iframe
-    ref="frame"
-    :src="src"
-    :title="title"
-    sandbox="allow-scripts"
-    referrerpolicy="no-referrer"
-    :class="flush
-      ? 'block w-full border-0 bg-white dark:bg-[#111]'
-      : 'w-full rounded-md border border-[var(--selaras-resolved-border-default)] bg-white dark:bg-[#111]'"
-    :style="{ height: resolvedHeight }"
-    @load="sync"
-  />
+  <SerangkaiCanvasViewport ref="canvasViewport" :size="canvasSize" :fill="fillCanvas" :loading="loading" :delayed="delayed" @retry="startPreview">
+    <iframe
+      v-if="mounted"
+      :key="previewAttempt"
+      ref="frame"
+      v-bind="$attrs"
+      :src="src"
+      :title="title"
+      sandbox="allow-scripts"
+      referrerpolicy="no-referrer"
+      class="block w-full border-0 bg-white dark:bg-[#111]"
+      :style="canvasSize ? { height: '100%', minHeight: '0' } : { height: resolvedHeight }"
+      @load="sync"
+    />
+  </SerangkaiCanvasViewport>
 </template>
 
 <script setup lang="ts">
+import { parseCanvasSize } from '#shared/rangka-canvas'
+import SerangkaiCanvasViewport from './SerangkaiCanvasViewport.vue'
+
+defineOptions({ inheritAttrs: false })
+
 /**
  * HTML rangka preview.
  *
@@ -34,37 +42,33 @@ const props = withDefaults(defineProps<{
    * which leaves the frame bounded and scrolling internally.
    */
   autoHeight?: boolean
-  /**
-   * Fill the parent edge to edge instead of sitting in a bordered card. Used by
-   * the share reader, where the document is the page rather than a preview.
-   */
-  flush?: boolean
-}>(), { height: '70vh', autoHeight: false, flush: false })
+  /** Let an opted-in canvas fill the reader's available height. */
+  fillCanvas?: boolean
+}>(), { height: '70vh', autoHeight: false })
 
-// Keep this in sync with MAX_PREVIEW_HEIGHT in the server bridge. The detail
-// panel keeps its 70vh floor and the share reader fills the row between the
-// header and footer, so a failed report degrades to a bounded frame rather
-// than a collapsed one.
+// Keep this in sync with MAX_PREVIEW_HEIGHT in the server bridge.
 const MAX_HEIGHT = 50_000
-// The bordered preview uses 1px on each edge; without this the frame's content
-// viewport is 2px shorter than the reported document and always has a tiny
-// scrollbar. `box-sizing: border-box` is global.
-const VERTICAL_BORDER = 2
+const PREVIEW_RETRY_DELAY = 8000
 // Leave a little slack below the reported content. A 1px residual overflow is
 // enough to make the iframe a scroll target, so on macOS with overlay
 // scrollbars the document scrolls first and the page only afterwards. The
 // parent's guard ignores corrections that small, so the frame would otherwise
-// keep that sliver forever. The share reader's flush frame accidentally had the
-// same slack because it still added VERTICAL_BORDER; make it explicit for both.
+// keep that sliver forever.
 const HEIGHT_HEADROOM = 2
 const colorMode = useColorMode()
 const frame = ref<HTMLIFrameElement>()
+const canvasViewport = useTemplateRef<InstanceType<typeof SerangkaiCanvasViewport>>('canvasViewport')
+const mounted = ref(false)
+const loading = ref(true)
+const delayed = ref(false)
+const previewAttempt = ref(0)
 const reportedHeight = ref<number | null>(null)
+const canvasSize = shallowRef<ReturnType<typeof parseCanvasSize>>(null)
+let readyTimeout: ReturnType<typeof setTimeout> | undefined
 
 const resolvedHeight = computed(() => {
   if (!props.autoHeight || reportedHeight.value === null) return props.height
-  const chrome = (props.flush ? 0 : VERTICAL_BORDER) + HEIGHT_HEADROOM
-  return `${reportedHeight.value + chrome}px`
+  return `${reportedHeight.value + HEIGHT_HEADROOM}px`
 })
 
 // Resolve "system" to the concrete mode the rangka should render in.
@@ -76,17 +80,68 @@ function sync() {
   // a height request.
   const contentWindow = frame.value?.contentWindow
   contentWindow?.postMessage({ type: 'serangkai:color-mode', mode: resolvedMode.value }, '*')
-  if (props.autoHeight) contentWindow?.postMessage({ type: 'serangkai:height-request' }, '*')
+  contentWindow?.postMessage({ type: 'serangkai:height-request' }, '*')
+}
+
+function startPreview() {
+  clearTimeout(readyTimeout)
+  loading.value = true
+  delayed.value = false
+  reportedHeight.value = null
+  canvasSize.value = null
+  previewAttempt.value++
+  // A failed request may never send a layout message. Keep the iframe hidden
+  // and offer a retry while still accepting a late reply from this attempt.
+  readyTimeout = setTimeout(() => {
+    delayed.value = true
+  }, PREVIEW_RETRY_DELAY)
+}
+
+function finishLoading() {
+  clearTimeout(readyTimeout)
+  if (!loading.value) return
+  const attempt = previewAttempt.value
+  // Let the canvas render its controls and measure Fit before revealing either.
+  void nextTick(() => {
+    if (previewAttempt.value === attempt) {
+      loading.value = false
+      delayed.value = false
+    }
+  })
 }
 
 function onMessage(event: MessageEvent) {
-  if (!props.autoHeight) return
   // A sandboxed frame has an opaque origin, so `event.origin` is "null".
-  // Match the sender window instead, and accept only the height payload.
-  if (event.source !== frame.value?.contentWindow) return
-  const data = event.data as { type?: unknown; height?: unknown } | null
-  if (!data || data.type !== 'serangkai:height') return
-  const height = Math.round(Number(data.height))
+  // Match the sender window, then validate its dimensions or input.
+  const sender = frame.value
+  if (!sender || event.source !== sender.contentWindow) return
+  const data = event.data as { type?: unknown; height?: unknown; size?: unknown; kind?: unknown; gesture?: unknown } | null
+  if (data?.type === 'serangkai:canvas-size') {
+    const size = parseCanvasSize(data.size)
+    if (!size) return
+    if (canvasSize.value?.width !== size.width || canvasSize.value?.height !== size.height) {
+      canvasSize.value = size
+      loading.value = true
+      reportedHeight.value = null
+    }
+    finishLoading()
+    return
+  }
+  if (data?.type === 'serangkai:preview-ready') {
+    if (canvasSize.value) {
+      canvasSize.value = null
+      sync()
+    }
+    finishLoading()
+    return
+  }
+  if (canvasSize.value && data?.type === 'serangkai:canvas-input') {
+    canvasViewport.value?.onFrameInput(sender, data.kind, data.gesture)
+    return
+  }
+  if (!props.autoHeight || canvasSize.value || data?.type !== 'serangkai:height') return
+  if (typeof data.height !== 'number') return
+  const height = Math.round(data.height)
   if (!Number.isFinite(height) || height <= 0) return
   const next = Math.min(height, MAX_HEIGHT)
 
@@ -102,7 +157,7 @@ function onMessage(event: MessageEvent) {
   reportedHeight.value = next
 }
 
-watch(() => props.src, () => { reportedHeight.value = null })
+watch(() => props.src, startPreview)
 watch(resolvedMode, sync)
 
 onMounted(() => {
@@ -110,11 +165,13 @@ onMounted(() => {
   if (colorMode.unknown) {
     colorMode.value = colorMode.preference === 'system' ? 'system' : colorMode.preference
   }
-  // A server-rendered frame may finish loading before hydration attaches the
-  // listener, so its first height reports are lost. Ask for the current height
-  // once the listener is in place.
-  sync()
+  // Start the iframe after the listener is ready, including for cached previews.
+  startPreview()
+  mounted.value = true
 })
 
-onBeforeUnmount(() => window.removeEventListener('message', onMessage))
+onBeforeUnmount(() => {
+  clearTimeout(readyTimeout)
+  window.removeEventListener('message', onMessage)
+})
 </script>

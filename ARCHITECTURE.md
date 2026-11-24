@@ -439,13 +439,19 @@ server. Error results carry text only.
   Rangka can opt out with `<meta name="color-scheme" content="only light">`.
   `sandbox allow-scripts` still denies same-origin access, forms, popups, framing,
   and network calls.
-- The authenticated HTML preview also injects a height reporter
+- Workspace and shared HTML previews inject a sizing bridge
   (`server/utils/rangka-preview-height.ts`). Because the sandboxed frame is
   opaque-origin, the parent listens for a source-checked `serangkai:height`
   message and resizes the frame to the document height, so document-style
   rangka scroll with the page. Reports that equal the current frame height
   are ignored, which keeps `100vh` rangka from growing in a feedback loop.
-  Public share delivery does not inject the reporter.
+- HTML and bundle pages can opt into a fixed canvas with the
+  `serangkai-canvas` meta tag. The bridge reports the bounded dimensions and
+  forwards canvas gestures from the active frame. The viewer validates input
+  messages against that frame and pans and scales the fixed viewport. Holding
+  Space temporarily engages a hand surface in the viewer so drag coordinates
+  stay stable as the iframe moves. Normal clicks, editing, and scrollable
+  regions keep their native behavior inside the frame.
 - Sandboxed HTML rangka can render Mermaid and TanStack charts without a CDN
   by opting into a same-origin runtime. `server/utils/rangka-runtime.ts` scans
   the delivered HTML and injects only the bundles it needs:

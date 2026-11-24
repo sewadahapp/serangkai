@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { MAX_PREVIEW_HEIGHT, withPreviewHeight } from '../server/utils/rangka-preview-height.ts'
+import { MAX_PREVIEW_HEIGHT, withBundleCanvas, withPreviewHeight } from '../server/utils/rangka-preview-height.ts'
+import { parseCanvasSize } from '../shared/rangka-canvas.ts'
 
 const plain = '<!doctype html><html><head><title>Plain</title></head><body><p>Hello</p></body></html>'
 
@@ -45,4 +46,21 @@ test('lets viewport-sized apps opt out of height reporting', () => {
 test('caps the reported height', () => {
   assert.ok(MAX_PREVIEW_HEIGHT > 0)
   assert.match(withPreviewHeight(plain), new RegExp(`Math\\.min\\(height, ${MAX_PREVIEW_HEIGHT}\\)`))
+})
+
+test('adds a ready signal to framed bundles and a canvas bridge to opted-in bundles', () => {
+  const unmarked = Buffer.from(plain)
+  assert.equal(withBundleCanvas(unmarked), unmarked)
+  const framed = withBundleCanvas(unmarked, true)
+  assert.match(framed, /serangkai:preview-ready/)
+  assert.doesNotMatch(framed, /serangkai:canvas-size/)
+  const canvas = Buffer.from(plain.replace('<head>', '<head><meta name="serangkai-canvas" content="1920x1080">'))
+  assert.match(withBundleCanvas(canvas), /serangkai:canvas-size/)
+})
+
+test('accepts a bounded pair of canvas dimensions', () => {
+  assert.deepEqual(parseCanvasSize('1920x1080'), { width: 1920, height: 1080 })
+  for (const invalid of ['1920x0', '4097x1080', '1920xInfinity', 'width=1920', null, { width: 1920, height: 1080 }]) {
+    assert.equal(parseCanvasSize(invalid), null)
+  }
 })

@@ -3,6 +3,7 @@ import { rangkaItems } from '../../../db/schema'
 import { getRequestDatabase } from '../../../db/adapter'
 import { isValidBundleViewKey, isValidShareKey } from '../../../utils/share'
 import { bundleMimeType, isBundleDocument, readBundleFile } from '../../../utils/bundles'
+import { withBundleCanvas } from '../../../utils/rangka-preview-height'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
@@ -61,6 +62,13 @@ export default defineEventHandler(async (event) => {
     // (an opaque origin with no network) is the boundary, not the inline ban.
     if (isBundleDocument(kind)) {
       setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
+    }
+    if (kind.startsWith('text/html')) {
+      const destination = getHeader(event, 'sec-fetch-dest')
+      // Older browsers and HTTP readers can omit Fetch Metadata headers.
+      const htmlNavigation = !destination && getHeader(event, 'accept')?.includes('text/html')
+      appendHeader(event, 'Vary', 'Sec-Fetch-Dest, Accept')
+      return withBundleCanvas(content, destination === 'iframe' || !!htmlNavigation)
     }
     return content
   } catch {
