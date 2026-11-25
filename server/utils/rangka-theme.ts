@@ -12,11 +12,17 @@
  * available inside the rangka.
  */
 import { isThemeId } from '../../shared/themes'
+import { hasCanvasMeta } from './rangka-preview-height'
 
 export const DOCUMENT_THEME = 'selaras-document'
 export const DOCUMENT_THEME_PATH = '/rangka-themes/selaras-document.css'
 
 const THEME_META = /<meta[^>]+name=["']serangkai-theme["'][^>]*>/i
+
+// The theme centres a 48rem reading column with padding. A canvas lays out its
+// own board at the declared size, so it keeps the colors and font but not the
+// column. Inserted right after the theme link, so author CSS still wins.
+export const CANVAS_LAYOUT_STYLE = '<style data-serangkai-canvas-layout>html,body{max-width:none;margin:0;padding:0}</style>'
 
 export function wantsDocumentTheme(content: string) {
   const meta = content.match(THEME_META)?.[0]
@@ -41,7 +47,8 @@ export function withDocumentTheme(content: string, themeId?: string) {
   if (!wantsDocumentTheme(content)) return content
   if (/data-serangkai-document-theme\b/i.test(content)) return content
 
-  const tag = `<link rel="stylesheet" href="${DOCUMENT_THEME_PATH}" data-serangkai-document-theme>`
+  const link = `<link rel="stylesheet" href="${DOCUMENT_THEME_PATH}" data-serangkai-document-theme>`
+  const tag = hasCanvasMeta(content) ? link + CANVAS_LAYOUT_STYLE : link
   let out: string
   if (/<head[^>]*>/i.test(content)) {
     out = content.replace(/<head[^>]*>/i, head => `${head}${tag}`)

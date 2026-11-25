@@ -91,7 +91,7 @@ test('human browser workflow logs in and creates a rangka', async () => {
   await page.getByRole('region', { name: 'Rangka content' }).waitFor()
   assert.equal(await page.getByRole('combobox', { name: 'Visibility' }).count(), 0)
   await page.screenshot({ path: '/tmp/serangkai-reader-desktop.png' })
-  await page.getByRole('button', { name: 'Share', exact: true }).click()
+  await page.getByRole('button', { name: /^Share \(/ }).click()
   await page.getByRole('combobox', { name: 'Visibility' }).click()
   await page.getByRole('option', { name: /Unlisted/ }).click()
   const shareLink = page.getByRole('textbox', { name: 'Share link', exact: true })
