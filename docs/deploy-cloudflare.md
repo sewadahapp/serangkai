@@ -147,4 +147,4 @@ Set each secret with
 
 Switching providers later does not move your data: import the database
 explicitly, copy the files, and keep the same secrets. See the
-[Turso adapter notes](../README.md#turso--remote-libsql).
+[Turso notes](configuration.md#database-turso--remote-libsql).
