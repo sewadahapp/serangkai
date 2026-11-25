@@ -3,13 +3,14 @@ import { readFile } from 'node:fs/promises'
 import { test } from 'node:test'
 
 /**
- * Release readiness: the README is the only place left that states what is and
- * is not verified, so this guards those claims directly. The per-provider
- * documents it used to check were removed when the repo was prepared to go
- * public; deployment-file invariants live in deployment-files.test.mjs.
+ * Release readiness: docs/releasing.md states what is and is not verified, and
+ * the README carries the user-facing quick start. This guards both sets of
+ * claims directly; deployment-file invariants live in deployment-files.test.mjs.
  */
-test('the README describes only locally exercised deployment paths', async () => {
-  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
+const releasingDoc = () => readFile(new URL('../docs/releasing.md', import.meta.url), 'utf8')
+
+test('the release notes describe only locally exercised deployment paths', async () => {
+  const readme = await releasingDoc()
 
   // Docker persistence is exercised locally; hosted platforms are not claimed.
   assert.match(readme, /Docker persistence is checked locally with Podman/)
@@ -20,12 +21,17 @@ test('the README describes only locally exercised deployment paths', async () =>
   assert.match(readme, /nothing\s+in this repository deploys\s+anywhere on its own/i)
 })
 
-test('the README only names commands and images that actually resolve', async () => {
+test('the docs only name commands and images that actually resolve', async () => {
   const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
+  const docs = readme + await releasingDoc()
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
 
   for (const script of ['test:provider-local', 'test:docker', 'build:cloudflare', 'build:vercel']) {
-    assert.ok(pkg.scripts[script], `README names bun run ${script}, which must exist`)
+    assert.ok(docs.includes(`bun run ${script}`), `docs name bun run ${script}`)
+    assert.ok(pkg.scripts[script], `docs name bun run ${script}, which must exist`)
+  }
+  for (const [, script] of docs.matchAll(/bun run ([a-z][\w:-]*)/g)) {
+    assert.ok(pkg.scripts[script], `docs name bun run ${script}, which must exist`)
   }
 
   // The quick-start image must be the one CI publishes, not a placeholder.
@@ -33,14 +39,14 @@ test('the README only names commands and images that actually resolve', async ()
   assert.doesNotMatch(readme, /yourusername|OWNER\/REPO/)
 })
 
-test('the README documents how images are actually published', async () => {
-  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
+test('the release notes document how images are actually published', async () => {
+  const readme = await releasingDoc()
 
   // The release workflow exists and is manual.
   const workflow = await readFile(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8')
   assert.match(workflow, /workflow_dispatch:/)
 
-  // The README must explain that images come from a manual release, and must
+  // The notes must explain that images come from a manual release, and must
   // not imply that pushing to master publishes one.
   assert.match(readme, /Images are published by the \*\*Release\*\* workflow/)
   assert.match(readme, /Actions → Release → Run workflow/)
