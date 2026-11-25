@@ -82,7 +82,16 @@ after(async () => {
 
 test('supports MCP initialization and tool discovery', async () => {
   const initialized = await mcp({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1.0.0' } } })
-  assert.equal(initialized.result.serverInfo.name, 'serangkai')
+  const { serverInfo } = initialized.result
+  assert.equal(serverInfo.name, 'serangkai')
+  assert.equal(serverInfo.title, 'Serangkai')
+  assert.equal(serverInfo.websiteUrl, baseUrl)
+  assert.deepEqual(serverInfo.icons.map(icon => icon.src), [`${baseUrl}/favicon.svg`, `${baseUrl}/icon-512.png`, `${baseUrl}/icon-192.png`])
+  for (const icon of serverInfo.icons) {
+    const response = await fetch(icon.src)
+    assert.equal(response.status, 200, `${icon.src} is public`)
+    assert.equal(response.headers.get('content-type')?.split(';')[0], icon.mimeType)
+  }
   assert.match(initialized.result.instructions, /create_rangka.*Serangkai/)
   assert.equal(initialized.result.protocolVersion, '2025-06-18')
 
