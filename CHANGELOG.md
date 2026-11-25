@@ -1,6 +1,29 @@
 # Changelog
 
 
+## v0.7.0
+
+[compare changes](https://github.com/sewadahapp/serangkai/compare/v0.6.0...v0.7.0)
+
+### 🚀 Enhancements
+
+- **oauth:** Let owners and agents name each connection ([1e1e462](https://github.com/sewadahapp/serangkai/commit/1e1e462))
+- **mcp:** Tell agents about canvas and app presentation modes ([c7f0c07](https://github.com/sewadahapp/serangkai/commit/c7f0c07))
+
+### 🩹 Fixes
+
+- **tokens:** Keep OAuth grants out of the API token list ([e0a6959](https://github.com/sewadahapp/serangkai/commit/e0a6959))
+- **storage:** Stop Workers reporting a full zero-byte disk ([fdb4cda](https://github.com/sewadahapp/serangkai/commit/fdb4cda))
+- **ui:** Show dates with month names instead of numbers ([6c5fa41](https://github.com/sewadahapp/serangkai/commit/6c5fa41))
+
+### 📖 Documentation
+
+- **deploy:** Deploy Cloudflare from a fork instead of the button ([1c929cc](https://github.com/sewadahapp/serangkai/commit/1c929cc))
+
+### ❤️ Contributors
+
+- Wicaksana Pratama <wicaksanapratama@gmail.com>
+
 ## v0.6.0
 
 [compare changes](https://github.com/sewadahapp/serangkai/compare/v0.5.0...v0.6.0)
