@@ -119,7 +119,8 @@
       <ul v-else-if="oauthClients.length" class="settings-credentials" aria-label="Connected agents">
         <li v-for="client in oauthClients" :key="client.id" class="settings-credential">
           <span class="settings-credential-icon" aria-hidden="true"><SIcon name="lucide:bot" class="size-4" /></span>
-          <div class="min-w-0 flex-1"><p class="settings-credential-name">{{ client.name }}</p><p class="settings-metadata"><span v-for="scope in client.scopes" :key="scope" class="settings-scope" :class="{ 'settings-scope-full': scope === 'full' }">{{ scope }}</span><span>Connected {{ formatDate(client.connectedAt) }}</span><span>Access until {{ formatDate(client.refreshExpiresAt) }}</span></p></div>
+          <div class="min-w-0 flex-1"><p class="settings-credential-name">{{ client.name }}</p><p class="settings-metadata"><span v-if="client.named">{{ client.clientName }}</span><span v-for="scope in client.scopes" :key="scope" class="settings-scope" :class="{ 'settings-scope-full': scope === 'full' }">{{ scope }}</span><span :title="humanDateTime(client.connectedAt)">Connected {{ humanDate(client.connectedAt) }}</span><span v-if="client.lastUsedAt" :title="humanDateTime(client.lastUsedAt)">Last used {{ humanRelative(client.lastUsedAt).toLowerCase() }}</span><span :title="humanDateTime(client.refreshExpiresAt)">Access until {{ humanDate(client.refreshExpiresAt) }}</span></p></div>
+          <STooltip text="Rename connection"><SButton variant="ghost" color="neutral" size="sm" icon="lucide:pencil" :aria-label="`Rename ${client.name}`" :disabled="!!disconnectingClientId" @click="openRename(client)" /></STooltip>
           <STooltip text="Disconnect agent"><SButton variant="ghost" color="danger" size="sm" icon="lucide:unplug" :aria-label="`Disconnect ${client.name}`" :loading="disconnectingClientId === client.id" :disabled="!!disconnectingClientId" @click="disconnectClient(client)"><span class="hidden sm:inline">Disconnect</span></SButton></STooltip>
         </li>
       </ul>
@@ -143,13 +144,25 @@
       <ul v-else-if="tokens.length" class="settings-credentials" aria-label="API tokens">
         <li v-for="token in tokens" :key="token.id" class="settings-credential">
           <span class="settings-credential-icon" aria-hidden="true"><SIcon name="lucide:key-round" class="size-4" /></span>
-          <div class="min-w-0 flex-1"><p class="settings-credential-name">{{ token.name }}</p><p class="settings-metadata"><span v-for="scope in token.scopes" :key="scope" class="settings-scope" :class="{ 'settings-scope-full': scope === 'full' }">{{ scope }}</span><span>Created {{ formatDate(token.createdAt) }}</span><span v-if="token.lastUsedAt">Last used {{ formatDate(token.lastUsedAt) }}</span><span v-if="token.expiresAt">Expires {{ formatDate(token.expiresAt) }}</span></p></div>
+          <div class="min-w-0 flex-1"><p class="settings-credential-name">{{ token.name }}</p><p class="settings-metadata"><span v-for="scope in token.scopes" :key="scope" class="settings-scope" :class="{ 'settings-scope-full': scope === 'full' }">{{ scope }}</span><span :title="humanDateTime(token.createdAt)">Created {{ humanDate(token.createdAt) }}</span><span v-if="token.lastUsedAt" :title="humanDateTime(token.lastUsedAt)">Last used {{ humanRelative(token.lastUsedAt).toLowerCase() }}</span><span v-if="token.expiresAt" :title="humanDateTime(token.expiresAt)">Expires {{ humanDate(token.expiresAt) }}</span></p></div>
           <STooltip text="Revoke token"><SButton variant="ghost" color="danger" size="sm" icon="lucide:ban" :aria-label="`Revoke ${token.name}`" :loading="revokingTokenId === token.id" :disabled="!!revokingTokenId" @click="revokeToken(token)"><span class="hidden sm:inline">Revoke</span></SButton></STooltip>
         </li>
       </ul>
       <div v-else class="settings-empty"><h3>No tokens yet</h3><p>Create one when an agent or script can't use browser sign-in.</p></div>
       <div v-if="tokenMessage" class="settings-card-foot"><SAlert color="info" variant="subtle" :title="tokenMessage" /></div>
     </section>
+
+    <SModal v-model:open="showRenameDialog" title="Rename connection" :description="renameTarget ? `Registered by the agent as ${renameTarget.clientName}.` : ''" :dismissible="!renaming" :close="!renaming">
+      <template #body>
+        <form id="rename-form" class="space-y-2" @submit.prevent="saveRename">
+          <SFormField label="Name" hint="For example the device or account. Leave empty to use the agent's own name."><SInput v-model="renameValue" :maxlength="80" :placeholder="renameTarget?.clientName" class="w-full" autofocus /></SFormField>
+          <SAlert v-if="renameError" color="danger" variant="subtle" :title="renameError" />
+        </form>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2"><SButton variant="ghost" color="neutral" :disabled="renaming" @click="showRenameDialog = false">Cancel</SButton><SButton type="submit" form="rename-form" :loading="renaming">Save</SButton></div>
+      </template>
+    </SModal>
 
     <SModal v-model:open="showTokenDialog" :title="newToken ? 'Token created' : 'Create token'" :description="newToken ? 'Copy this token now — it will not be shown again.' : 'Choose a name, permissions, and an optional expiry date.'" :dismissible="!creatingToken" :close="!creatingToken" :ui="{ content: 'max-w-xl' }">
       <template #body>
@@ -196,7 +209,6 @@ const colorModePreference = computed(() => colorMode.preference)
 const setColorMode = (value: string | string[]) => {
   if (value === 'light' || value === 'dark' || value === 'system') colorMode.preference = value
 }
-const formatDate = (value: string) => new Date(value).toLocaleDateString()
 
 // Storage: the meter plus the owner's limit and warn/block choice. The server
 // re-checks everything (cap, session-only), so this form is a convenience.
@@ -382,6 +394,32 @@ const loadClients = async () => {
   } finally {
     loadingClients.value = false
   }
+}
+
+const showRenameDialog = ref(false)
+const renameTarget = ref<any>(null)
+const renameValue = ref('')
+const renaming = ref(false)
+const renameError = ref('')
+
+const openRename = (client: any) => {
+  renameTarget.value = client
+  renameValue.value = client.named ? client.name : ''
+  renameError.value = ''
+  showRenameDialog.value = true
+}
+
+const saveRename = async () => {
+  if (!renameTarget.value || renaming.value) return
+  renaming.value = true
+  renameError.value = ''
+  try {
+    await $fetch(`/api/oauth/clients/${renameTarget.value.id}`, { method: 'PATCH', body: { name: renameValue.value } })
+    showRenameDialog.value = false
+    await loadClients()
+  } catch (e: any) {
+    renameError.value = e.data?.message || 'Could not rename the connection.'
+  } finally { renaming.value = false }
 }
 
 const disconnectClient = async (client: any) => {

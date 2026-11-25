@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process'
 import { test, before, after } from 'node:test'
 import { serverRuntime } from './helpers/server.mjs'
 import { adminEnv, login } from './helpers/auth.mjs'
+import { parseCanvasSize } from '../shared/rangka-canvas.ts'
 
 const port = 4120 + Math.floor(Math.random() * 200)
 const base = `http://127.0.0.1:${port}`
@@ -72,6 +73,16 @@ test('MCP exposes capabilities, guides, components, templates, and prompts', asy
   assert.ok(parsed.markdown.components.includes('s-table'))
   assert.ok(parsed.markdown.applicationOnlyComponents.includes('SModal'))
   assert.equal(parsed.html.defaultStyling.startsWith('self-styled'), true)
+  // Presentation modes are advertised where agents look first, not only in
+  // the HTML guide resource many clients never read.
+  assert.deepEqual(Object.keys(parsed.html.presentation), ['document', 'app', 'canvas'])
+  assert.match(parsed.html.presentation.app.marker, /serangkai-presentation" content="app"/)
+  assert.match(parsed.html.presentation.canvas.marker, /serangkai-canvas" content="1920x1080"/)
+  assert.match(parsed.html.presentation.canvas.size, /240-4096/)
+  assert.match(parsed.html.presentation.canvas.useFor, /kanban/)
+  assert.match(parsed.authoring.preferCanvas, /serangkai-canvas/)
+  assert.match(create.description, /serangkai-canvas/)
+  assert.match(initialized.result.instructions, /canvas/)
 
   const resources = await rpc({ jsonrpc: '2.0', id: 4, method: 'resources/list', params: {} })
   const resourceUris = resources.result.resources.map(resource => resource.uri)
@@ -85,6 +96,7 @@ test('MCP exposes capabilities, guides, components, templates, and prompts', asy
     'serangkai://templates/dashboard',
     'serangkai://templates/diagram',
     'serangkai://templates/interactiveApp',
+    'serangkai://templates/canvasBoard',
   ]) assert.ok(resourceUris.includes(uri), `${uri} missing from ${resourceUris.join(',')}`)
 
   const markdownGuide = await rpc({ jsonrpc: '2.0', id: 5, method: 'resources/read', params: { uri: 'serangkai://guides/markdown' } })
@@ -109,8 +121,17 @@ test('MCP exposes capabilities, guides, components, templates, and prompts', asy
   assert.match(templates.result.contents[0].text, /s-callout/)
   assert.match(templates.result.contents[0].text, /chart/)
 
+  // The canvas example declares a valid board size and makes cards draggable.
+  const board = await rpc({ jsonrpc: '2.0', id: 11, method: 'resources/read', params: { uri: 'serangkai://templates/canvasBoard' } })
+  const boardHtml = board.result.contents[0].text
+  const declared = boardHtml.match(/<meta name="serangkai-canvas" content="([^"]+)">/)?.[1]
+  assert.deepEqual(parseCanvasSize(declared), { width: 1600, height: 900 })
+  assert.match(boardHtml, /pointerdown/)
+  assert.match(boardHtml, /<\/script>/)
+
   const prompts = await rpc({ jsonrpc: '2.0', id: 9, method: 'prompts/list', params: {} })
   assert.ok(prompts.result.prompts.some(prompt => prompt.name === 'create_report'))
+  assert.ok(prompts.result.prompts.some(prompt => prompt.name === 'create_canvas_board'))
   const prompt = await rpc({ jsonrpc: '2.0', id: 10, method: 'prompts/get', params: { name: 'create_report' } })
   assert.match(prompt.result.messages[0].content.text, /Markdown report/)
 })

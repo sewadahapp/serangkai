@@ -25,6 +25,8 @@ import {
   base64UrlEncode,
   timingSafeEqual,
   pruneAbandonedClients,
+  normalizeConnectionLabel,
+  ownerConnectionLabel,
 } from '../server/utils/oauth.ts'
 import { BOOTSTRAP_SQL } from '../server/db/bootstrap.ts'
 import * as schema from '../server/db/schema.ts'
@@ -60,6 +62,7 @@ function makeDb() {
     code_challenge TEXT NOT NULL,
     code_challenge_method TEXT NOT NULL DEFAULT 'S256',
     resource TEXT,
+    label TEXT,
     expires_at INTEGER NOT NULL,
     consumed_at INTEGER,
     created_at INTEGER NOT NULL
@@ -563,4 +566,17 @@ test('the device consent fingerprint binds every displayed value', async () => {
   ]) {
     assert.notEqual(await deviceConsentFingerprint({ ...input, ...patch }), hash, JSON.stringify(patch))
   }
+})
+
+test('connection names are cleaned, capped, and empty means unset', () => {
+  assert.equal(normalizeConnectionLabel('  opencode \n– work\tlaptop  '), 'opencode – work laptop')
+  assert.equal(normalizeConnectionLabel('a\u0000b'), 'a b')
+  assert.equal(normalizeConnectionLabel('x'.repeat(200)).length, 80)
+  assert.equal(normalizeConnectionLabel('   '), null)
+  assert.equal(normalizeConnectionLabel(42), null)
+  // Keeping the pre-filled client name is not a choice of name.
+  assert.equal(ownerConnectionLabel('Codex', 'Codex'), null)
+  assert.equal(ownerConnectionLabel(' Codex ', 'Codex'), null)
+  assert.equal(ownerConnectionLabel('Codex – laptop', 'Codex'), 'Codex – laptop')
+  assert.equal(ownerConnectionLabel(undefined, 'Codex'), null)
 })

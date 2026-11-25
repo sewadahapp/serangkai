@@ -1,6 +1,7 @@
 import { rangkaComponents, applicationOnlyComponents, componentCatalogMarkdown } from '../../shared/rangka-components'
 import { ALL_SELARAS_TOKENS } from '../../shared/selaras-tokens'
 import { themes } from '../../shared/themes'
+import { MAX_CANVAS_DIMENSION, MIN_CANVAS_DIMENSION } from '../../shared/rangka-canvas'
 
 /**
  * Authoring guidance exposed to MCP clients.
@@ -34,7 +35,7 @@ export const chartSchema = {
 }
 
 export const capabilities = {
-  version: 1,
+  version: 2,
   rangkaTypes: authoringRangkaTypes,
   markdown: {
     engine: 'Comark',
@@ -55,10 +56,35 @@ export const capabilities = {
       tokens: ALL_SELARAS_TOKENS.map(token => token.name),
     },
     security: 'sandboxed iframe, connect-src none, no CDN or arbitrary remote scripts',
+    // How the workspace and share reader frame an HTML rangka. Pick one per
+    // rangka with a meta tag in <head>; the default needs none.
+    presentation: {
+      document: {
+        marker: 'none (default)',
+        behavior: 'The frame grows to the content height and the page scrolls, like a normal web page.',
+        useFor: 'reports, articles, and long dashboards read top to bottom',
+      },
+      app: {
+        marker: '<meta name="serangkai-presentation" content="app">',
+        behavior: 'The frame fits the screen and your HTML scrolls inside it, so toolbars, sidebars, and inputs you pin with 100vh or position: fixed stay visible.',
+        useFor: 'chat interfaces, tools, and layouts with a fixed sidebar or bottom bar',
+      },
+      canvas: {
+        marker: '<meta name="serangkai-canvas" content="1920x1080">',
+        size: `WIDTHxHEIGHT in CSS pixels, ${MIN_CANVAS_DIMENSION}-${MAX_CANVAS_DIMENSION} each`,
+        behavior: 'Lay the board out at exactly the declared size. Viewers see it like a design file: fitted to the screen, then zoomed and panned.',
+        viewerProvides: 'zoom (Ctrl/Cmd + wheel, pinch, + and -), pan (wheel, hand tool H, Space + drag, dragging outside the board), fit to screen (0), and toolbar buttons. Areas of the board that scroll themselves keep their own wheel scrolling.',
+        youBuild: 'anything interactive on the board, such as dragging cards between columns. A plain drag inside the board reaches your script; use pointer events.',
+        keys: 'Add <meta name="serangkai-canvas-keys" content="none"> when the board has its own keyboard shortcuts, so the viewer does not take them while the board has focus.',
+        useFor: 'kanban boards, whiteboards, mind maps, mood boards, flowcharts, slides, and posters',
+        example: 'serangkai://templates/canvasBoard',
+      },
+    },
   },
   authoring: {
     preferMarkdown: 'reports, documentation, and mixed narrative + data',
     preferHtml: 'custom dashboards, prototypes, and standalone applications',
+    preferCanvas: 'anything laid out on a board people zoom and pan around, such as a kanban or whiteboard: HTML with the serangkai-canvas marker',
     preferBundle: 'prebuilt frontend applications',
   },
 }
@@ -251,6 +277,18 @@ Lay out the board within the declared viewport in CSS pixels (240 to 4096 per
 dimension). The workspace and share reader fit the board and provide zoom
 and pan controls. This marker also works in bundle HTML.
 
+Use a canvas for anything people look around rather than read top to bottom:
+kanban boards, whiteboards, mind maps, mood boards, flowcharts, slides, posters.
+
+The viewer handles zoom (Ctrl/Cmd + wheel, pinch, \`+\`/\`-\`), pan (wheel, the
+hand tool \`H\`, Space + drag, or dragging outside the board), and fit (\`0\`).
+Areas of the board that scroll themselves, such as a long column, keep their
+own wheel scrolling.
+Everything on the board is yours: a plain drag inside the board reaches your
+script, so draggable cards, sticky notes, or connectors work with ordinary
+pointer events. See \`serangkai://templates/canvasBoard\` for a kanban board
+with draggable cards.
+
 For a canvas app with its own keyboard commands, add
 \`<meta name="serangkai-canvas-keys" content="none">\` to reserve keys for the app
 while its frame has focus. The viewer toolbar and pointer gestures remain available.
@@ -368,6 +406,65 @@ flowchart LR
 | Review | Editor |
 | Share | Workspace |
 `,
+  canvasBoard: `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="serangkai-canvas" content="1600x900">
+  <title>Launch board</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 1600px; height: 900px; overflow: hidden; }
+    body { padding: 48px; font: 15px/1.45 system-ui, sans-serif; background: light-dark(#f6f3ec, #121614); color: light-dark(#1c2320, #eef0ea); }
+    h1 { margin: 0 0 24px; font-size: 28px; }
+    .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; height: 760px; }
+    .column { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 16px; background: light-dark(#ebe6db, #1b211e); overflow: auto; }
+    .column h2 { margin: 0 0 4px; font-size: 14px; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
+    .column.over { outline: 2px dashed light-dark(#0b7a5e, #42a082); outline-offset: -2px; }
+    .card { padding: 14px 16px; border-radius: 12px; background: light-dark(#fff, #252c28); box-shadow: 0 1px 2px rgb(0 0 0 / .12); cursor: grab; touch-action: none; user-select: none; }
+    .card.dragging { position: fixed; z-index: 10; pointer-events: none; cursor: grabbing; box-shadow: 0 12px 28px rgb(0 0 0 / .25); }
+  </style>
+</head>
+<body>
+  <h1>Launch board</h1>
+  <div class="board">
+    <section class="column"><h2>To do</h2><div class="card">Write release notes</div><div class="card">Record the demo</div></section>
+    <section class="column"><h2>In progress</h2><div class="card">Fix the storage meter</div></section>
+    <section class="column"><h2>Done</h2><div class="card">Fork-based deploy guide</div></section>
+  </div>
+  <script>
+    // Drag cards between columns. A plain drag inside the canvas reaches this
+    // script; the viewer pans with the hand tool, Space + drag, or the wheel.
+    let drag = null
+    document.addEventListener('pointerdown', (event) => {
+      const card = event.target.closest('.card')
+      if (!card || event.button !== 0) return
+      const box = card.getBoundingClientRect()
+      drag = { card, dx: event.clientX - box.left, dy: event.clientY - box.top, over: null }
+      card.style.width = box.width + 'px'
+      card.classList.add('dragging')
+      move(event)
+      card.setPointerCapture(event.pointerId)
+    })
+    document.addEventListener('pointermove', (event) => { if (drag) move(event) })
+    document.addEventListener('pointerup', () => {
+      if (!drag) return
+      const { card, over } = drag
+      card.classList.remove('dragging')
+      card.style.cssText = ''
+      if (over) { over.classList.remove('over'); over.append(card) }
+      drag = null
+    })
+    function move(event) {
+      drag.card.style.left = event.clientX - drag.dx + 'px'
+      drag.card.style.top = event.clientY - drag.dy + 'px'
+      const column = document.elementFromPoint(event.clientX, event.clientY)?.closest('.column') || null
+      if (column !== drag.over) { drag.over?.classList.remove('over'); column?.classList.add('over'); drag.over = column }
+    }
+  <\/script>
+</body>
+</html>
+`,
   interactiveApp: `<!doctype html>
 <html lang="en">
 <head>
@@ -392,6 +489,7 @@ flowchart LR
 }
 
 export const promptMessages = {
+  createCanvasBoard: 'Create a kanban board as an HTML canvas rangka. Declare <meta name="serangkai-canvas" content="1600x900"> and lay the board out at exactly that size so viewers can zoom and pan it. Make the cards draggable between columns with pointer events. Keep it self-contained. Start from serangkai://templates/canvasBoard.',
   createReport: 'Create a polished Markdown report using Serangkai authoring capabilities. Include headings, a table, a chart, and one Selaras callout. Keep the source portable.',
   createDashboard: 'Create a Markdown dashboard using Selaras cards and a TanStack chart. Use the declarative chart schema; do not write chart JavaScript.',
   createHtmlDocument: 'Create a styled HTML report using the opt-in Selaras document theme. Keep it self-contained and include one Mermaid diagram.',

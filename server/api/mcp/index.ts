@@ -13,7 +13,7 @@ import { appendVersion } from '../../utils/rangka-versions'
 import { byteLength, storageWriteRefusal } from '../../utils/storage-quota'
 import { autoPruneVersions } from '../../utils/version-pruning'
 import { isSlugConflict } from '../../db/migrations'
-import { findGrantByApiTokenId, resourceMatches } from '../../utils/oauth'
+import { CONNECTION_LABEL_MAX, findGrantByApiTokenId, normalizeConnectionLabel, resourceMatches, setConnectionLabel } from '../../utils/oauth'
 import { mcpResourceUrl, protectedResourceMetadataUrl } from '../../utils/oauth-urls'
 import { capabilities, capabilitiesText, htmlGuide, markdownGuide, promptMessages, templates } from '../../utils/authoring'
 import { componentCatalogMarkdown } from '../../../shared/rangka-components'
@@ -65,8 +65,8 @@ const rangkaOutput = z.object({
   updatedAt: timestamp,
 })
 
-function createMcpServer(userId: string, canWrite: boolean, db: any) {
-  const server = new McpServer({ name: 'serangkai', version: '0.1.0' }, { maxToolInputElements: 100, instructions: 'Rangka are documents, files, and interactive content stored in the connected Serangkai workspace. Use create_rangka to create them in Serangkai and get_rangka/update_rangka to read or revise them. The workspace owns persistence, versions, folders, and sharing.' })
+function createMcpServer(userId: string, canWrite: boolean, db: any, grantId: string | null) {
+  const server = new McpServer({ name: 'serangkai', version: '0.1.0' }, { maxToolInputElements: 100, instructions: 'Rangka are documents, files, and interactive content stored in the connected Serangkai workspace. Use create_rangka to create them in Serangkai and get_rangka/update_rangka to read or revise them. The workspace owns persistence, versions, folders, and sharing. HTML rangka can be documents, full-screen apps, or zoomable canvases such as kanban boards and whiteboards; get_rangka_capabilities explains each.' })
   const findFolder = (folderId: string) => db.select().from(folders)
     .where(and(eq(folders.id, folderId), eq(folders.userId, userId))).get()
 
@@ -77,6 +77,25 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
     outputSchema: z.looseObject({ version: z.number() }),
     annotations: { readOnlyHint: true },
   }, async () => structuredResult(capabilities))
+
+  server.registerTool('set_connection_name', {
+    title: 'Name this connection',
+    description: 'Name this connection so the Serangkai owner can tell it apart in Settings, where every install of the same app otherwise shows the same name. Use "<app> – <hostname> – <username>", for example "Claude Code – work-laptop – alex"; leave out any part you cannot determine. Call it once after connecting. It does not replace a name the owner chose.',
+    inputSchema: { name: z.string().min(1).max(CONNECTION_LABEL_MAX) },
+    outputSchema: { name: z.string(), applied: z.boolean() },
+    annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ name }) => {
+    if (!grantId) {
+      return { isError: true, content: [{ type: 'text', text: 'This connection uses an API token, which the owner names in Settings.' }] }
+    }
+    const label = normalizeConnectionLabel(name)
+    if (!label) return { isError: true, content: [{ type: 'text', text: 'The name is empty.' }] }
+    const applied = await setConnectionLabel(db, grantId, label, 'agent')
+    if (applied) return structuredResult({ name: label, applied })
+    // The owner already named it; report that name instead of failing.
+    const current = await db.select({ label: oauthTokens.label }).from(oauthTokens).where(eq(oauthTokens.id, grantId)).get()
+    return structuredResult({ name: current?.label || label, applied })
+  })
 
   server.registerTool('list_folders', {
     title: 'List folders',
@@ -190,7 +209,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
 
   server.registerTool('create_rangka', {
     title: 'Create rangka',
-    description: 'Create a private-by-default rangka in the Serangkai workspace. Call get_rangka_capabilities for authoring syntax.',
+    description: 'Create a private-by-default rangka in the Serangkai workspace. For a board viewers zoom and pan, such as a kanban or whiteboard, create HTML with <meta name="serangkai-canvas" content="WIDTHxHEIGHT">. Call get_rangka_capabilities for authoring syntax and presentation modes.',
     inputSchema: {
       title: z.string().min(1).max(200),
       type: rangkaType,
@@ -343,6 +362,7 @@ function createMcpServer(userId: string, canWrite: boolean, db: any) {
     ['create_dashboard', 'Create a Markdown dashboard with Selaras cards and a chart.', promptMessages.createDashboard],
     ['create_html_document', 'Create a styled HTML report with the Selaras document theme.', promptMessages.createHtmlDocument],
     ['create_custom_dashboard', 'Create a custom-designed HTML dashboard without Selaras styling.', promptMessages.createCustomDashboard],
+    ['create_canvas_board', 'Create a zoomable, pannable HTML canvas, such as a kanban board with draggable cards.', promptMessages.createCanvasBoard],
   ] as const
   for (const [name, description, text] of promptEntries) {
     server.registerPrompt(name, { title: description, description }, async () => ({
@@ -416,7 +436,7 @@ export default defineEventHandler(async (event) => {
     maxRequestBodySize: 10_000_000,
   })
   const canWrite = token.scopes.includes('write') || token.scopes.includes('full')
-  const server = createMcpServer(user.id, canWrite, db)
+  const server = createMcpServer(user.id, canWrite, db, grant?.id ?? null)
   await server.connect(transport)
   return transport.handleRequest(toWebRequest(event))
 })

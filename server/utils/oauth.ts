@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNull, lt, notInArray, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { apiTokens, oauthClients, oauthCodes, oauthDeviceCodes, oauthTokens } from '../db/schema'
 import { generateToken, hashToken } from './auth'
@@ -223,6 +223,29 @@ export interface CreateCodeInput {
   codeChallenge: string
   codeChallengeMethod: string
   resource?: string | null
+  /** Connection name the owner chose on the consent page. */
+  label?: string | null
+}
+
+export const CONNECTION_LABEL_MAX = 80
+
+/**
+ * Clean a connection name typed by the owner or sent by an agent: collapse
+ * whitespace, drop control characters, and cap the length. Empty means unset.
+ */
+export function normalizeConnectionLabel(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
+  return cleaned ? cleaned.slice(0, CONNECTION_LABEL_MAX).trim() : null
+}
+
+/**
+ * The owner's name for a new connection, or null when they kept the client's
+ * own name: storing that copy would hide a later name from the agent.
+ */
+export function ownerConnectionLabel(value: unknown, clientName: string | null | undefined): string | null {
+  const label = normalizeConnectionLabel(value)
+  return label && label !== (clientName || '').trim() ? label : null
 }
 
 /** Persist a single-use authorization code and return its plaintext value. */
@@ -242,6 +265,7 @@ export async function createAuthorizationCode(db: any, input: CreateCodeInput): 
     codeChallenge: input.codeChallenge,
     codeChallengeMethod: input.codeChallengeMethod || 'S256',
     resource: input.resource || null,
+    label: input.label || null,
     expiresAt: new Date(Date.now() + CODE_TTL_MS),
     createdAt: new Date(),
   })
@@ -292,6 +316,8 @@ export interface IssueTokensInput {
   label: string
   /** RFC 8707 audience this grant is bound to. */
   resource?: string | null
+  /** Connection name the owner chose while approving. */
+  connectionLabel?: string | null
 }
 
 export interface IssuedTokens {
@@ -374,6 +400,8 @@ async function buildTokenRows(input: IssueTokensInput) {
     apiTokenId,
     scopes,
     resource: input.resource || null,
+    label: input.connectionLabel || null,
+    labelSetBy: input.connectionLabel ? 'owner' : null,
     accessExpiresAt: new Date(now + ACCESS_TTL_SECONDS * 1000),
     refreshTokenHash: await sha256Hex(refreshToken),
     refreshExpiresAt: new Date(now + REFRESH_TTL_MS),
@@ -437,6 +465,8 @@ export async function rotateRefreshToken(
     tokenHash: await hashToken(accessToken),
     scopes,
     expiresAt: new Date(now + ACCESS_TTL_SECONDS * 1000),
+    // A refresh is the agent at work; Settings shows this as "Last used".
+    lastUsedAt: new Date(now),
     createdAt: new Date(),
   }
   const grantUpdate = {
@@ -508,6 +538,23 @@ export async function rotateRefreshToken(
   }
   await db.delete(apiTokens).where(eq(apiTokens.id, row.apiTokenId))
   return { ok: true, tokens }
+}
+
+export type ConnectionLabelSource = 'owner' | 'agent'
+
+/**
+ * Name one connection. The owner can always rename or clear it; an agent can
+ * only name a connection the owner has not named, so a client cannot hide
+ * which device the owner said it was.
+ */
+export async function setConnectionLabel(db: any, grantId: string, label: string | null, source: ConnectionLabelSource) {
+  const where = source === 'agent'
+    ? and(eq(oauthTokens.id, grantId), or(isNull(oauthTokens.labelSetBy), eq(oauthTokens.labelSetBy, 'agent')))
+    : eq(oauthTokens.id, grantId)
+  const result = await db.update(oauthTokens)
+    .set({ label, labelSetBy: label ? source : null })
+    .where(where)
+  return affectedRows(result) === 1
 }
 
 /** Revoke one grant: the access token and the OAuth row disappear together. */
@@ -737,14 +784,14 @@ export async function findDeviceByUserCode(db: any, input: string) {
  * requests exactly one affects a row, and a zero-row result must be reported
  * as "already decided", never as success.
  */
-export async function approveDeviceAuthorization(db: any, id: string, userId: string, scopes: string[]) {
+export async function approveDeviceAuthorization(db: any, id: string, userId: string, scopes: string[], label: string | null = null) {
   const row = await db.select().from(oauthDeviceCodes).where(eq(oauthDeviceCodes.id, id)).get()
   if (!row) return { ok: false as const, error: 'not_found' as const }
   if (row.approvedAt || row.deniedAt || row.consumedAt) return { ok: false as const, error: 'already_decided' as const }
   if (row.expiresAt.getTime() < Date.now()) return { ok: false as const, error: 'expired' as const }
 
   const result = await db.update(oauthDeviceCodes)
-    .set({ userId, approvedAt: new Date(), scopes })
+    .set({ userId, approvedAt: new Date(), scopes, label })
     .where(and(
       eq(oauthDeviceCodes.id, id),
       isNull(oauthDeviceCodes.approvedAt),
@@ -811,6 +858,7 @@ export async function pollDeviceAuthorization(
     scopes,
     label: client?.clientName || 'OAuth client',
     resource: row.resource || expectedResource || null,
+    connectionLabel: row.label || null,
   })
 
   const claim = { consumedAt: new Date(), apiTokenId }

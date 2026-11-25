@@ -157,17 +157,16 @@ change.
 
 ## Deploy to Cloudflare
 
-[![Choose providers and deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](docs/deploy-cloudflare.md)
+Fork this repository, then import your fork in Cloudflare under **Workers &
+Pages → Create → Import a repository**. Choose your database (**D1 or Turso**)
+and file storage (**R2 or Backblaze B2**) by picking the matching deploy
+command. To update later, click **Sync fork** on GitHub and Cloudflare
+redeploys.
 
-Choose your database (**D1 or Turso**) and file storage (**R2 or Backblaze B2**)
-in the [deployment chooser](docs/deploy-cloudflare.md), then continue to the
-matching Cloudflare setup page. Only your selected Cloudflare resources are
-provisioned. **Turso + B2 requires neither a D1 nor an R2 binding.**
-
-The chooser includes prerequisites, secret setup, and manual deployment
-commands for all four combinations. Turso databases and B2 buckets must be
-created in their respective services before deploying. Hosted deployments
-still require verification with a login, rangka write, and file upload.
+The [Cloudflare guide](docs/deploy-cloudflare.md) walks through every step,
+including the secrets to add and how to move an existing Deploy-button copy to
+a fork without losing data. Turso databases and B2 buckets must be created in
+their own services first.
 
 ## Development
 

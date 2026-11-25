@@ -169,6 +169,7 @@ export default defineEventHandler(async (event) => {
       scopes,
       label: client.clientName || 'OAuth client',
       resource,
+      connectionLabel: record.label || null,
     })
     // A successful exchange clears the bucket: only failed attempts should
     // accumulate toward the limit.

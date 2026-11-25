@@ -135,12 +135,14 @@ async function authorize({
   decision = 'approve',
   scopes = scope,
   resource,
+  connectionName,
 }) {
   const page = await consentPage({ clientId, redirectUri, challenge, scope, state, resource })
   if (page.response.status !== 200) return page.response
 
   const body = new URLSearchParams(consentFields(page.html))
   body.set('decision', decision)
+  if (connectionName !== undefined) body.set('connection_name', connectionName)
   if (decision === 'approve') {
     for (const value of String(scopes).split(/\s+/).filter(Boolean)) body.append('scopes', value)
   }
@@ -789,9 +791,117 @@ test('a connected client stays out of the API token list and cannot be revoked t
   assert.equal(mcp.status, 200)
 })
 
+async function callMcpTool(accessToken, name, args) {
+  const response = await fetch(`${base}/api/mcp`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
+  })
+  assert.equal(response.status, 200)
+  return (await response.json()).result
+}
+
+async function listedGrant(clientId) {
+  const listed = await (await fetch(`${base}/api/oauth/clients`, { headers: { cookie } })).json()
+  return listed.clients.find(entry => entry.clientId === clientId)
+}
+
+function renameGrant(id, name) {
+  return fetch(`${base}/api/oauth/clients/${id}`, {
+    method: 'PATCH',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+}
+
+test('the owner names a connection while approving, and the agent cannot replace it', async () => {
+  const redirectUri = 'https://client.example/callback'
+  const { body: client } = await registerClient(redirectUri)
+  const { verifier, challenge } = pkcePair()
+
+  // The consent page offers the field, pre-filled with the client's own name.
+  const page = await consentPage({ clientId: client.client_id, redirectUri, challenge })
+  assert.match(page.html, /name="connection_name"[^>]*value="Test MCP client"/)
+
+  const approval = await authorize({ clientId: client.client_id, redirectUri, challenge, connectionName: '  Work\u0007 laptop  ' })
+  const code = new URL(approval.headers.get('location')).searchParams.get('code')
+  const { body: tokens } = await exchangeCode({ clientId: client.client_id, code, redirectUri, verifier })
+
+  let grant = await listedGrant(client.client_id)
+  assert.equal(grant.name, 'Work laptop')
+  assert.equal(grant.clientName, 'Test MCP client')
+  assert.equal(grant.named, true)
+  assert.equal(grant.namedBy, 'owner')
+
+  // An agent cannot hide which device the owner said it was.
+  const refused = await callMcpTool(tokens.access_token, 'set_connection_name', { name: 'Something else' })
+  assert.deepEqual(refused.structuredContent, { name: 'Work laptop', applied: false })
+  assert.equal((await listedGrant(client.client_id)).name, 'Work laptop')
+
+  // The owner can rename, and clearing falls back to the client's name.
+  assert.equal((await renameGrant(grant.id, 'Desk PC')).status, 200)
+  assert.equal((await listedGrant(client.client_id)).name, 'Desk PC')
+  assert.equal((await renameGrant(grant.id, '   ')).status, 200)
+  grant = await listedGrant(client.client_id)
+  assert.equal(grant.name, 'Test MCP client')
+  assert.equal(grant.named, false)
+
+  // Unnamed again, so the agent may name itself, and the owner still wins later.
+  const named = await callMcpTool(tokens.access_token, 'set_connection_name', { name: 'Test MCP client – box – alex' })
+  assert.deepEqual(named.structuredContent, { name: 'Test MCP client – box – alex', applied: true })
+  grant = await listedGrant(client.client_id)
+  assert.equal(grant.name, 'Test MCP client – box – alex')
+  assert.equal(grant.namedBy, 'agent')
+  assert.equal((await renameGrant(grant.id, 'Owner choice')).status, 200)
+  assert.equal((await listedGrant(client.client_id)).name, 'Owner choice')
+
+  // Renaming needs a string name and an existing grant.
+  assert.equal((await renameGrant('missing-grant', 'x')).status, 404)
+  const noName = await fetch(`${base}/api/oauth/clients/${grant.id}`, {
+    method: 'PATCH',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  assert.equal(noName.status, 400)
+})
+
+test('keeping the pre-filled name leaves the connection free for the agent to name', async () => {
+  const redirectUri = 'https://client.example/callback'
+  const { body: client } = await registerClient(redirectUri)
+  const { verifier, challenge } = pkcePair()
+  const approval = await authorize({ clientId: client.client_id, redirectUri, challenge, connectionName: 'Test MCP client' })
+  const code = new URL(approval.headers.get('location')).searchParams.get('code')
+  const { body: tokens } = await exchangeCode({ clientId: client.client_id, code, redirectUri, verifier })
+  assert.equal((await listedGrant(client.client_id)).named, false)
+
+  const named = await callMcpTool(tokens.access_token, 'set_connection_name', { name: 'Test MCP client – laptop' })
+  assert.equal(named.structuredContent.applied, true)
+  assert.equal((await listedGrant(client.client_id)).name, 'Test MCP client – laptop')
+})
+
+test('a hand-minted API token cannot name a connection', async () => {
+  const minted = await fetch(`${base}/api/tokens`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'script', scopes: ['read'] }),
+  })
+  const { token } = await minted.json()
+  const result = await callMcpTool(token, 'set_connection_name', { name: 'anything' })
+  assert.equal(result.isError, true)
+})
+
 test('an unauthenticated caller cannot list or disconnect OAuth clients', async () => {
   assert.equal((await fetch(`${base}/api/oauth/clients`)).status, 401)
   assert.equal((await fetch(`${base}/api/oauth/clients/anything`, { method: 'DELETE' })).status, 401)
+  assert.equal((await fetch(`${base}/api/oauth/clients/anything`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'x' }),
+  })).status, 401)
 
   // A bearer token is an agent, never a browser session.
   const { body: client } = await registerClient('https://client.example/cb')
@@ -957,10 +1067,11 @@ async function deviceConsentPage(userCode, ip, sessionCookie = cookie) {
 }
 
 /** POST a device decision the way the rendered form does. */
-async function deviceDecision({ userCode, decision = 'approve', scopes = 'read write', page, ip, omitToken = false }) {
+async function deviceDecision({ userCode, decision = 'approve', scopes = 'read write', page, ip, omitToken = false, connectionName }) {
   const body = new URLSearchParams(page ? consentFields(page.html) : { user_code: userCode })
   body.set('user_code', userCode)
   body.set('decision', decision)
+  if (connectionName !== undefined) body.set('connection_name', connectionName)
   if (omitToken) body.delete('consent_token')
   if (decision === 'approve') {
     for (const value of String(scopes).split(/\s+/).filter(Boolean)) body.append('scopes', value)
@@ -1034,12 +1145,15 @@ test('the device flow connects a client that has no browser callback', async () 
   assert.match(consent.html, /Allow Test MCP client to access your workspace\?/)
   assert.ok(consentFields(consent.html).consent_token, 'the consent form carries a session-bound nonce')
 
-  // Approve with only `read` checked.
+  assert.match(consent.html, /name="connection_name"[^>]*value="Test MCP client"/)
+
+  // Approve with only `read` checked, naming the machine.
   const approval = await deviceDecision({
     userCode: device.user_code,
     scopes: 'read',
     page: consent,
     ip: '198.51.100.20',
+    connectionName: 'Build server',
   })
   assert.equal(approval.status, 200)
   assert.match(await approval.text(), /Device connected/)
@@ -1069,9 +1183,11 @@ test('the device flow connects a client that has no browser callback', async () 
   })
   assert.equal(mcp.status, 200)
 
-  // And it is listed for the owner to revoke.
+  // And it is listed for the owner to revoke, under the name they gave it.
   const listed = await (await fetch(`${base}/api/oauth/clients`, { headers: { cookie } })).json()
-  assert.ok(listed.clients.some(entry => entry.clientId === client.client_id))
+  const grant = listed.clients.find(entry => entry.clientId === client.client_id)
+  assert.equal(grant?.name, 'Build server')
+  assert.equal(grant?.clientName, 'Test MCP client')
 })
 
 test('a denied device authorization returns access_denied', async () => {

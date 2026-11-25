@@ -118,6 +118,12 @@ test('upgrading an old database preserves identity, rangka, grants, and tokens',
   assert.equal(device.user_code, 'ABCDABCD')
   assert.equal(device.api_token_id, null)
 
+  // Connection-name columns added, empty for existing rows.
+  const named = sqlite.prepare(`SELECT label, label_set_by FROM oauth_tokens WHERE id='grant-1'`).get()
+  assert.deepEqual({ ...named }, { label: null, label_set_by: null })
+  assert.equal(sqlite.prepare(`SELECT label FROM oauth_device_codes WHERE id='dev-1'`).get().label, null)
+  assert.ok(sqlite.prepare(`PRAGMA table_info(oauth_codes)`).all().some(column => column.name === 'label'))
+
   // Running the migrations again is idempotent (no duplicate-column throw).
   await ensureRangkaSchema(db)
   await ensureUserSchema(db)

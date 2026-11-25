@@ -284,37 +284,33 @@ export async function ensureOAuthSchema(db: any) {
   ]
   for (const statement of statements) await db.run(sql.raw(statement))
 
-  // RFC 8707 audience binding was added after OAuth shipped. Existing grants
-  // keep working: they are bound on first refresh or first MCP request.
-  let hasResource = false
-  try {
-    const columns = await db.all<{ name: string }>(sql`PRAGMA table_info(oauth_tokens)`)
-    hasResource = columns.some(column => String(column.name) === 'resource')
-  } catch {
-    // Some edge runtimes restrict PRAGMA; fall through to a guarded ALTER.
-  }
-  if (!hasResource) {
-    try {
-      await db.run(sql`ALTER TABLE oauth_tokens ADD COLUMN resource TEXT`)
-    } catch (error) {
-      if (!/duplicate column|already exists/i.test(errorText(error))) throw error
-    }
-  }
+  // Columns added after OAuth shipped. All are additive and nullable, so
+  // existing grants, codes, and pending device requests keep working:
+  //  - RFC 8707 audience binding; old grants are bound on first use or refresh.
+  //  - The API token linked by atomic device-code redemption.
+  //  - Owner/agent-chosen connection names; old grants show the client name.
+  const additions: Array<[table: string, column: string]> = [
+    ['oauth_tokens', 'resource'],
+    ['oauth_device_codes', 'api_token_id'],
+    ['oauth_codes', 'label'],
+    ['oauth_device_codes', 'label'],
+    ['oauth_tokens', 'label'],
+    ['oauth_tokens', 'label_set_by'],
+  ]
+  for (const [table, column] of additions) await addTextColumn(db, table, column)
+}
 
-  // Atomic device-code redemption links the winning API token to the device
-  // row. Additive and nullable: existing pending codes keep working.
-  let hasDeviceApiTokenId = false
+/** Add a nullable TEXT column unless it exists. Safe to race across isolates. */
+async function addTextColumn(db: any, table: string, column: string) {
   try {
-    const columns = await db.all<{ name: string }>(sql`PRAGMA table_info(oauth_device_codes)`)
-    hasDeviceApiTokenId = columns.some(column => String(column.name) === 'api_token_id')
+    const columns = await db.all<{ name: string }>(sql.raw(`PRAGMA table_info(${table})`))
+    if (columns.some(existing => String(existing.name) === column)) return
   } catch {
     // Some edge runtimes restrict PRAGMA; fall through to a guarded ALTER.
   }
-  if (!hasDeviceApiTokenId) {
-    try {
-      await db.run(sql`ALTER TABLE oauth_device_codes ADD COLUMN api_token_id TEXT`)
-    } catch (error) {
-      if (!/duplicate column|already exists/i.test(errorText(error))) throw error
-    }
+  try {
+    await db.run(sql.raw(`ALTER TABLE ${table} ADD COLUMN ${column} TEXT`))
+  } catch (error) {
+    if (!/duplicate column|already exists/i.test(errorText(error))) throw error
   }
 }
