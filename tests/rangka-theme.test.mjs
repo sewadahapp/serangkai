@@ -29,6 +29,16 @@ test('ignores an unknown theme name', () => {
   assert.equal(withDocumentTheme(unknown), unknown)
 })
 
+test('lets a themed canvas use the full board instead of the reading column', () => {
+  const canvas = themed.replace('<title>', '<meta name="serangkai-canvas" content="2400x1600"><style>.board{width:2400px}</style><title>')
+  const result = withDocumentTheme(canvas)
+  assert.match(result, /data-serangkai-document-theme><style data-serangkai-canvas-layout>html,body\{max-width:none;margin:0;padding:0\}<\/style>/)
+  // Author styles come after the reset, so they still win.
+  assert.ok(result.indexOf('data-serangkai-canvas-layout') < result.indexOf('.board{width:2400px}'))
+  assert.doesNotMatch(withDocumentTheme(themed), /data-serangkai-canvas-layout/)
+  assert.doesNotMatch(withDocumentTheme(canvas.replace(/<meta name="serangkai-theme"[^>]*>/, '')), /data-serangkai-canvas-layout/)
+})
+
 test('adds a head when only a body tag exists', () => {
   const result = withDocumentTheme('<html><body><h1>Hello</h1><meta name="serangkai-theme" content="selaras-document"></body></html>')
   assert.match(result, /<head><link[^>]+selaras-document\.css/)

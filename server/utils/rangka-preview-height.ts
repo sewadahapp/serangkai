@@ -163,10 +163,16 @@ export function withPreviewHeight(content: string): string {
   return withPreviewBridge(content, previewTag)
 }
 
+const CANVAS_META = /<meta\b[^>]*\sname\s*=\s*(?:"serangkai-canvas"|'serangkai-canvas'|serangkai-canvas(?=[\s/>]))/i
+
+export function hasCanvasMeta(html: string) {
+  return CANVAS_META.test(html)
+}
+
 // Bundle documents stay bounded. Only the preview needs a ready signal.
 export function withBundleCanvas(content: Buffer, framed = false): string | Buffer {
   const html = content.toString()
-  if (/<meta\b[^>]*\sname\s*=\s*(?:"serangkai-canvas"|'serangkai-canvas'|serangkai-canvas(?=[\s/>]))/i.test(html)) {
+  if (hasCanvasMeta(html)) {
     return withPreviewBridge(html, canvasTag)
   }
   return framed ? withPreviewBridge(html, readyTag) : content
