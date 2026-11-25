@@ -1,6 +1,29 @@
 # Changelog
 
 
+## v0.8.0
+
+[compare changes](https://github.com/sewadahapp/serangkai/compare/v0.7.0...v0.8.0)
+
+### 🚀 Enhancements
+
+- **mcp:** Advertise server icons and website ([ca08036](https://github.com/sewadahapp/serangkai/commit/ca08036))
+- **ui:** Quieter rangka top bar ([f6a0f6f](https://github.com/sewadahapp/serangkai/commit/f6a0f6f))
+- **ui:** Flatter sidebar storage meter ([c61a933](https://github.com/sewadahapp/serangkai/commit/c61a933))
+
+### 🩹 Fixes
+
+- **rangka:** Let themed canvases use the full board width ([9c7bded](https://github.com/sewadahapp/serangkai/commit/9c7bded))
+- **ui:** Keep the rangka back button ([f4049e3](https://github.com/sewadahapp/serangkai/commit/f4049e3))
+
+### 📖 Documentation
+
+- Restructure README and move reference material into docs/ ([a899e15](https://github.com/sewadahapp/serangkai/commit/a899e15))
+
+### ❤️ Contributors
+
+- Wicaksana Pratama <wicaksanapratama@gmail.com>
+
 ## v0.7.0
 
 [compare changes](https://github.com/sewadahapp/serangkai/compare/v0.6.0...v0.7.0)
