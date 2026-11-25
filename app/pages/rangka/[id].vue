@@ -38,9 +38,9 @@
 
     <div v-else class="rangka-reader">
       <header class="rangka-toolbar">
-        <!-- The folder trail already leads back, so the arrow only shows when
-             there is no trail: rangka outside a folder, and phones. -->
-        <STooltip text="Back to workspace"><SButton :to="backTo" variant="ghost" color="neutral" icon="lucide:arrow-left" aria-label="Back to workspace" class="shrink-0" :class="{ 'sm:hidden': crumbs.length > 1 }" /></STooltip>
+        <!-- Back returns to the exact workspace view you came from (search,
+             filters, All rangka); the folder trail only leads to folders. -->
+        <STooltip text="Back to workspace"><SButton :to="backTo" variant="ghost" color="neutral" icon="lucide:arrow-left" aria-label="Back to workspace" class="shrink-0" /></STooltip>
         <!-- Where the rangka lives: its folder path, then the title. -->
         <SBreadcrumb :items="crumbs" :max-items="3" class="rangka-crumbs" :ui="{ root: 'min-w-0', list: 'min-w-0', item: 'min-w-0' }">
           <template #item="{ item, current }">
