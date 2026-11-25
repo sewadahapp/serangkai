@@ -38,22 +38,22 @@
 
     <div v-else class="rangka-reader">
       <header class="rangka-toolbar">
-        <STooltip text="Back to workspace"><SButton :to="backTo" variant="ghost" color="neutral" icon="lucide:arrow-left" aria-label="Back to workspace" class="shrink-0" /></STooltip>
+        <!-- The folder trail already leads back, so the arrow only shows when
+             there is no trail: rangka outside a folder, and phones. -->
+        <STooltip text="Back to workspace"><SButton :to="backTo" variant="ghost" color="neutral" icon="lucide:arrow-left" aria-label="Back to workspace" class="shrink-0" :class="{ 'sm:hidden': crumbs.length > 1 }" /></STooltip>
         <!-- Where the rangka lives: its folder path, then the title. -->
         <SBreadcrumb :items="crumbs" :max-items="3" class="rangka-crumbs" :ui="{ root: 'min-w-0', list: 'min-w-0', item: 'min-w-0' }">
           <template #item="{ item, current }">
-            <h1 v-if="current" class="rangka-title">{{ item.label }}</h1>
+            <STooltip v-if="current" :text="rangka.updatedAt ? `Updated ${humanDateTime(rangka.updatedAt)}` : item.label"><h1 class="rangka-title">{{ item.label }}</h1></STooltip>
             <NuxtLink v-else :to="item.to" class="rangka-crumb"><SIcon v-if="item.icon" :name="item.icon" class="size-4 shrink-0" aria-hidden="true" /><span class="truncate">{{ item.label }}</span></NuxtLink>
           </template>
         </SBreadcrumb>
-        <span class="rangka-meta">
-          <SBadge :label="visibilityLabel" :icon="visibilityIcon" variant="subtle" color="neutral" size="sm" />
-          <span v-if="rangka.updatedAt" class="rangka-updated">Updated <time :datetime="rangka.updatedAt">{{ formatDay(rangka.updatedAt) }}</time></span>
-        </span>
         <div class="ml-auto flex shrink-0 items-center gap-1">
-          <STooltip v-if="isTextRangka" text="Edit"><SButton variant="ghost" color="neutral" icon="lucide:pencil" :disabled="historyLoading || latestVersion === null" aria-label="Edit" @click="openEditor"><span class="hidden sm:inline">Edit</span></SButton></STooltip>
+          <STooltip v-if="isTextRangka" text="Edit"><SButton variant="ghost" color="neutral" icon="lucide:pencil" :disabled="historyLoading || latestVersion === null" aria-label="Edit" @click="openEditor" /></STooltip>
           <STooltip text="History"><SButton variant="ghost" color="neutral" icon="lucide:history" aria-label="History" @click="historyOpen = true" /></STooltip>
-          <STooltip text="Share"><SButton variant="outline" color="neutral" icon="lucide:share-2" aria-label="Share" @click="sharingOpen = true"><span class="hidden sm:inline">Share</span></SButton></STooltip>
+          <!-- Visibility lives on the Share button: its icon is the current
+               state, and clicking it is where that state changes. -->
+          <STooltip :text="`${visibilityLabel} · Share`"><SButton color="primary" :icon="visibilityIcon" :aria-label="`Share (${visibilityLabel})`" class="ml-1" @click="sharingOpen = true"><span class="hidden sm:inline">Share</span></SButton></STooltip>
           <SDropdown :items="rangkaActions" :positioning="{ align: 'end', collisionPadding: 12 }" :adaptive="true">
             <SButton variant="ghost" color="neutral" icon="lucide:ellipsis" aria-label="Rangka actions" />
           </SDropdown>
@@ -370,7 +370,6 @@ const crumbs = computed(() => {
 })
 
 const formatDate = (value: string) => new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
-const formatDay = (value: string) => new Date(value).toLocaleDateString([], { dateStyle: 'medium' })
 // "3 minutes ago" for recent versions; the exact time stays in the tooltip.
 const relativeUnits: Array<[Intl.RelativeTimeFormatUnit, number]> = [['year', 31536000], ['month', 2592000], ['week', 604800], ['day', 86400], ['hour', 3600], ['minute', 60]]
 const formatRelative = (value: string) => {
@@ -772,11 +771,9 @@ const save = async () => {
 .rangka-crumb:hover { color: var(--selaras-resolved-text-default); }
 .rangka-crumb:focus-visible { outline: 2px solid var(--selaras-resolved-color-primary-border); outline-offset: 2px; border-radius: var(--selaras-resolved-radius-sm); }
 .rangka-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9375rem; font-weight: 600; color: var(--selaras-resolved-text-default); }
-.rangka-meta { display: none; flex-shrink: 0; align-items: center; gap: .625rem; margin-left: .25rem; font-size: .75rem; color: var(--selaras-resolved-text-muted); }
 .rangka-notice { padding: .75rem 1.5rem; font-size: .75rem; color: var(--selaras-resolved-text-muted); }
 /* Phones keep only the title; the back arrow already leads to the folder. */
 @media (max-width: 639px) { .rangka-crumbs :deep(li:not(:last-child)) { display: none; } }
-@media (min-width: 1024px) { .rangka-meta { display: flex; } }
 @media (min-width: 768px) { .rangka-document { padding-inline: 2.5rem; }.rangka-toolbar { padding-inline: 1.5rem; } }
 @media (min-width: 1024px) { .rangka-reader { --rangka-toolbar-top: 0px; }.rangka-document-markdown { padding-top: 3.5rem; } }
 .rangka-document-embed { padding: 0; }
