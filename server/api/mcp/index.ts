@@ -14,7 +14,7 @@ import { byteLength, storageWriteRefusal } from '../../utils/storage-quota'
 import { autoPruneVersions } from '../../utils/version-pruning'
 import { isSlugConflict } from '../../db/migrations'
 import { CONNECTION_LABEL_MAX, findGrantByApiTokenId, normalizeConnectionLabel, resourceMatches, setConnectionLabel } from '../../utils/oauth'
-import { mcpResourceUrl, protectedResourceMetadataUrl } from '../../utils/oauth-urls'
+import { mcpResourceUrl, protectedResourceMetadataUrl, requestOrigin } from '../../utils/oauth-urls'
 import { capabilities, capabilitiesText, htmlGuide, markdownGuide, promptMessages, templates } from '../../utils/authoring'
 import { componentCatalogMarkdown } from '../../../shared/rangka-components'
 import { selarasTokensGuide } from '../../../shared/selaras-tokens'
@@ -65,8 +65,24 @@ const rangkaOutput = z.object({
   updatedAt: timestamp,
 })
 
-function createMcpServer(userId: string, canWrite: boolean, db: any, grantId: string | null) {
-  const server = new McpServer({ name: 'serangkai', version: '0.1.0' }, { maxToolInputElements: 100, instructions: 'Rangka are documents, files, and interactive content stored in the connected Serangkai workspace. Use create_rangka to create them in Serangkai and get_rangka/update_rangka to read or revise them. The workspace owns persistence, versions, folders, and sharing. HTML rangka can be documents, full-screen apps, or zoomable canvases such as kanban boards and whiteboards; get_rangka_capabilities explains each.' })
+// Clients that support MCP server icons (spec 2025-11-25) show these next to
+// the connection. URLs are absolute so each self-hosted instance serves its own.
+export function mcpServerInfo(origin: string) {
+  return {
+    name: 'serangkai',
+    title: 'Serangkai',
+    version: '0.1.0',
+    websiteUrl: origin,
+    icons: [
+      { src: `${origin}/favicon.svg`, mimeType: 'image/svg+xml', sizes: ['any'] },
+      { src: `${origin}/icon-512.png`, mimeType: 'image/png', sizes: ['512x512'] },
+      { src: `${origin}/icon-192.png`, mimeType: 'image/png', sizes: ['192x192'] },
+    ],
+  }
+}
+
+function createMcpServer(userId: string, canWrite: boolean, db: any, grantId: string | null, origin: string) {
+  const server = new McpServer(mcpServerInfo(origin), { maxToolInputElements: 100, instructions: 'Rangka are documents, files, and interactive content stored in the connected Serangkai workspace. Use create_rangka to create them in Serangkai and get_rangka/update_rangka to read or revise them. The workspace owns persistence, versions, folders, and sharing. HTML rangka can be documents, full-screen apps, or zoomable canvases such as kanban boards and whiteboards; get_rangka_capabilities explains each.' })
   const findFolder = (folderId: string) => db.select().from(folders)
     .where(and(eq(folders.id, folderId), eq(folders.userId, userId))).get()
 
@@ -436,7 +452,7 @@ export default defineEventHandler(async (event) => {
     maxRequestBodySize: 10_000_000,
   })
   const canWrite = token.scopes.includes('write') || token.scopes.includes('full')
-  const server = createMcpServer(user.id, canWrite, db, grant?.id ?? null)
+  const server = createMcpServer(user.id, canWrite, db, grant?.id ?? null, requestOrigin(event))
   await server.connect(transport)
   return transport.handleRequest(toWebRequest(event))
 })
