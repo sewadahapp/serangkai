@@ -185,10 +185,41 @@ tag to reserve keys for the app while the frame has focus:
 The viewer's toolbar, pointer gestures, and shortcuts with the canvas viewport
 focused are still available.
 
+### Saving data from interactions
+
+An HTML rangka that people change by using it, such as a kanban board, can save
+that state as **rangka data** through `window.serangkai.data`. Saves happen
+immediately, survive a reload, and do not create a new version, so restoring
+an older version of the design keeps the data.
+
+```js
+const store = window.serangkai.data
+const { writable } = await store.info()
+const cards = await store.list('cards')
+await store.set('cards', 'c1', { title: 'Write notes', column: 'todo', order: 0 })
+await store.update('cards', 'c1', { column: 'done' })
+await store.remove('cards', 'c1')
+```
+
+- Documents are JSON objects of up to 64 KB, grouped into named collections. A
+  rangka holds up to 5000 documents and 5 MB of data, and data counts toward
+  storage usage.
+- The workspace can read and write. Shared pages can read, so a published
+  board shows its saved cards, but `writable` is `false` there and writes are
+  refused.
+- Opened outside Serangkai, every call rejects; fall back to the content in the
+  HTML.
+- Agents can read and seed the same data with the `read_rangka_data` and
+  `write_rangka_data` MCP tools.
+
+The `serangkai://templates/canvasBoard` template is a kanban board that saves
+its cards this way.
+
 ### Sandbox
 
 The frame is sandboxed, cannot reach the app origin, and has
-`connect-src 'none'`. Keep the page self-contained.
+`connect-src 'none'`. Keep the page self-contained; use `serangkai.data` to
+save state.
 
 ## Bundles
 

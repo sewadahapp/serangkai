@@ -18,6 +18,7 @@
 
 <script setup lang="ts">
 import { parseCanvasSize } from '#shared/rangka-canvas'
+import { answerRangkaDataRequest, isRangkaDataRequest, type RangkaDataBridgeOptions } from '~/utils/rangka-data-bridge'
 import SerangkaiCanvasViewport from './SerangkaiCanvasViewport.vue'
 
 defineOptions({ inheritAttrs: false })
@@ -44,6 +45,11 @@ const props = withDefaults(defineProps<{
   autoHeight?: boolean
   /** Let an opted-in canvas fill the reader's available height. */
   fillCanvas?: boolean
+  /**
+   * Answers the rangka's `serangkai.data` requests against this data API (see
+   * app/utils/rangka-data-bridge.ts). Without it the frame gets no data access.
+   */
+  data?: RangkaDataBridgeOptions
 }>(), { height: '70vh', autoHeight: false })
 
 // Keep this in sync with MAX_PREVIEW_HEIGHT in the server bridge.
@@ -115,6 +121,11 @@ function onMessage(event: MessageEvent) {
   // Match the sender window, then validate its dimensions or input.
   const sender = frame.value
   if (!sender || event.source !== sender.contentWindow) return
+  if (isRangkaDataRequest(event.data)) {
+    const target = sender.contentWindow
+    if (target && props.data) void answerRangkaDataRequest(target, event.data, props.data)
+    return
+  }
   const data = event.data as { type?: unknown; height?: unknown; size?: unknown; kind?: unknown; gesture?: unknown } | null
   if (data?.type === 'serangkai:canvas-size') {
     const size = parseCanvasSize(data.size)

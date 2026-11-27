@@ -8,6 +8,10 @@ rotating them invalidates sessions and existing unlisted links.
 `files/` object store). Stop the container and copy the volume, or take a hot
 SQLite backup with `sqlite3 /data/serangkai.db ".backup '/backup/serangkai.db'"`
 and copy `files/` alongside it. Restore by mounting the same `/data` volume.
+The database runs in WAL mode, so recent changes may sit in
+`serangkai.db-wal` next to it: never copy `serangkai.db` alone while the server
+is running. Rangka data (such as saved kanban cards) is in the database, so it
+is backed up with it.
 
 **Cloudflare D1.** Export with `wrangler d1 export <database> --output backup.sql`
 (or use D1 Time Travel for point-in-time recovery). Restore into a database with

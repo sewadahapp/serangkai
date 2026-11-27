@@ -86,6 +86,7 @@
               v-else-if="rangka.type === 'html'"
               :src="`/api/rangka/${rangka.id}/preview`"
               :title="`${rangka.title} HTML preview`"
+              :data="{ endpoint: `/api/rangka/${rangka.id}/data`, writable: true }"
               auto-height
               fill-canvas
               class="min-h-[70vh]"

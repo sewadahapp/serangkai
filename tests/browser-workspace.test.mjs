@@ -8,6 +8,7 @@ import { request as httpRequest } from 'node:http'
 import { buffer } from 'node:stream/consumers'
 import { test, before, after } from 'node:test'
 import { chromium } from 'playwright-core'
+import { templates } from '../server/utils/authoring.ts'
 import { ZipFile } from 'yazl'
 import { serverRuntime } from './helpers/server.mjs'
 import { adminEnv, adminPassword, adminUsername } from './helpers/auth.mjs'
@@ -1802,4 +1803,52 @@ test('Markdown code blocks have space after headings and before following text',
     assert.ok(positions[2].y - (positions[1].y + positions[1].height) >= 12, 'following paragraph should have a visible gap after the code block')
     await block.getByRole('button', { name: 'Copy code' }).waitFor()
   } finally { await context.close() }
+})
+
+test('an interactive board saves its cards as rangka data and shared pages stay read-only', async () => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+  const owner = await context.newPage()
+  const visitorContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+  try {
+    await owner.goto(`${base}/auth/login`)
+    await owner.getByLabel('Username').fill(adminUsername)
+    await owner.getByLabel('Password').fill(adminPassword)
+    await owner.waitForFunction(hydrated)
+    await owner.getByRole('button', { name: 'Log in' }).click()
+    await owner.waitForURL(/\/(?:workspace)?$/)
+    const created = await owner.evaluate(async (content) => {
+      const result = await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Data board', type: 'html', content, visibility: 'public' }) })
+      return (await result.json()).rangka
+    }, templates.canvasBoard)
+
+    // Add a card in the workspace. It is saved through serangkai.data.
+    await owner.goto(`${base}/rangka/${created.id}`)
+    const board = owner.frameLocator('iframe')
+    const input = board.getByPlaceholder('Add a card and press Enter')
+    await input.waitFor()
+    await input.fill('Saved across reloads')
+    await input.press('Enter')
+    await owner.waitForFunction(async (id) => {
+      const response = await fetch(`/api/rangka/${id}/data/cards`)
+      const { documents } = await response.json()
+      return documents.some(doc => doc.data.title === 'Saved across reloads')
+    }, created.id)
+
+    // A hard reload rebuilds the board from the saved documents.
+    await owner.reload()
+    await assert.doesNotReject(() => owner.frameLocator('iframe').locator('[data-column="todo"] .card', { hasText: 'Saved across reloads' }).waitFor())
+    const versions = await owner.evaluate(async id => (await (await fetch(`/api/rangka/${id}/versions`)).json()).versions.length, created.id)
+    assert.equal(versions, 1, 'saving data must not publish a version')
+
+    // A visitor sees the saved card, but the page is read-only.
+    const visitor = await visitorContext.newPage()
+    await visitor.goto(`${base}/share/${created.slug}`)
+    const shared = visitor.frameLocator('iframe')
+    await assert.doesNotReject(() => shared.locator('.card', { hasText: 'Saved across reloads' }).waitFor())
+    await assert.doesNotReject(() => shared.locator('body.readonly').waitFor({ state: 'attached' }))
+    assert.equal(await shared.getByPlaceholder('Add a card and press Enter').isVisible(), false)
+  } finally {
+    await visitorContext.close()
+    await context.close()
+  }
 })

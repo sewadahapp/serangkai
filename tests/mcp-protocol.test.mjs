@@ -97,7 +97,7 @@ test('supports MCP initialization and tool discovery', async () => {
 
   const tools = await mcp({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} })
   const names = tools.result.tools.map(tool => tool.name)
-  assert.deepEqual(names, ['get_rangka_capabilities', 'set_connection_name', 'list_folders', 'search', 'create_folder', 'list_rangka', 'get_rangka', 'create_rangka', 'update_rangka'])
+  assert.deepEqual(names, ['get_rangka_capabilities', 'set_connection_name', 'list_folders', 'search', 'create_folder', 'list_rangka', 'get_rangka', 'create_rangka', 'update_rangka', 'read_rangka_data', 'write_rangka_data'])
   for (const tool of tools.result.tools) {
     assert.equal(tool.outputSchema?.type, 'object', `${tool.name} declares an output schema`)
   }
@@ -261,4 +261,45 @@ test('create_rangka only advertises text types and labels SVG images', async () 
   const rangka = JSON.parse(svg.result.content[0].text)
   const preview = await fetch(`${baseUrl}/api/rangka/${rangka.id}/preview`, { headers: { authorization: `Bearer ${token}` } })
   assert.equal(preview.headers.get('content-type'), 'image/svg+xml')
+})
+
+test('agents read and seed rangka data without creating versions', async () => {
+  const created = await mcp({ jsonrpc: '2.0', id: 50, method: 'tools/call', params: { name: 'create_rangka', arguments: { title: 'Data board', type: 'html', content: '<html><body>board</body></html>' } } })
+  const rangka = JSON.parse(created.result.content[0].text)
+
+  const written = await mcp({ jsonrpc: '2.0', id: 51, method: 'tools/call', params: { name: 'write_rangka_data', arguments: { id: rangka.id, operations: [
+    { op: 'set', collection: 'cards', docId: 'c1', data: { title: 'Seeded', column: 'todo' } },
+    { op: 'update', collection: 'cards', docId: 'c1', data: { column: 'done' } },
+    { op: 'set', collection: 'cards', docId: 'c2', data: { title: 'Gone soon' } },
+    { op: 'delete', collection: 'cards', docId: 'c2' },
+  ] } } })
+  assert.equal(written.result.isError, undefined, JSON.stringify(written.result))
+  assert.equal(written.result.structuredContent.applied, 4)
+
+  const collections = await mcp({ jsonrpc: '2.0', id: 52, method: 'tools/call', params: { name: 'read_rangka_data', arguments: { id: rangka.id } } })
+  assert.deepEqual(collections.result.structuredContent.collections.map(item => [item.name, item.count]), [['cards', 1]])
+  const documents = await mcp({ jsonrpc: '2.0', id: 53, method: 'tools/call', params: { name: 'read_rangka_data', arguments: { id: rangka.id, collection: 'cards' } } })
+  assert.deepEqual(documents.result.structuredContent.documents.map(doc => [doc.id, doc.data, doc.updatedBy]), [['c1', { title: 'Seeded', column: 'done' }, 'agent']])
+  const missing = await mcp({ jsonrpc: '2.0', id: 54, method: 'tools/call', params: { name: 'read_rangka_data', arguments: { id: rangka.id, collection: 'cards', docId: 'c2' } } })
+  assert.equal(missing.result.structuredContent.document, null)
+
+  const source = await mcp({ jsonrpc: '2.0', id: 55, method: 'tools/call', params: { name: 'get_rangka', arguments: { id: rangka.id } } })
+  assert.equal(JSON.parse(source.result.content[0].text).currentVersion, 1)
+
+  // A failing operation stops the batch and says how far it got.
+  const tooBig = await mcp({ jsonrpc: '2.0', id: 56, method: 'tools/call', params: { name: 'write_rangka_data', arguments: { id: rangka.id, operations: [
+    { op: 'set', collection: 'cards', docId: 'c3', data: { title: 'ok' } },
+    { op: 'set', collection: 'cards', docId: 'c4', data: { text: 'a'.repeat(70 * 1024) } },
+  ] } } })
+  assert.equal(tooBig.result.isError, true)
+  assert.match(tooBig.result.content[0].text, /Operation 2 .*after 1 applied/)
+
+  const denied = await fetch(`${baseUrl}/api/mcp`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${readOnlyToken}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 57, method: 'tools/call', params: { name: 'write_rangka_data', arguments: { id: rangka.id, operations: [{ op: 'delete', collection: 'cards', docId: 'c1' }] } } }),
+  })
+  const deniedBody = await denied.json()
+  assert.equal(deniedBody.result.isError, true)
+  assert.match(deniedBody.result.content[0].text, /write scope/)
 })

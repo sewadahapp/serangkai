@@ -46,6 +46,6 @@ opencode.json
 !.env.example
 .dev.vars*
 !.dev.vars.example
-data/
+/data/
 .wrangler/
 .vercel/

@@ -1,5 +1,5 @@
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import { rangkaItems, rangkaVersions, workspaceSettings } from '../db/schema'
+import { rangkaData, rangkaItems, rangkaVersions, workspaceSettings } from '../db/schema'
 import { formatByteSize } from '../../shared/byte-size'
 import { getServerConfig } from './config'
 import { rangkaStorage } from './rangka-storage'
@@ -9,7 +9,8 @@ declare const __SERANGKAI_CLOUDFLARE__: boolean
 /**
  * Storage accounting and limits.
  *
- * Usage is the sum of `stored_bytes` over an account's versions: every write
+ * Usage is the sum of `stored_bytes` over an account's versions, plus the
+ * stored size of its rangka data documents: every write
  * path records the bytes it stored, and rows written before accounting existed
  * are measured once by the backfill below. Deleting a rangka removes its
  * version rows, so usage drops with it.
@@ -112,7 +113,13 @@ async function usedBytes(db: any, userId: string): Promise<number> {
     .from(rangkaVersions)
     .innerJoin(rangkaItems, eq(rangkaVersions.rangkaId, rangkaItems.id))
     .where(eq(rangkaItems.userId, userId)).get()
-  return Number(row?.used || 0)
+  // Rangka data lives in the database rather than file storage, but it is the
+  // owner's content all the same, so it counts toward the same limit.
+  const data = await db.select({ used: sql<number>`coalesce(sum(${rangkaData.bytes}), 0)` })
+    .from(rangkaData)
+    .innerJoin(rangkaItems, eq(rangkaData.rangkaId, rangkaItems.id))
+    .where(eq(rangkaItems.userId, userId)).get()
+  return Number(row?.used || 0) + Number(data?.used || 0)
 }
 
 export interface StorageSettings {

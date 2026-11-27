@@ -102,7 +102,39 @@ RangkaVersion {
   metadata: JSON
   createdAt: Date
 }
+
+RangkaData {
+  rangkaId: string // primary key with collection + docId
+  collection: string // 1-64 of [A-Za-z0-9_-]
+  docId: string // 1-64 of [A-Za-z0-9_-]
+  data: JSON object // at most 64 KB stored
+  bytes: number // stored JSON size, counted toward storage usage
+  updatedBy: 'owner' | 'agent'
+  createdAt: Date
+  updatedAt: Date
+}
 ```
+
+#### Rangka data
+Interactive HTML rangka keep live state, such as kanban cards, in `rangka_data`
+instead of their source (`server/utils/rangka-data.ts`). Data is deliberately
+not versioned: a moved card updates one row rather than copying the whole
+rangka, and restoring an older version keeps the data. Limits: 64 KB per
+document, 5000 documents and 5 MB per rangka, and the account storage limit.
+
+The HTML frame stays sandboxed with `connect-src 'none'`. Delivery injects a
+small bridge (`server/utils/rangka-data-bridge.ts`) that exposes
+`window.serangkai.data` and posts each call to the framing page;
+`SerangkaiHtmlPreview` matches the sender to its own iframe, validates names,
+and performs the request with the page's credentials
+(`app/utils/rangka-data-bridge.ts`). The workspace page reads and writes; the
+share reader can only read (`/api/share-data/:slug`, same access rules as the
+share), so visitors interact with a local copy. Bundles do not get the bridge.
+Rows are removed with their rangka; the delete route removes them explicitly
+because a remote libSQL connection may not enforce foreign keys.
+
+Local SQLite runs in WAL mode with a busy timeout, so page reads continue while
+small data writes commit.
 
 ### Storage Layer
 Rangka bytes use Nitro's built-in storage abstraction (`useStorage()` over
@@ -157,8 +189,9 @@ inside it.
 
 #### Storage accounting and limits
 Every version row records the bytes it stored in `rangka_versions.stored_bytes`
-(content, plus unpacked files for a bundle's first version), so usage is one
-`SUM` per account and drops when a rangka is deleted. Rows written before
+(content, plus unpacked files for a bundle's first version), and every rangka
+data document its JSON size in `rangka_data.bytes`, so usage is two `SUM`s per
+account and drops when a rangka is deleted. Rows written before
 accounting existed are measured once, a batch per request, from driver metadata
 (`server/utils/storage-quota.ts`).
 
@@ -252,6 +285,14 @@ per day and does not remove the current version.
 - `GET /api/rangka/:id/preview` - Owner-only inline image/PDF preview
 - `POST /api/rangka/:id/duplicate` - Copy an rangka as a new private rangka
 - `POST /api/rangka/:id/share` - Build a public or signed unlisted share URL
+- `GET /api/rangka/:id/data` - List a rangka's data collections with counts and sizes
+- `GET /api/rangka/:id/data/:collection` - List documents (`read` scope)
+- `GET|PUT|PATCH|DELETE /api/rangka/:id/data/:collection/:docId` - Read,
+  replace, shallow-merge, or delete one document (`write` scope for changes).
+  Bodies are `{ "data": { … } }`; writes never create a version
+- `GET /api/share-data/:slug/:collection[/:docId]` - Read-only data for a
+  shared rangka, under the share access rules. It is outside `/api/share/:slug/`
+  because that prefix serves bundle files
 - `GET /api/share/:slug` - Public/unlisted rangka delivery. Markdown redirects
   to the `/share/:slug` reader; `?format=json` returns its rendered data.
 - `GET /api/share/:slug/*` - Scoped static bundle asset delivery
@@ -287,6 +328,10 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   can re-read and merge, the same stale-write guard Claude Code applies.
   Metadata-only updates are exempt, and unchanged content creates no version.
   Mutating tools declare `destructiveHint`.
+- `read_rangka_data` - List a rangka's data collections, a collection's
+  documents, or one document
+- `write_rangka_data` - Apply up to 100 `set`/`update`/`delete` operations to
+  rangka data in order, stopping at the first error. Needs `write`
 
 Every tool declares an `outputSchema` and returns `structuredContent`, with the
 same JSON repeated as text for older clients. List results are objects
