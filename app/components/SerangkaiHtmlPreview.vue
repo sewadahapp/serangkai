@@ -8,6 +8,7 @@
       :src="src"
       :title="title"
       sandbox="allow-scripts"
+      allow="fullscreen"
       referrerpolicy="no-referrer"
       class="block w-full border-0 bg-white dark:bg-[#111]"
       :style="canvasSize ? { height: '100%', minHeight: '0' } : { height: resolvedHeight }"

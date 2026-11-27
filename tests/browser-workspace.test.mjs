@@ -606,7 +606,10 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
         await reader.getByRole('group', { name: 'Canvas controls' }).waitFor()
         const frame = canvas.locator('iframe')
         assert.equal(await frame.getAttribute('sandbox'), 'allow-scripts')
+        assert.equal(await frame.getAttribute('allow'), 'fullscreen')
         const inner = await (await frame.elementHandle()).contentFrame()
+        // Full screen is the only permission the frame is granted.
+        assert.equal(await inner.evaluate(() => document.fullscreenEnabled), true)
         const content = canvas.frameLocator('iframe')
         const control = content.getByRole('button', { name: 'Board control' })
         const input = content.getByRole('textbox', { name: 'Board text' })

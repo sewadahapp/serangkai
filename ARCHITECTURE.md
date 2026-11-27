@@ -487,6 +487,12 @@ server. Error results carry text only.
   Rangka can opt out with `<meta name="color-scheme" content="only light">`.
   `sandbox allow-scripts` still denies same-origin access, forms, popups, framing,
   and network calls.
+- The HTML frame is granted one permission, `allow="fullscreen"`, so a rangka
+  such as a slide deck can present full screen. The browser only enters full
+  screen from a click or key press, shows its exit notice, and always exits on
+  Esc; the sandbox and CSP still deny forms and the network, so a full-screen
+  page cannot collect or send anything. Camera, microphone, clipboard, and other
+  permissions stay denied; granting one is a separate decision.
 - Workspace and shared HTML previews inject a sizing bridge
   (`server/utils/rangka-preview-height.ts`). Because the sandboxed frame is
   opaque-origin, the parent listens for a source-checked `serangkai:height`
@@ -720,7 +726,7 @@ convenience path for clients that support it. Both resolve to the same scoped
 - **API Tokens**: SHA-256 hashed, scoped (`read`/`write`/`full`), optional expiry; OAuth tokens are audience-bound to `/api/mcp`
 - **Authorization**: All private resources check ownership; API tokens checked for scopes; unlisted downloads require the share key; read-only tokens cannot mint share links
 - **XSS/Sanitization**: Sanitize user input; careful with HTML rendering
-- **Sandboxing**: HTML/JS rangka rendered in sandboxed iframes with restrictive CSP; the opt-in Mermaid/chart runtime is same-origin, declarative, and network-denied
+- **Sandboxing**: HTML/JS rangka rendered in sandboxed iframes with restrictive CSP and no permissions except full screen; the opt-in Mermaid/chart runtime is same-origin, declarative, and network-denied
 - **File Uploads**: Validate file types, size limits, scan if needed
 - **Rate Limiting**: On auth endpoints and API
 - **CSP**: Content Security Policy headers
