@@ -1,4 +1,8 @@
+import { docsIconAliases, selarasIcons } from '#shared/icons'
+
 export default defineAppConfig({
+  selaras: { icons: selarasIcons },
+  icon: { aliases: docsIconAliases },
   selarasDocs: {
     site: {
       name: 'Serangkai',
