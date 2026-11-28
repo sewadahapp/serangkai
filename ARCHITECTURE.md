@@ -134,11 +134,29 @@ small bridge (`server/utils/rangka-data-bridge.ts`) that exposes
 `window.serangkai.data` and posts each call to the framing page;
 `SerangkaiHtmlPreview` matches the sender to its own iframe, validates names,
 and performs the request with the page's credentials
-(`app/utils/rangka-data-bridge.ts`). The workspace page reads and writes; the
+(`app/utils/rangka-data-bridge.ts`). Each frame load carries a random bridge
+key: the framing page adds `?bridge=<key>` to the frame URL, delivery embeds it
+in the bridge script, and the page answers only messages that carry it. The
+frame's window object survives navigation, so without the key a page the
+rangka links to could use the owner's data access; that page never sees the
+URL (`referrerpolicy="no-referrer"`), so it cannot. Residual: a reply already
+in flight when the frame navigates away reaches the new page; the frame's load
+events cannot tell that apart reliably (Chrome can fire one for the initial
+blank document), so it is accepted. The workspace page reads and writes; the
 share reader can only read (`/api/share-data/:slug`, same access rules as the
-share), so visitors interact with a local copy. Bundles do not get the bridge.
+share), so visitors interact with a local copy. Sharing a rangka publishes all
+of its data. Only HTML rangka keep data: writes to other types are refused,
+and the share routes return 404 for them. Bundles do not get the bridge.
 Rows are removed with their rangka; the delete route removes them explicitly
 because a remote libSQL connection may not enforce foreign keys.
+
+The owner sees a rangka's saved data (document count and size) in the version
+history panel and can clear it there (`DELETE /api/rangka/:id/data`).
+Duplicating a rangka copies its data to the private copy, counted against
+storage. Download returns the source file only; data is not part of it.
+The account storage limit is checked before each write but not inside the
+guarded statement, so concurrent writes to different rangka can overshoot it
+by at most a few documents, as with other uploads.
 
 Local SQLite runs in WAL mode with a busy timeout, so page reads continue while
 small data writes commit.
@@ -290,9 +308,10 @@ per day and does not remove the current version.
 - `DELETE /api/rangka/:id/versions` - Clear older versions in batches (browser session only)
 - `GET /api/rangka/:id/download` - Download the original source
 - `GET /api/rangka/:id/preview` - Owner-only inline image/PDF preview
-- `POST /api/rangka/:id/duplicate` - Copy an rangka as a new private rangka
+- `POST /api/rangka/:id/duplicate` - Copy an rangka (and its data) as a new private rangka
 - `POST /api/rangka/:id/share` - Build a public or signed unlisted share URL
 - `GET /api/rangka/:id/data` - List a rangka's data collections with counts and sizes
+- `DELETE /api/rangka/:id/data` - Clear all of a rangka's data (`write` scope)
 - `GET /api/rangka/:id/data/:collection` - List documents (`read` scope)
 - `GET|PUT|PATCH|DELETE /api/rangka/:id/data/:collection/:docId` - Read,
   replace, shallow-merge, or delete one document (`write` scope for changes).
@@ -497,9 +516,13 @@ server. Error results carry text only.
 - The HTML frame is granted one permission, `allow="fullscreen"`, so a rangka
   such as a slide deck can present full screen. The browser only enters full
   screen from a click or key press, shows its exit notice, and always exits on
-  Esc; the sandbox and CSP still deny forms and the network, so a full-screen
-  page cannot collect or send anything. Camera, microphone, clipboard, and other
-  permissions stay denied; granting one is a separate decision.
+  Esc. The sandbox still denies popups, top-level navigation, and same-origin
+  access, and it is not loosened. Accepted risk: a full-screen page can look
+  like anything, including a fake sign-in, and the CSP allows `https:` images,
+  so a script could send typed text out through an image URL. That was already
+  possible inside the frame; full screen only removes the surrounding app
+  chrome. Camera, microphone, clipboard, and other permissions stay denied;
+  granting one is a separate decision.
 - Workspace and shared HTML previews inject a sizing bridge
   (`server/utils/rangka-preview-height.ts`). Because the sandboxed frame is
   opaque-origin, the parent listens for a source-checked `serangkai:height`

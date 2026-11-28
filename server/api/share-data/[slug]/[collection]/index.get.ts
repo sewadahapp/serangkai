@@ -1,5 +1,5 @@
 import { getRequestDatabase } from '../../../../db/adapter'
-import { listDocuments, toHttpError } from '../../../../utils/rangka-data'
+import { keepsData, listDocuments, toHttpError } from '../../../../utils/rangka-data'
 import { loadSharedRangka } from '../../../../utils/share-access'
 
 /**
@@ -10,6 +10,8 @@ import { loadSharedRangka } from '../../../../utils/share-access'
  */
 export default defineEventHandler(async (event) => {
   const rangka = await loadSharedRangka(event, String(getRouterParam(event, 'slug')))
+  // Only HTML rangka have a page that shows data; nothing else is published.
+  if (!keepsData(rangka)) throw createError({ statusCode: 404, message: 'Not found' })
   const db = await getRequestDatabase(event)
   setHeader(event, 'Cache-Control', 'no-store')
   setHeader(event, 'X-Content-Type-Options', 'nosniff')

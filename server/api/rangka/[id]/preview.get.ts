@@ -4,7 +4,7 @@ import { getRequestDatabase } from '../../../db/adapter'
 import { requireUser } from '../../../utils/require-auth'
 import { withColorMode } from '../../../utils/rangka-color-mode'
 import { withPreviewHeight } from '../../../utils/rangka-preview-height'
-import { withDataBridge } from '../../../utils/rangka-data-bridge'
+import { bridgeKeyFrom, withDataBridge } from '../../../utils/rangka-data-bridge'
 import { withRangkaRuntime } from '../../../utils/rangka-runtime'
 import { withDocumentTheme, readerTheme } from '../../../utils/rangka-theme'
 import { readRangkaBytes } from '../../../utils/rangka-storage'
@@ -54,7 +54,7 @@ export default defineEventHandler(async (event) => {
     setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
     setHeader(event, 'Content-Security-Policy', "sandbox allow-scripts; default-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' https: data:; connect-src 'none'; frame-ancestors 'self'; form-action 'none'")
     setHeader(event, 'Vary', 'Sec-CH-Prefers-Color-Scheme')
-    return withDataBridge(withRangkaRuntime(withDocumentTheme(withColorMode(withPreviewHeight(content.toString())), readerTheme(event))))
+    return withDataBridge(withRangkaRuntime(withDocumentTheme(withColorMode(withPreviewHeight(content.toString())), readerTheme(event))), bridgeKeyFrom(getQuery(event).bridge))
   } else {
     setHeader(event, 'Content-Type', resolveImageType(metadata))
     setHeader(event, 'Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'")

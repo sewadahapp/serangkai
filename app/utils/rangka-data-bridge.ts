@@ -23,11 +23,18 @@ const WRITE_OPS = new Set(['set', 'update', 'delete'])
 
 interface DataRequest {
   type: 'serangkai:data'
+  key?: unknown
   id: number
   op: string
   collection?: unknown
   docId?: unknown
   data?: unknown
+}
+
+/** A fresh per-load bridge key; works outside secure contexts (plain http on a LAN). */
+export function createBridgeKey() {
+  const bytes = crypto.getRandomValues(new Uint8Array(24))
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_')
 }
 
 export function isRangkaDataRequest(value: unknown): value is DataRequest {

@@ -60,7 +60,7 @@ export const capabilities = {
     data: {
       api: 'window.serangkai.data: info(), list(collection), get(collection, id), set(collection, id, object), update(collection, id, fields), remove(collection, id); every call returns a promise',
       model: 'JSON object documents in named collections, scoped to this rangka. Names: 1-64 letters, digits, "-" or "_".',
-      behavior: 'Writes save immediately and survive reloads. They are not versions: restoring an older version keeps the data. The owner can write in the workspace; shared pages can read but not write (info().writable is false); opened outside Serangkai every call rejects.',
+      behavior: 'Writes save immediately and survive reloads. They are not versions: restoring an older version keeps the data. The owner can write in the workspace; shared pages can read but not write (info().writable is false), and sharing publishes all of the data; opened outside Serangkai every call rejects. Only HTML rangka keep data.',
       limits: '64 KB per document, 5000 documents and 5 MB per rangka; data counts toward storage usage',
       agents: 'read_rangka_data and write_rangka_data read or seed the same documents',
       useFor: 'kanban cards, checklists, trackers, and anything a viewer changes by interacting with the rangka',
@@ -329,7 +329,9 @@ await store.remove('cards', 'c1')
   there are any, so a new board still shows something before its first save.
 - The owner's workspace can read and write. Shared pages can read, so a
   published board shows its cards, but \`info().writable\` is false and writes
-  reject: let visitors interact locally without saving.
+  reject: let visitors interact locally without saving. Sharing publishes all
+  of the rangka's data, so keep private notes out of it.
+- Only HTML rangka keep data; writes to other types are refused.
 - Opened outside Serangkai, every call rejects. Catch errors and fall back to
   the built-in content.
 - Agents can read or seed the same documents with \`read_rangka_data\` and

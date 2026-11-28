@@ -5,7 +5,7 @@
       :key="previewAttempt"
       ref="frame"
       v-bind="$attrs"
-      :src="src"
+      :src="frameSrc"
       :title="title"
       sandbox="allow-scripts"
       allow="fullscreen"
@@ -19,7 +19,7 @@
 
 <script setup lang="ts">
 import { parseCanvasSize } from '#shared/rangka-canvas'
-import { answerRangkaDataRequest, isRangkaDataRequest, type RangkaDataBridgeOptions } from '~/utils/rangka-data-bridge'
+import { answerRangkaDataRequest, createBridgeKey, isRangkaDataRequest, type RangkaDataBridgeOptions } from '~/utils/rangka-data-bridge'
 import SerangkaiCanvasViewport from './SerangkaiCanvasViewport.vue'
 
 defineOptions({ inheritAttrs: false })
@@ -72,6 +72,16 @@ const previewAttempt = ref(0)
 const reportedHeight = ref<number | null>(null)
 const canvasSize = shallowRef<ReturnType<typeof parseCanvasSize>>(null)
 let readyTimeout: ReturnType<typeof setTimeout> | undefined
+// Per-load data bridge key (see server/utils/rangka-data-bridge.ts). Only the
+// document delivered for this exact URL knows it; a page the frame navigates
+// to does not, so it cannot make requests with the owner's session.
+const bridgeKey = ref('')
+
+const frameSrc = computed(() => {
+  if (!props.data || !bridgeKey.value) return props.src
+  return `${props.src}${props.src.includes('?') ? '&' : '?'}bridge=${bridgeKey.value}`
+})
+
 
 const resolvedHeight = computed(() => {
   if (!props.autoHeight || reportedHeight.value === null) return props.height
@@ -97,6 +107,7 @@ function startPreview() {
   reportedHeight.value = null
   canvasSize.value = null
   previewAttempt.value++
+  bridgeKey.value = props.data ? createBridgeKey() : ''
   // A failed request may never send a layout message. Keep the iframe hidden
   // and offer a retry while still accepting a late reply from this attempt.
   readyTimeout = setTimeout(() => {
@@ -124,7 +135,9 @@ function onMessage(event: MessageEvent) {
   if (!sender || event.source !== sender.contentWindow) return
   if (isRangkaDataRequest(event.data)) {
     const target = sender.contentWindow
-    if (target && props.data) void answerRangkaDataRequest(target, event.data, props.data)
+    // Answer only the document this load delivered: it alone carries the key.
+    if (!target || !props.data || !bridgeKey.value || event.data.key !== bridgeKey.value) return
+    void answerRangkaDataRequest(target, event.data, props.data)
     return
   }
   const data = event.data as { type?: unknown; height?: unknown; size?: unknown; kind?: unknown; gesture?: unknown } | null

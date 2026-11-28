@@ -248,3 +248,64 @@ test('the account storage limit refuses data that would exceed it', async () => 
     await json('PUT', '/api/storage', { limitBytes: null, mode: 'warn' })
   }
 })
+
+test('clearing data deletes every document and frees its storage', async () => {
+  const rangka = await createHtml('Clear')
+  const path = `/api/rangka/${rangka.id}/data`
+  await json('PUT', `${path}/cards/c1`, { data: { text: 'x'.repeat(500) } })
+  await json('PUT', `${path}/notes/n1`, { data: { text: 'y'.repeat(300) } })
+  const before = await usage()
+  assert.equal((await json('DELETE', path, undefined, bearer(readToken))).status, 403)
+  const cleared = await json('DELETE', path)
+  assert.equal(cleared.status, 200)
+  assert.equal(cleared.body.deleted, 2)
+  assert.ok(cleared.body.freedBytes > 800)
+  assert.deepEqual((await json('GET', path)).body.collections, [])
+  assert.equal(await usage(), before - cleared.body.freedBytes)
+  assert.equal((await json('GET', `/api/rangka/${rangka.id}/versions`)).body.versions.length, 1, 'clearing data leaves versions alone')
+})
+
+test('duplicating a rangka copies its data to the private copy', async () => {
+  const rangka = await createHtml('Original board', 'public')
+  await json('PUT', `/api/rangka/${rangka.id}/data/cards/c1`, { data: { title: 'Carried over', column: 'done' } })
+  await json('PUT', `/api/rangka/${rangka.id}/data/cards/c2`, { data: { title: 'Second' } })
+  const before = await usage()
+  const duplicated = await json('POST', `/api/rangka/${rangka.id}/duplicate`, {})
+  assert.equal(duplicated.status, 200, JSON.stringify(duplicated.body))
+  const copy = duplicated.body.rangka
+  assert.equal(copy.visibility, 'private')
+  const listed = await json('GET', `/api/rangka/${copy.id}/data/cards`)
+  assert.deepEqual(listed.body.documents.map(doc => doc.data.title), ['Carried over', 'Second'])
+  assert.ok(await usage() > before, 'the copied data counts toward storage')
+
+  // The copy is independent of the original.
+  await json('PUT', `/api/rangka/${copy.id}/data/cards/c1`, { data: { title: 'Changed in copy' } })
+  assert.equal((await json('GET', `/api/rangka/${rangka.id}/data/cards/c1`)).body.document.data.title, 'Carried over')
+  // Deleting the original leaves the copy's data in place.
+  assert.equal((await json('DELETE', `/api/rangka/${rangka.id}`)).status, 200)
+  assert.equal((await json('GET', `/api/rangka/${copy.id}/data/cards`)).body.documents.length, 2)
+})
+
+test('only HTML rangka keep or publish data', async () => {
+  const created = await json('POST', '/api/rangka', { title: 'Notes', type: 'markdown', content: '# Notes', visibility: 'public' })
+  assert.equal(created.status, 200)
+  const note = created.body.rangka
+  const refused = await json('PUT', `/api/rangka/${note.id}/data/cards/c1`, { data: { secret: 'agent scratch' } })
+  assert.equal(refused.status, 400)
+  assert.match(refused.body.message, /Only HTML rangka keep data/)
+  // Reading is harmless and empty.
+  assert.deepEqual((await json('GET', `/api/rangka/${note.id}/data`)).body.collections, [])
+
+  // Even if rows exist for another type (written before this rule), a share never publishes them.
+  const { Database } = await import('bun:sqlite')
+  const sqlite = new Database(join(dataDir, 'serangkai.db'))
+  try {
+    const now = Math.floor(Date.now() / 1000)
+    sqlite.prepare('INSERT INTO rangka_data (rangka_id, collection, doc_id, data, bytes, updated_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(note.id, 'cards', 'c1', '{"secret":"x"}', 14, 'agent', now, now)
+  } finally {
+    sqlite.close()
+  }
+  assert.equal((await json('GET', `/api/share-data/${note.slug}/cards`, undefined, {})).status, 404)
+  assert.equal((await json('GET', `/api/share-data/${note.slug}/cards/c1`, undefined, {})).status, 404)
+})

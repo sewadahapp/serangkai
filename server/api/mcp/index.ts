@@ -12,7 +12,7 @@ import { checkTextRangka, reserveSlug } from '../../utils/rangka'
 import { appendVersion } from '../../utils/rangka-versions'
 import { byteLength, storageWriteRefusal } from '../../utils/storage-quota'
 import { autoPruneVersions } from '../../utils/version-pruning'
-import { deleteDocument, findOwnedRangka, getDocument, listCollections, listDocuments, RangkaDataError, writeDocument } from '../../utils/rangka-data'
+import { DATA_TYPES_MESSAGE, deleteDocument, findOwnedRangka, getDocument, keepsData, listCollections, listDocuments, RangkaDataError, writeDocument } from '../../utils/rangka-data'
 import { isSlugConflict } from '../../db/migrations'
 import { CONNECTION_LABEL_MAX, findGrantByApiTokenId, normalizeConnectionLabel, resourceMatches, setConnectionLabel } from '../../utils/oauth'
 import { mcpResourceUrl, protectedResourceMetadataUrl, requestOrigin } from '../../utils/oauth-urls'
@@ -402,7 +402,9 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, grantId: st
     annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
   }, async ({ id, operations }) => {
     if (!canWrite) return { isError: true, content: [{ type: 'text', text: 'This API token requires write scope.' }] }
-    if (!(await findOwnedRangka(db, userId, id))) return { isError: true, content: [{ type: 'text', text: 'Rangka not found.' }] }
+    const target = await findOwnedRangka(db, userId, id)
+    if (!target) return { isError: true, content: [{ type: 'text', text: 'Rangka not found.' }] }
+    if (!keepsData(target)) return { isError: true, content: [{ type: 'text', text: DATA_TYPES_MESSAGE }] }
     const results: Array<Record<string, unknown>> = []
     for (const operation of operations) {
       try {

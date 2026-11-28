@@ -79,7 +79,7 @@ const toDocument = (row: typeof rangkaData.$inferSelect): RangkaDocument => ({
 
 /** The rangka when it belongs to `userId`, else null. */
 export async function findOwnedRangka(db: any, userId: string, rangkaId: string) {
-  return await db.select({ id: rangkaItems.id, userId: rangkaItems.userId }).from(rangkaItems)
+  return await db.select({ id: rangkaItems.id, userId: rangkaItems.userId, type: rangkaItems.type }).from(rangkaItems)
     .where(and(eq(rangkaItems.id, rangkaId), eq(rangkaItems.userId, userId))).get() ?? null
 }
 
@@ -215,6 +215,41 @@ export async function deleteDocument(db: any, rangkaId: string, collection: stri
   return true
 }
 
+/** Deletes every document of a rangka; returns how many and the bytes freed. */
+export async function clearDocuments(db: any, rangkaId: string) {
+  const totals = await rangkaTotals(db, rangkaId)
+  await db.delete(rangkaData).where(eq(rangkaData.rangkaId, rangkaId))
+  return { deleted: totals.count, freedBytes: totals.bytes }
+}
+
+/** Total stored bytes of a rangka's data; used to check quota before copying it. */
+export async function dataBytes(db: any, rangkaId: string) {
+  return (await rangkaTotals(db, rangkaId)).bytes
+}
+
+/**
+ * Copies every document of one rangka to another in a single statement. The
+ * copy has the same count and size as the source, so it is within the same
+ * per-rangka limits; the caller checks the account storage limit.
+ */
+export async function copyDocuments(db: any, fromRangkaId: string, toRangkaId: string) {
+  const seconds = Math.floor(Date.now() / 1000)
+  await db.run(sql`
+    INSERT INTO rangka_data (rangka_id, collection, doc_id, data, bytes, updated_by, created_at, updated_at)
+    SELECT ${toRangkaId}, collection, doc_id, data, bytes, updated_by, created_at, ${seconds}
+    FROM rangka_data WHERE rangka_id = ${fromRangkaId}
+  `)
+}
+
+/**
+ * Only HTML rangka run code that can use their data, so only they keep it.
+ * Writes elsewhere are refused rather than stored where no page shows them.
+ */
+export const DATA_TYPES_MESSAGE = 'Only HTML rangka keep data.'
+export function keepsData(rangka: { type?: string | null }) {
+  return rangka.type === 'html'
+}
+
 /** Converts module errors to an H3 error for REST handlers. */
 export function toHttpError(error: unknown) {
   if (error instanceof RangkaDataError) return createError({ statusCode: error.statusCode, message: error.message })
@@ -238,6 +273,7 @@ export async function loadDataRangka(event: any, scope: 'read' | 'write') {
   if (!id) throw createError({ statusCode: 400, message: 'ID required' })
   const rangka = await findOwnedRangka(db, user.id, id)
   if (!rangka) throw createError({ statusCode: 404, message: 'Rangka not found' })
+  if (scope === 'write' && !keepsData(rangka)) throw createError({ statusCode: 400, message: DATA_TYPES_MESSAGE })
   setHeader(event, 'Cache-Control', 'no-store')
   return { db, user, rangka }
 }

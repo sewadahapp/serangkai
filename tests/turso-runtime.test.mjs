@@ -64,7 +64,8 @@ for (const runtime of ['bun', 'node']) {
     })
     assert.equal(update.status, 200)
     // Rangka data goes through the guarded single-statement upsert on libSQL too.
-    const dataPath = `${base}/api/rangka/${rangka.id}/data/cards/c1`
+    const board = (await (await fetch(`${base}/api/rangka`, { method: 'POST', headers, body: JSON.stringify({ title: 'Turso board', type: 'html', content: '<!doctype html><html><head></head><body>board</body></html>' }) })).json()).rangka
+    const dataPath = `${base}/api/rangka/${board.id}/data/cards/c1`
     assert.equal((await fetch(dataPath, { method: 'PUT', headers, body: JSON.stringify({ data: { title: 'Remote card' } }) })).status, 200)
     assert.equal((await fetch(dataPath, { method: 'PATCH', headers, body: JSON.stringify({ data: { column: 'done' } }) })).status, 200)
     assert.deepEqual((await fetch(`${dataPath}?optional=1`, { headers }).then(r => r.json())).document.data, { title: 'Remote card', column: 'done' })

@@ -294,6 +294,13 @@ test('agents read and seed rangka data without creating versions', async () => {
   assert.equal(tooBig.result.isError, true)
   assert.match(tooBig.result.content[0].text, /Operation 2 .*after 1 applied/)
 
+  // Only HTML rangka keep data.
+  const note = await mcp({ jsonrpc: '2.0', id: 58, method: 'tools/call', params: { name: 'create_rangka', arguments: { title: 'Plain note', type: 'markdown', content: '# Note' } } })
+  const noteId = JSON.parse(note.result.content[0].text).id
+  const notData = await mcp({ jsonrpc: '2.0', id: 59, method: 'tools/call', params: { name: 'write_rangka_data', arguments: { id: noteId, operations: [{ op: 'set', collection: 'cards', docId: 'c1', data: { a: 1 } }] } } })
+  assert.equal(notData.result.isError, true)
+  assert.match(notData.result.content[0].text, /Only HTML rangka keep data/)
+
   const denied = await fetch(`${baseUrl}/api/mcp`, {
     method: 'POST',
     headers: { authorization: `Bearer ${readOnlyToken}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },

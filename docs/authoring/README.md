@@ -206,7 +206,10 @@ await store.remove('cards', 'c1')
   storage usage.
 - The workspace can read and write. Shared pages can read, so a published
   board shows its saved cards, but `writable` is `false` there and writes are
-  refused.
+  refused. Sharing publishes all of the rangka's data.
+- Only HTML rangka keep data. Duplicating a rangka copies its data; downloading
+  it returns the HTML only. The owner can clear the data from the version
+  history panel.
 - Opened outside Serangkai, every call rejects; fall back to the content in the
   HTML.
 - Agents can read and seed the same data with the `read_rangka_data` and

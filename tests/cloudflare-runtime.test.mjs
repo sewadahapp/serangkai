@@ -126,10 +126,11 @@ test('Cloudflare local D1 runtime keeps rangka data within its limits', async ()
     assert.ok(statuses.every(status => status === 200), `fill returned ${statuses}`)
   }
   const used = (await call('GET', path)).body.collections.reduce((sum, c) => sum + c.bytes, 0)
-  const small = { text: 'y'.repeat(200) }
+  // Size the racing documents so exactly ten fit in what is left.
+  const small = { text: 'y'.repeat(Math.floor((limit - used) / 10) - Buffer.byteLength('{"text":""}')) }
   const smallSize = Buffer.byteLength(JSON.stringify(small))
   const room = Math.floor((limit - used) / smallSize)
-  assert.ok(room > 0 && room < 30, `expected a little room, got ${room}`)
+  assert.equal(room, 10)
   const raced = await Promise.all(Array.from({ length: 30 }, (_, i) => call('PUT', `${path}/race/r${i}`, { data: small })))
   assert.equal(raced.filter(r => r.status === 200).length, room)
   assert.ok(raced.filter(r => r.status !== 200).every(r => r.status === 413), JSON.stringify(raced.map(r => r.status)))

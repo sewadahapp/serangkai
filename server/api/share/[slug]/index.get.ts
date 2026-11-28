@@ -1,7 +1,7 @@
 import { renderMarkdownContent } from '../../../utils/markdown'
 import { normalizeColorMode, withColorMode } from '../../../utils/rangka-color-mode'
 import { withPreviewHeight } from '../../../utils/rangka-preview-height'
-import { withDataBridge } from '../../../utils/rangka-data-bridge'
+import { bridgeKeyFrom, withDataBridge } from '../../../utils/rangka-data-bridge'
 import { withRangkaRuntime } from '../../../utils/rangka-runtime'
 import { withDocumentTheme, readerTheme } from '../../../utils/rangka-theme'
 import { loadSharedRangka } from '../../../utils/share-access'
@@ -97,7 +97,7 @@ export default defineEventHandler(async (event) => {
     // client's prefers-color-scheme take over afterwards.
     setHeader(event, 'Vary', 'Sec-CH-Prefers-Color-Scheme')
     setHeader(event, 'Accept-CH', 'Sec-CH-Prefers-Color-Scheme')
-    return withDataBridge(withRangkaRuntime(withDocumentTheme(withColorMode(withPreviewHeight(content.toString()), normalizeColorMode(getHeader(event, 'sec-ch-prefers-color-scheme'))), readerTheme(event))))
+    return withDataBridge(withRangkaRuntime(withDocumentTheme(withColorMode(withPreviewHeight(content.toString()), normalizeColorMode(getHeader(event, 'sec-ch-prefers-color-scheme'))), readerTheme(event))), bridgeKeyFrom(getQuery(event).bridge))
   }
 
   if (rangka.type === 'json') {

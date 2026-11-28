@@ -546,7 +546,8 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
           const releaseAsset = Promise.withResolvers()
           const releaseDocument = Promise.withResolvers()
           const asset = '**/api/health?canvas-loading-probe'
-          await reader.route(base + '/api/share/' + rangka.slug, async (route) => {
+          // The frame URL carries a per-load ?bridge= key, so match on the path.
+          await reader.route(url => url.pathname === '/api/share/' + rangka.slug, async (route) => {
             await releaseDocument.promise
             await route.continue()
           }, { times: 1 })
@@ -866,7 +867,7 @@ test('a preview with a missing layout reply stays hidden and can recover', async
     const dock = preview.getByRole('group', { name: 'Canvas controls' })
     const retry = preview.getByRole('button', { name: 'Retry preview' })
     for (const recovery of ['late reply', 'retry']) {
-      await preview.route(url, async (route) => {
+      await preview.route(candidate => candidate.href.split('?')[0] === url, async (route) => {
         const response = await route.fetch()
         await route.fulfill({ response, body: html })
       }, { times: 1 })
@@ -1850,6 +1851,17 @@ test('an interactive board saves its cards as rangka data and shared pages stay 
     await assert.doesNotReject(() => shared.locator('.card', { hasText: 'Saved across reloads' }).waitFor())
     await assert.doesNotReject(() => shared.locator('body.readonly').waitFor({ state: 'attached' }))
     assert.equal(await shared.getByPlaceholder('Add a card and press Enter').isVisible(), false)
+
+    // The owner sees the saved data in the history panel and can clear it.
+    await owner.getByRole('button', { name: 'History' }).click()
+    const savedData = owner.getByRole('region', { name: 'Saved data' })
+    await savedData.waitFor()
+    assert.match(await savedData.textContent(), /\d+ documents?/)
+    await savedData.getByRole('button', { name: 'Clear data' }).click()
+    await owner.getByRole('alertdialog').getByRole('button', { name: 'Clear data' }).click()
+    await owner.getByRole('status').filter({ hasText: /Cleared \d+ saved documents?/ }).waitFor()
+    const cleared = await owner.evaluate(async id => (await (await fetch(`/api/rangka/${id}/data/cards?optional=1`)).json()).documents, created.id)
+    assert.ok(!cleared.some(doc => doc.data.title === 'Saved across reloads'), 'the cleared card is gone')
   } finally {
     await visitorContext.close()
     await context.close()
@@ -1889,9 +1901,15 @@ test('the data bridge validates requests and ignores frames other than the rangk
       out.badName = await outcome(window.serangkai.data.set('bad name', 'x', {}))
       out.notObject = await outcome(window.serangkai.data.set('cards', 'x', [1, 2]))
       out.missing = await window.serangkai.data.get('cards', 'nothing')
+      // The bridge key is in this document's own URL; a page the frame navigates to never sees it.
+      const key = new URLSearchParams(location.search).get('bridge')
+      out.hasKey = /^[A-Za-z0-9_-]{32}$/.test(key || '')
       const unknown = reply(424242)
-      parent.postMessage({ type: 'serangkai:data', id: 424242, op: 'drop', collection: 'cards' }, '*')
+      parent.postMessage({ type: 'serangkai:data', key, id: 424242, op: 'drop', collection: 'cards' }, '*')
       out.unknownOp = await unknown
+      // Without the key, a request is ignored: no reply, and nothing is written.
+      parent.postMessage({ type: 'serangkai:data', id: 424243, op: 'set', collection: 'cards', docId: 'no-key', data: {} }, '*')
+      parent.postMessage({ type: 'serangkai:data', key: 'x'.repeat(32), id: 424244, op: 'set', collection: 'cards', docId: 'wrong-key', data: {} }, '*')
       out.saved = await outcome(window.serangkai.data.set('cards', 'real', { ok: true }))
       // A frame nested inside the rangka is not the rangka: its requests must be ignored.
       out.nested = await new Promise(resolve => {
@@ -1906,6 +1924,7 @@ test('the data bridge validates requests and ignores frames other than the rangk
     assert.equal(results.badName, 400)
     assert.equal(results.notObject, 400)
     assert.equal(results.missing, null)
+    assert.equal(results.hasKey, true)
     assert.equal(results.unknownOp, 400)
     assert.equal(results.saved, 'ok')
     assert.equal(results.nested, 'sent')
@@ -1916,6 +1935,8 @@ test('the data bridge validates requests and ignores frames other than the rangk
     assert.equal(await documentStatus('real'), 200)
     assert.equal(await documentStatus('spoof-nested'), 404)
     assert.equal(await documentStatus('spoof-top'), 404)
+    assert.equal(await documentStatus('no-key'), 404)
+    assert.equal(await documentStatus('wrong-key'), 404)
 
     // Opened directly, outside Serangkai, every call rejects so a rangka can fall back.
     await owner.goto(`${base}/api/rangka/${created.id}/preview`)

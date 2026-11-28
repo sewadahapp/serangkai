@@ -18,8 +18,14 @@
  *
  * Outside Serangkai (the file opened directly) every call rejects, so a rangka
  * can fall back to its built-in content.
+ *
+ * Each load carries a random key: the framing page puts it in the frame URL
+ * (`?bridge=…`), delivery embeds it here, and the page answers only messages
+ * that carry it. If the frame navigates away (a link in the rangka, say), the
+ * new page never learns the key, so it cannot use the owner's data access.
  */
 const BRIDGE = `(function(){
+  var key = __KEY__;
   var root = window.serangkai = window.serangkai || {};
   if (root.data) return;
   var pending = {};
@@ -34,8 +40,8 @@ const BRIDGE = `(function(){
         reject(new Error('Rangka data did not respond.'));
       }, 15000);
       pending[id] = { resolve: resolve, reject: reject, timer: timer };
-      var message = { type: 'serangkai:data', id: id, op: op };
-      for (var key in payload) message[key] = payload[key];
+      var message = { type: 'serangkai:data', key: key, id: id, op: op };
+      for (var field in payload) message[field] = payload[field];
       try { window.parent.postMessage(message, '*'); }
       catch (error) { clearTimeout(timer); delete pending[id]; reject(error); }
     });
@@ -67,9 +73,18 @@ const BRIDGE = `(function(){
  * Injects the data bridge as early as possible in the document, so it exists
  * before any of the rangka's own scripts run.
  */
-export function withDataBridge(content: string): string {
+/** Keys the framing page generates: 32 URL-safe characters. Anything else is dropped. */
+export const BRIDGE_KEY = /^[A-Za-z0-9_-]{32}$/
+
+/** The bridge key from the frame URL, or '' when there is none or it is malformed. */
+export function bridgeKeyFrom(value: unknown): string {
+  return typeof value === 'string' && BRIDGE_KEY.test(value) ? value : ''
+}
+
+export function withDataBridge(content: string, key = ''): string {
   if (/data-serangkai-data-bridge\b/i.test(content)) return content
-  const tag = `<script data-serangkai-data-bridge>${BRIDGE}</script>`
+  // The key is validated to [A-Za-z0-9_-], so JSON.stringify is a safe literal.
+  const tag = `<script data-serangkai-data-bridge>${BRIDGE.replace('__KEY__', JSON.stringify(bridgeKeyFrom(key)))}</script>`
   if (/<head[^>]*>/i.test(content)) return content.replace(/<head[^>]*>/i, head => `${head}${tag}`)
   if (/<html[^>]*>/i.test(content)) return content.replace(/<html[^>]*>/i, html => `${html}<head>${tag}</head>`)
   return tag + content
