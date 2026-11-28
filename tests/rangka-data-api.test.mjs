@@ -163,3 +163,88 @@ test('HTML delivery injects the data bridge before the rangka scripts', async ()
   const shared = await (await fetch(`${base}/api/share/${rangka.slug}`, { headers: { 'sec-fetch-dest': 'iframe' } })).text()
   assert.match(shared, /data-serangkai-data-bridge/)
 })
+
+test('a missing document can be read as null instead of a 404', async () => {
+  const rangka = await createHtml('Optional', 'public')
+  assert.deepEqual((await json('GET', `/api/rangka/${rangka.id}/data/cards/none?optional=1`)).body, { document: null })
+  assert.equal((await json('GET', `/api/rangka/${rangka.id}/data/cards/none`)).status, 404)
+  assert.deepEqual((await json('GET', `/api/share-data/${rangka.slug}/cards/none?optional=1`, undefined, {})).body, { document: null })
+})
+
+// Inserts documents straight into the database, recording the given stored
+// size. Filling a rangka over HTTP would test request throughput, not the
+// limits. The server runs SQLite in WAL mode, so a second connection is safe.
+const seedDocuments = async (rangkaId, collection, count, bytesEach) => {
+  const { Database } = await import('bun:sqlite')
+  const sqlite = new Database(join(dataDir, 'serangkai.db'))
+  try {
+    const now = Math.floor(Date.now() / 1000)
+    const insert = sqlite.prepare('INSERT INTO rangka_data (rangka_id, collection, doc_id, data, bytes, updated_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    sqlite.transaction(() => {
+      for (let i = 0; i < count; i++) {
+        const data = JSON.stringify({ i })
+        insert.run(rangkaId, collection, `c${i}`, data, bytesEach ?? Buffer.byteLength(data), 'owner', now, now)
+      }
+    })()
+  } finally {
+    sqlite.close()
+  }
+}
+
+test('the document limit holds under concurrent writes', async () => {
+  const rangka = await createHtml('Document limit')
+  const path = `/api/rangka/${rangka.id}/data/cards`
+  await seedDocuments(rangka.id, 'cards', 4990)
+
+  // Thirty new documents race for the last ten places.
+  const raced = await Promise.all(Array.from({ length: 30 }, (_, i) => json('PUT', `${path}/race${i}`, { data: { i } })))
+  assert.equal(raced.filter(r => r.status === 200).length, 10)
+  assert.ok(raced.filter(r => r.status !== 200).every(r => r.status === 413 && /at most 5000 documents/.test(r.body.message)))
+  const collections = await json('GET', `/api/rangka/${rangka.id}/data`)
+  assert.equal(collections.body.collections[0].count, 5000)
+
+  // Replacing an existing document is still allowed at the limit.
+  assert.equal((await json('PUT', `${path}/c0`, { data: { i: 'replaced' } })).status, 200)
+  assert.equal((await json('PUT', `${path}/one-more`, { data: {} })).status, 413)
+})
+
+test('the data byte limit refuses writes past 5 MB', async () => {
+  const rangka = await createHtml('Byte limit')
+  const path = `/api/rangka/${rangka.id}/data/blobs`
+  // Ten seeded documents leave 2,880 bytes of the 5 MB.
+  const limit = 5 * 1024 * 1024
+  await seedDocuments(rangka.id, 'blobs', 10, (limit - 2880) / 10)
+  const doc = { text: 'x'.repeat(500) }
+  const room = Math.floor(2880 / Buffer.byteLength(JSON.stringify(doc)))
+  assert.equal(room, 5)
+
+  // Thirty small writes arrive together; only five fit. On local SQLite these
+  // mostly run one after another; the document-limit test above is the one that
+  // forces a true race, against the same statement that enforces this limit.
+  const raced = await Promise.all(Array.from({ length: 30 }, (_, i) => json('PUT', `${path}/race${i}`, { data: doc })))
+  assert.equal(raced.filter(r => r.status === 200).length, room)
+  assert.ok(raced.filter(r => r.status !== 200).every(r => r.status === 413 && /of data/.test(r.body.message)))
+  const [blobs] = (await json('GET', `/api/rangka/${rangka.id}/data`)).body.collections
+  assert.ok(blobs.bytes <= limit)
+
+  // A full rangka can still keep a document the same size or shrink it.
+  const kept = raced.findIndex(r => r.status === 200)
+  assert.equal((await json('PUT', `${path}/race${kept}`, { data: doc })).status, 200)
+  assert.equal((await json('PUT', `${path}/c0`, { data: { text: 'small' } })).status, 200)
+})
+
+test('the account storage limit refuses data that would exceed it', async () => {
+  const rangka = await createHtml('Quota')
+  const used = await usage()
+  const limit = await json('PUT', '/api/storage', { limitBytes: used + 100, mode: 'reject' })
+  assert.equal(limit.status, 200, JSON.stringify(limit.body))
+  try {
+    const refused = await json('PUT', `/api/rangka/${rangka.id}/data/cards/c1`, { data: { text: 'x'.repeat(1000) } })
+    assert.equal(refused.status, 507)
+    assert.equal((await json('GET', `/api/rangka/${rangka.id}/data/cards/c1`)).status, 404)
+    // Small writes that fit are still allowed.
+    assert.equal((await json('PUT', `/api/rangka/${rangka.id}/data/cards/c1`, { data: { ok: true } })).status, 200)
+  } finally {
+    await json('PUT', '/api/storage', { limitBytes: null, mode: 'warn' })
+  }
+})

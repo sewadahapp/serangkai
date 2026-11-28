@@ -121,6 +121,13 @@ instead of their source (`server/utils/rangka-data.ts`). Data is deliberately
 not versioned: a moved card updates one row rather than copying the whole
 rangka, and restoring an older version keeps the data. Limits: 64 KB per
 document, 5000 documents and 5 MB per rangka, and the account storage limit.
+The per-rangka limits are enforced inside the write itself: one
+`INSERT … SELECT … WHERE <within limits> ON CONFLICT DO UPDATE … RETURNING`
+statement, atomic on SQLite, D1, and libSQL, so concurrent writes cannot pass a
+check together and overshoot. This matters most on D1 and Turso, where every
+query is a network round trip. `GET …/:docId?optional=1` answers a missing
+document with `{ document: null }` instead of a 404; the bridge uses it so a
+first read does not log a browser error.
 
 The HTML frame stays sandboxed with `connect-src 'none'`. Delivery injects a
 small bridge (`server/utils/rangka-data-bridge.ts`) that exposes

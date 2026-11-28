@@ -65,12 +65,8 @@ async function perform(request: DataRequest, options: RangkaDataBridgeOptions) {
   const docId = name('document id', request.docId)
   const url = `${options.endpoint}/${collection}/${docId}`
   if (request.op === 'get') {
-    try {
-      return (await $fetch<{ document: unknown }>(url, { query })).document
-    } catch (error: any) {
-      if (error?.statusCode === 404 || error?.status === 404) return null
-      throw error
-    }
+    // A missing document is a normal answer here, not an error.
+    return (await $fetch<{ document: unknown }>(url, { query: { ...query, optional: '1' } })).document ?? null
   }
   if (request.op === 'delete') {
     return (await $fetch<{ deleted: boolean }>(url, { method: 'DELETE', query })).deleted

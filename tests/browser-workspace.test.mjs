@@ -1855,3 +1855,73 @@ test('an interactive board saves its cards as rangka data and shared pages stay 
     await context.close()
   }
 })
+
+test('the data bridge validates requests and ignores frames other than the rangka', async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+  const owner = await context.newPage()
+  try {
+    await owner.goto(`${base}/auth/login`)
+    await owner.getByLabel('Username').fill(adminUsername)
+    await owner.getByLabel('Password').fill(adminPassword)
+    await owner.waitForFunction(hydrated)
+    await owner.getByRole('button', { name: 'Log in' }).click()
+    await owner.waitForURL(/\/(?:workspace)?$/)
+    const created = await owner.evaluate(async () => {
+      const content = '<!doctype html><html><head><title>Probe</title></head><body><p>Bridge probe</p></body></html>'
+      const result = await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Bridge probe', type: 'html', content }) })
+      return (await result.json()).rangka
+    })
+    const documentStatus = docId => owner.evaluate(async ([id, doc]) => (await fetch(`/api/rangka/${id}/data/cards/${doc}`)).status, [created.id, docId])
+
+    await owner.goto(`${base}/rangka/${created.id}`)
+    const frame = owner.locator('iframe').first()
+    await owner.frameLocator('iframe').first().getByText('Bridge probe').waitFor()
+    const inner = await (await frame.elementHandle()).contentFrame()
+    const results = await inner.evaluate(async () => {
+      const outcome = async promise => { try { await promise; return 'ok' } catch (error) { return error.status ?? error.message } }
+      const reply = id => new Promise(resolve => {
+        addEventListener('message', function listen(event) {
+          if (event.data?.type === 'serangkai:data-result' && event.data.id === id) { removeEventListener('message', listen); resolve(event.data.error?.status) }
+        })
+      })
+      const out = {}
+      out.info = await window.serangkai.data.info()
+      out.badName = await outcome(window.serangkai.data.set('bad name', 'x', {}))
+      out.notObject = await outcome(window.serangkai.data.set('cards', 'x', [1, 2]))
+      out.missing = await window.serangkai.data.get('cards', 'nothing')
+      const unknown = reply(424242)
+      parent.postMessage({ type: 'serangkai:data', id: 424242, op: 'drop', collection: 'cards' }, '*')
+      out.unknownOp = await unknown
+      out.saved = await outcome(window.serangkai.data.set('cards', 'real', { ok: true }))
+      // A frame nested inside the rangka is not the rangka: its requests must be ignored.
+      out.nested = await new Promise(resolve => {
+        addEventListener('message', function listen(event) { if (event.data === 'nested-sent') { removeEventListener('message', listen); resolve('sent') } })
+        const child = document.createElement('iframe')
+        child.srcdoc = '<script>top.postMessage({type:"serangkai:data",id:7,op:"set",collection:"cards",docId:"spoof-nested",data:{}},"*");parent.postMessage("nested-sent","*")<\/script>'
+        document.body.appendChild(child)
+      })
+      return out
+    })
+    assert.deepEqual(results.info, { available: true, writable: true })
+    assert.equal(results.badName, 400)
+    assert.equal(results.notObject, 400)
+    assert.equal(results.missing, null)
+    assert.equal(results.unknownOp, 400)
+    assert.equal(results.saved, 'ok')
+    assert.equal(results.nested, 'sent')
+
+    // The workspace page itself is not the rangka either.
+    await owner.evaluate(() => window.postMessage({ type: 'serangkai:data', id: 8, op: 'set', collection: 'cards', docId: 'spoof-top', data: {} }, '*'))
+    await owner.waitForTimeout(1000)
+    assert.equal(await documentStatus('real'), 200)
+    assert.equal(await documentStatus('spoof-nested'), 404)
+    assert.equal(await documentStatus('spoof-top'), 404)
+
+    // Opened directly, outside Serangkai, every call rejects so a rangka can fall back.
+    await owner.goto(`${base}/api/rangka/${created.id}/preview`)
+    const direct = await owner.evaluate(() => window.serangkai.data.list('cards').then(() => 'ok', error => error.message))
+    assert.match(direct, /only available inside Serangkai/)
+  } finally {
+    await context.close()
+  }
+})

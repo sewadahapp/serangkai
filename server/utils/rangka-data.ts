@@ -149,25 +149,56 @@ export async function writeDocument(db: any, options: {
   const { data, bytes } = encode(merged)
   const added = bytes - (existing?.bytes || 0)
 
+  // Early, friendly refusals. The write below re-checks the per-rangka limits
+  // atomically, so concurrent writes cannot push a rangka past them.
   const totals = await rangkaTotals(db, rangkaId)
-  if (!existing && totals.count >= MAX_DOCUMENTS_PER_RANGKA) {
-    throw new RangkaDataError(413, `A rangka can hold at most ${MAX_DOCUMENTS_PER_RANGKA} documents. Delete some before adding more.`)
-  }
-  if (added > 0 && totals.bytes + added > MAX_DATA_BYTES_PER_RANGKA) {
-    throw new RangkaDataError(413, `A rangka can hold at most ${formatByteSize(MAX_DATA_BYTES_PER_RANGKA)} of data. Delete some documents before adding more.`)
-  }
+  if (!existing && totals.count >= MAX_DOCUMENTS_PER_RANGKA) throw documentLimitError()
+  if (added > 0 && totals.bytes + added > MAX_DATA_BYTES_PER_RANGKA) throw byteLimitError()
   if (added > 0) {
     const refusal = await storageWriteRefusal(db, userId, added)
     if (refusal) throw new RangkaDataError(507, refusal)
   }
 
   const now = new Date()
-  await db.insert(rangkaData).values({ rangkaId, collection, docId, data, bytes, updatedBy: writer, createdAt: now, updatedAt: now })
-    .onConflictDoUpdate({
-      target: [rangkaData.rangkaId, rangkaData.collection, rangkaData.docId],
-      set: { data, bytes, updatedBy: writer, updatedAt: now },
-    })
+  const written = await guardedUpsert(db, { rangkaId, collection, docId, json: JSON.stringify(data), bytes, writer, now })
+  if (!written) {
+    // Another write took the room between the check above and this one.
+    const latest = await rangkaTotals(db, rangkaId)
+    throw latest.count >= MAX_DOCUMENTS_PER_RANGKA && !(await findRow(db, rangkaId, collection, docId))
+      ? documentLimitError()
+      : byteLimitError()
+  }
   return { id: docId, data, updatedAt: now, updatedBy: writer }
+}
+
+const documentLimitError = () => new RangkaDataError(413, `A rangka can hold at most ${MAX_DOCUMENTS_PER_RANGKA} documents. Delete some before adding more.`)
+const byteLimitError = () => new RangkaDataError(413, `A rangka can hold at most ${formatByteSize(MAX_DATA_BYTES_PER_RANGKA)} of data. Delete some documents before adding more.`)
+
+/**
+ * Inserts or replaces one document in a single statement that only applies
+ * while the rangka stays within its document and byte limits. A single SQL
+ * statement is atomic on SQLite, D1, and libSQL alike, so two concurrent writes
+ * cannot both pass the check. "Other" means every document except this one,
+ * which is what a replacement is measured against; a write that does not grow
+ * the document is always allowed. Returns whether the row was written.
+ */
+async function guardedUpsert(db: any, row: { rangkaId: string; collection: string; docId: string; json: string; bytes: number; writer: DataWriter; now: Date }) {
+  const { rangkaId, collection, docId, json, bytes, writer } = row
+  const seconds = Math.floor(row.now.getTime() / 1000)
+  const others = sql`rangka_id = ${rangkaId} AND NOT (collection = ${collection} AND doc_id = ${docId})`
+  const rows = await db.all(sql`
+    INSERT INTO rangka_data (rangka_id, collection, doc_id, data, bytes, updated_by, created_at, updated_at)
+    SELECT ${rangkaId}, ${collection}, ${docId}, ${json}, ${bytes}, ${writer}, ${seconds}, ${seconds}
+    WHERE (SELECT count(*) FROM rangka_data WHERE ${others}) < ${MAX_DOCUMENTS_PER_RANGKA}
+      AND (
+        (SELECT coalesce(sum(bytes), 0) FROM rangka_data WHERE ${others}) + ${bytes} <= ${MAX_DATA_BYTES_PER_RANGKA}
+        OR ${bytes} <= coalesce((SELECT bytes FROM rangka_data WHERE rangka_id = ${rangkaId} AND collection = ${collection} AND doc_id = ${docId}), 0)
+      )
+    ON CONFLICT (rangka_id, collection, doc_id) DO UPDATE SET
+      data = excluded.data, bytes = excluded.bytes, updated_by = excluded.updated_by, updated_at = excluded.updated_at
+    RETURNING doc_id
+  `)
+  return rows.length > 0
 }
 
 /** Deletes one document; returns whether it existed. */
