@@ -56,6 +56,17 @@ export const BOOTSTRAP_STATEMENTS = [
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     UNIQUE(rangka_id, version)
   )`,
+  `CREATE TABLE IF NOT EXISTS rangka_data (
+    rangka_id TEXT NOT NULL REFERENCES rangka(id) ON DELETE CASCADE,
+    collection TEXT NOT NULL,
+    doc_id TEXT NOT NULL,
+    data TEXT NOT NULL,
+    bytes INTEGER NOT NULL,
+    updated_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    PRIMARY KEY (rangka_id, collection, doc_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS workspace_settings (
     user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     storage_limit_bytes INTEGER,

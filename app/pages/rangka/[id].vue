@@ -84,8 +84,10 @@
             />
             <SerangkaiHtmlPreview
               v-else-if="rangka.type === 'html'"
+              :key="`html-${dataResets}`"
               :src="`/api/rangka/${rangka.id}/preview`"
               :title="`${rangka.title} HTML preview`"
+              :data="{ endpoint: `/api/rangka/${rangka.id}/data`, writable: true }"
               auto-height
               fill-canvas
               class="min-h-[70vh]"
@@ -163,6 +165,15 @@
             </template>
             <div v-if="historyError" class="mt-3"><p role="alert" class="text-sm text-[var(--selaras-resolved-color-danger-text)]">{{ historyError }}</p><SButton variant="ghost" size="sm" @click="loadVersions(versionPage)">Retry history</SButton></div>
             <p v-if="versionMessage" class="mt-3 text-xs text-[var(--selaras-resolved-text-muted)]" role="status">{{ versionMessage }}</p>
+            <section v-if="rangka?.type === 'html' && savedData && savedData.count" class="saved-data" aria-labelledby="saved-data-title">
+              <div class="history-head">
+                <h3 id="saved-data-title" class="saved-data-title">Saved data</h3>
+                <SButton variant="ghost" color="danger" size="sm" icon="lucide:trash-2" :loading="clearingData" @click="clearSavedData">Clear data</SButton>
+              </div>
+              <p class="saved-data-meta">{{ savedData.count }} {{ savedData.count === 1 ? 'document' : 'documents' }} <span aria-hidden="true">·</span> {{ formatByteSize(savedData.bytes) }}</p>
+              <p class="saved-data-note">What this rangka saved while you used it, such as cards on a board. It is not part of any version, so restoring a version keeps it.</p>
+            </section>
+            <p v-if="dataMessage" class="mt-2 text-xs text-[var(--selaras-resolved-text-muted)]" role="status">{{ dataMessage }}</p>
         </template>
       </SSlideover>
       <SModal :open="!!viewing" :title="`Version ${viewing?.version || ''}`" description="Saved content from this version." :ui="{ content: 'max-w-2xl' }" @update:open="value => { if (!value) closeViewing() }">
@@ -206,6 +217,11 @@ const editing = ref(false)
 const sharingOpen = ref(false)
 const movingOpen = ref(false)
 const historyOpen = ref(false)
+// Live data an HTML rangka saved (not versioned); summarized in the history panel.
+const savedData = ref<{ count: number; bytes: number } | null>(null)
+const clearingData = ref(false)
+const dataMessage = ref('')
+const dataResets = ref(0)
 const draftTitle = ref('')
 const draftContent = ref('')
 const versions = ref<any[]>([])
@@ -418,6 +434,35 @@ const closeViewing = () => { viewing.value = null }
 const { refresh: refreshStorage } = useStorageStatus()
 const deletingVersion = ref<number | null>(null)
 const clearingHistory = ref(false)
+const loadSavedData = async () => {
+  if (rangka.value?.type !== 'html') { savedData.value = null; return }
+  try {
+    const { collections } = await $fetch<{ collections: { count: number; bytes: number }[] }>(`/api/rangka/${route.params.id}/data`)
+    savedData.value = collections.reduce((sum, c) => ({ count: sum.count + c.count, bytes: sum.bytes + c.bytes }), { count: 0, bytes: 0 })
+  } catch {
+    savedData.value = null
+  }
+}
+watch(historyOpen, (open) => { if (open) { dataMessage.value = ''; void loadSavedData() } })
+
+const clearSavedData = async () => {
+  const count = savedData.value?.count || 0
+  const ok = await confirm({ title: 'Clear saved data?', description: `${count} saved ${count === 1 ? 'document is' : 'documents are'} deleted and the rangka starts fresh. Versions are not affected. This cannot be undone.`, confirmLabel: 'Clear data', confirmColor: 'danger', icon: 'lucide:trash-2' })
+  if (!ok) return
+  clearingData.value = true; dataMessage.value = ''
+  try {
+    const res = await $fetch<{ deleted: number; freedBytes: number }>(`/api/rangka/${route.params.id}/data`, { method: 'DELETE' })
+    dataMessage.value = `Cleared ${res.deleted} saved ${res.deleted === 1 ? 'document' : 'documents'}, freeing ${formatByteSize(res.freedBytes)}.`
+    dataResets.value++
+    await loadSavedData()
+    void refreshStorage()
+  } catch (e: any) {
+    dataMessage.value = e?.data?.message || 'Could not clear saved data.'
+  } finally {
+    clearingData.value = false
+  }
+}
+
 const historyBusy = computed(() => restoring.value !== null || deletingVersion.value !== null || clearingHistory.value)
 
 // Timeline items: the current version gets the filled primary dot; older ones
@@ -759,6 +804,10 @@ const save = async () => {
 .history-title { display: flex; align-items: center; gap: .5rem; font-size: .875rem; font-weight: 600; color: var(--selaras-resolved-text-default); }
 .history-meta { display: flex; flex-wrap: wrap; gap: .375rem; font-size: .75rem; color: var(--selaras-resolved-text-muted); font-variant-numeric: tabular-nums; }
 .history-actions { display: flex; flex: none; align-items: center; gap: .125rem; }
+.saved-data { margin-top: 1.25rem; padding-top: .75rem; border-top: 1px solid var(--selaras-resolved-border-muted); }
+.saved-data-title { font-size: .875rem; font-weight: 600; color: var(--selaras-resolved-text-default); }
+.saved-data-meta { font-size: .75rem; color: var(--selaras-resolved-text-muted); font-variant-numeric: tabular-nums; }
+.saved-data-note { margin-top: .375rem; font-size: .75rem; color: var(--selaras-resolved-text-muted); }
 .rangka-reader { --rangka-toolbar-top: 4rem; --rangka-toolbar-height: calc(3.5rem + 1px); --rangka-reader-height: calc(100dvh - var(--rangka-toolbar-top) - var(--rangka-toolbar-height)); min-width: 0; }
 .rangka-toolbar { position: sticky; top: var(--rangka-toolbar-top); z-index: 10; display: flex; align-items: center; gap: .5rem; min-height: var(--rangka-toolbar-height); padding: .5rem 1rem; border-bottom: 1px solid var(--selaras-resolved-border-muted); background: var(--selaras-resolved-surface-canvas); }
 .rangka-document { min-width: 0; padding: 1.5rem 1rem 4rem; }

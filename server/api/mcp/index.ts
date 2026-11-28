@@ -12,6 +12,7 @@ import { checkTextRangka, reserveSlug } from '../../utils/rangka'
 import { appendVersion } from '../../utils/rangka-versions'
 import { byteLength, storageWriteRefusal } from '../../utils/storage-quota'
 import { autoPruneVersions } from '../../utils/version-pruning'
+import { DATA_TYPES_MESSAGE, deleteDocument, findOwnedRangka, getDocument, keepsData, listCollections, listDocuments, RangkaDataError, writeDocument } from '../../utils/rangka-data'
 import { isSlugConflict } from '../../db/migrations'
 import { CONNECTION_LABEL_MAX, findGrantByApiTokenId, normalizeConnectionLabel, resourceMatches, setConnectionLabel } from '../../utils/oauth'
 import { mcpResourceUrl, protectedResourceMetadataUrl, requestOrigin } from '../../utils/oauth-urls'
@@ -82,7 +83,7 @@ export function mcpServerInfo(origin: string) {
 }
 
 function createMcpServer(userId: string, canWrite: boolean, db: any, grantId: string | null, origin: string) {
-  const server = new McpServer(mcpServerInfo(origin), { maxToolInputElements: 100, instructions: 'Rangka are documents, files, and interactive content stored in the connected Serangkai workspace. Use create_rangka to create them in Serangkai and get_rangka/update_rangka to read or revise them. The workspace owns persistence, versions, folders, and sharing. HTML rangka can be documents, full-screen apps, or zoomable canvases such as kanban boards and whiteboards; get_rangka_capabilities explains each.' })
+  const server = new McpServer(mcpServerInfo(origin), { maxToolInputElements: 100, instructions: 'Rangka are documents, files, and interactive content stored in the connected Serangkai workspace. Use create_rangka to create them in Serangkai and get_rangka/update_rangka to read or revise them. The workspace owns persistence, versions, folders, and sharing. HTML rangka can be documents, full-screen apps, or zoomable canvases such as kanban boards and whiteboards; get_rangka_capabilities explains each. Interactive HTML rangka keep live data, such as kanban cards, through serangkai.data; read_rangka_data and write_rangka_data read or seed it without creating a version.' })
   const findFolder = (folderId: string) => db.select().from(folders)
     .where(and(eq(folders.id, folderId), eq(folders.userId, userId))).get()
 
@@ -349,6 +350,81 @@ function createMcpServer(userId: string, canWrite: boolean, db: any, grantId: st
       versionCreated,
       version: versionCreated ? currentVersion + 1 : currentVersion,
     })
+  })
+
+  const dataError = (error: unknown) => {
+    if (error instanceof RangkaDataError) return { isError: true as const, content: [{ type: 'text' as const, text: error.message }] }
+    throw error
+  }
+  const dataName = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/)
+  const documentOutput = z.object({ id: z.string(), data: z.record(z.string(), z.unknown()), updatedAt: timestamp, updatedBy: z.string() })
+
+  server.registerTool('read_rangka_data', {
+    title: 'Read rangka data',
+    description: 'Read the live data an interactive HTML rangka keeps, such as the cards on a kanban board. Without collection, lists the collections; with collection, lists its documents; with docId too, returns one document (null when missing). Data is separate from the rangka source and is not versioned.',
+    inputSchema: { id: z.string(), collection: dataName.optional(), docId: dataName.optional() },
+    outputSchema: {
+      collections: z.array(z.object({ name: z.string(), count: z.number().int(), bytes: z.number().int() })).optional(),
+      documents: z.array(documentOutput).optional(),
+      document: documentOutput.nullable().optional(),
+    },
+    annotations: { readOnlyHint: true },
+  }, async ({ id, collection, docId }) => {
+    if (!(await findOwnedRangka(db, userId, id))) return { isError: true, content: [{ type: 'text', text: 'Rangka not found.' }] }
+    try {
+      if (!collection) {
+        if (docId) return { isError: true, content: [{ type: 'text', text: 'Provide collection with docId.' }] }
+        return structuredResult({ collections: await listCollections(db, id) })
+      }
+      if (docId) return structuredResult({ document: await getDocument(db, id, collection, docId) })
+      return structuredResult({ documents: await listDocuments(db, id, collection) })
+    } catch (error) {
+      return dataError(error)
+    }
+  })
+
+  server.registerTool('write_rangka_data', {
+    title: 'Write rangka data',
+    description: 'Create, update, or delete documents in an interactive HTML rangka\'s live data, for example adding cards to a kanban board. "set" replaces a document, "update" shallow-merges fields into it (creating it when missing), "delete" removes it. Documents are JSON objects up to 64 KB. Operations apply in order and stop at the first error. This does not create a rangka version.',
+    inputSchema: {
+      id: z.string(),
+      operations: z.array(z.object({
+        op: z.enum(['set', 'update', 'delete']),
+        collection: dataName,
+        docId: dataName,
+        data: z.record(z.string(), z.unknown()).optional(),
+      })).min(1).max(100),
+    },
+    outputSchema: {
+      applied: z.number().int(),
+      results: z.array(z.object({ op: z.string(), collection: z.string(), docId: z.string(), deleted: z.boolean().optional(), document: documentOutput.optional() })),
+    },
+    annotations: { destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  }, async ({ id, operations }) => {
+    if (!canWrite) return { isError: true, content: [{ type: 'text', text: 'This API token requires write scope.' }] }
+    const target = await findOwnedRangka(db, userId, id)
+    if (!target) return { isError: true, content: [{ type: 'text', text: 'Rangka not found.' }] }
+    if (!keepsData(target)) return { isError: true, content: [{ type: 'text', text: DATA_TYPES_MESSAGE }] }
+    const results: Array<Record<string, unknown>> = []
+    for (const operation of operations) {
+      try {
+        if (operation.op === 'delete') {
+          const deleted = await deleteDocument(db, id, operation.collection, operation.docId)
+          results.push({ op: operation.op, collection: operation.collection, docId: operation.docId, deleted })
+          continue
+        }
+        if (!operation.data) throw new RangkaDataError(400, `"${operation.op}" needs data.`)
+        const document = await writeDocument(db, {
+          userId, rangkaId: id, collection: operation.collection, docId: operation.docId,
+          data: operation.data, merge: operation.op === 'update', writer: 'agent',
+        })
+        results.push({ op: operation.op, collection: operation.collection, docId: operation.docId, document })
+      } catch (error) {
+        if (!(error instanceof RangkaDataError)) throw error
+        return { isError: true, content: [{ type: 'text', text: `Operation ${results.length + 1} (${operation.op} ${operation.collection}/${operation.docId}) failed after ${results.length} applied: ${error.message}` }] }
+      }
+    }
+    return structuredResult({ applied: results.length, results })
   })
 
   server.registerResource('Serangkai capabilities', 'serangkai://capabilities', {

@@ -1,4 +1,4 @@
-import { rangkaItems, rangkaVersions } from '../../db/schema'
+import { rangkaData, rangkaItems, rangkaVersions } from '../../db/schema'
 import { getRequestDatabase } from '../../db/adapter'
 import { deleteBundle } from '../../utils/bundles'
 import { requireScope } from '../../utils/require-auth'
@@ -19,6 +19,9 @@ export default defineEventHandler(async (event) => {
     .from(rangkaVersions).where(eq(rangkaVersions.rangkaId, rangka.id))
   const contentPaths = new Set([rangka.contentPath, ...versions.map(version => version.contentPath)])
 
+  // The foreign key cascades on SQLite and D1, but a remote libSQL connection
+  // may not enforce foreign keys, so remove the rangka's data explicitly.
+  await db.delete(rangkaData).where(eq(rangkaData.rangkaId, rangka.id))
   await db.delete(rangkaItems).where(and(eq(rangkaItems.id, rangka.id), eq(rangkaItems.userId, user.id)))
 
   // Best-effort cleanup after the row is gone: a failed file delete must not

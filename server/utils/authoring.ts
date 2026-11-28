@@ -56,6 +56,16 @@ export const capabilities = {
       tokens: ALL_SELARAS_TOKENS.map(token => token.name),
     },
     security: 'sandboxed iframe, connect-src none, no CDN or arbitrary remote scripts',
+    // Live data an interactive rangka keeps without publishing a new version.
+    data: {
+      api: 'window.serangkai.data: info(), list(collection), get(collection, id), set(collection, id, object), update(collection, id, fields), remove(collection, id); every call returns a promise',
+      model: 'JSON object documents in named collections, scoped to this rangka. Names: 1-64 letters, digits, "-" or "_".',
+      behavior: 'Writes save immediately and survive reloads. They are not versions: restoring an older version keeps the data. The owner can write in the workspace; shared pages can read but not write (info().writable is false), and sharing publishes all of the data; opened outside Serangkai every call rejects. Only HTML rangka keep data.',
+      limits: '64 KB per document, 5000 documents and 5 MB per rangka; data counts toward storage usage',
+      agents: 'read_rangka_data and write_rangka_data read or seed the same documents',
+      useFor: 'kanban cards, checklists, trackers, and anything a viewer changes by interacting with the rangka',
+      example: 'serangkai://templates/canvasBoard',
+    },
     // How the workspace and share reader frame an HTML rangka. Pick one per
     // rangka with a meta tag in <head>; the default needs none.
     presentation: {
@@ -287,16 +297,52 @@ own wheel scrolling.
 Everything on the board is yours: a plain drag inside the board reaches your
 script, so draggable cards, sticky notes, or connectors work with ordinary
 pointer events. See \`serangkai://templates/canvasBoard\` for a kanban board
-with draggable cards.
+with draggable cards that it saves with rangka data.
 
 For a canvas app with its own keyboard commands, add
 \`<meta name="serangkai-canvas-keys" content="none">\` to reserve keys for the app
 while its frame has focus. The viewer toolbar and pointer gestures remain available.
 
+## Saving data from interactions
+
+A rangka that people change by using it, such as a kanban board where cards
+move between columns, keeps that state in **rangka data** instead of its HTML.
+Writes save immediately, survive a reload, and do not create a new version, so
+restoring an older version of the design keeps the cards.
+
+\`window.serangkai.data\` is available before your scripts run:
+
+\`\`\`js
+const store = window.serangkai.data
+const { writable } = await store.info()        // false on shared pages
+const cards = await store.list('cards')         // [{ id, data, updatedAt, updatedBy }]
+await store.set('cards', 'c1', { title: 'Write notes', column: 'todo', order: 0 })
+await store.update('cards', 'c1', { column: 'done' })   // shallow merge
+await store.get('cards', 'c1')                  // document or null
+await store.remove('cards', 'c1')
+\`\`\`
+
+- Documents are JSON objects (up to 64 KB) in named collections. Collection and
+  document names use 1-64 letters, digits, \`-\` or \`_\`. A rangka holds up to
+  5000 documents and 5 MB of data.
+- Keep starting content in the HTML and replace it with the saved documents once
+  there are any, so a new board still shows something before its first save.
+- The owner's workspace can read and write. Shared pages can read, so a
+  published board shows its cards, but \`info().writable\` is false and writes
+  reject: let visitors interact locally without saving. Sharing publishes all
+  of the rangka's data, so keep private notes out of it.
+- Only HTML rangka keep data; writes to other types are refused.
+- Opened outside Serangkai, every call rejects. Catch errors and fall back to
+  the built-in content.
+- Agents can read or seed the same documents with \`read_rangka_data\` and
+  \`write_rangka_data\`.
+
+See \`serangkai://templates/canvasBoard\` for a kanban board that saves its cards.
+
 ## Security
 
 - The frame is sandboxed and cannot reach the app origin.
-- \`connect-src 'none'\` blocks network calls.
+- \`connect-src 'none'\` blocks network calls. Use \`serangkai.data\` to save state.
 - Inline scripts are allowed, but Serangkai does not execute your JavaScript on
   the server.
 - Keep the page self-contained; use data URLs for images or inline SVG.
@@ -421,18 +467,73 @@ flowchart LR
     .column { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 16px; background: light-dark(#ebe6db, #1b211e); overflow: auto; }
     .column h2 { margin: 0 0 4px; font-size: 14px; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
     .column.over { outline: 2px dashed light-dark(#0b7a5e, #42a082); outline-offset: -2px; }
+    .cards { display: flex; flex-direction: column; gap: 12px; min-height: 48px; }
     .card { padding: 14px 16px; border-radius: 12px; background: light-dark(#fff, #252c28); box-shadow: 0 1px 2px rgb(0 0 0 / .12); cursor: grab; touch-action: none; user-select: none; }
     .card.dragging { position: fixed; z-index: 10; pointer-events: none; cursor: grabbing; box-shadow: 0 12px 28px rgb(0 0 0 / .25); }
+    .add { width: 100%; padding: 10px 14px; border: 1px dashed light-dark(#b9b2a3, #3a443f); border-radius: 12px; background: transparent; color: inherit; font: inherit; }
+    .readonly .add { display: none; }
   </style>
 </head>
 <body>
   <h1>Launch board</h1>
   <div class="board">
-    <section class="column"><h2>To do</h2><div class="card">Write release notes</div><div class="card">Record the demo</div></section>
-    <section class="column"><h2>In progress</h2><div class="card">Fix the storage meter</div></section>
-    <section class="column"><h2>Done</h2><div class="card">Fork-based deploy guide</div></section>
+    <section class="column" data-column="todo"><h2>To do</h2><div class="cards"><div class="card" data-id="notes">Write release notes</div><div class="card" data-id="demo">Record the demo</div></div><input class="add" placeholder="Add a card and press Enter" maxlength="120"></section>
+    <section class="column" data-column="doing"><h2>In progress</h2><div class="cards"><div class="card" data-id="meter">Fix the storage meter</div></div></section>
+    <section class="column" data-column="done"><h2>Done</h2><div class="cards"><div class="card" data-id="deploy">Fork-based deploy guide</div></div></section>
   </div>
   <script>
+    // Cards are kept in rangka data (serangkai.data), so moves and new cards
+    // survive a reload without publishing a new version. The cards written
+    // above are the starting content; once anything is saved, the saved cards
+    // replace them. Shared pages are read-only, and outside Serangkai the data
+    // API is unavailable, so the board then works locally only.
+    const store = window.serangkai && window.serangkai.data
+    let writable = false
+
+    function columnFor(name) { return document.querySelector('[data-column="' + name + '"] .cards') }
+    function cardElement(id, title) {
+      const card = document.createElement('div')
+      card.className = 'card'
+      card.dataset.id = id
+      card.textContent = title
+      return card
+    }
+
+    async function load() {
+      if (!store) return
+      try {
+        writable = (await store.info()).writable
+        document.body.classList.toggle('readonly', !writable)
+        const saved = await store.list('cards')
+        if (!saved.length) return
+        for (const list of document.querySelectorAll('.cards')) list.replaceChildren()
+        saved.sort((a, b) => a.data.order - b.data.order)
+        for (const { id, data } of saved) (columnFor(data.column) || columnFor('todo')).append(cardElement(id, data.title))
+      } catch (error) {
+        console.warn('Board data unavailable; using the built-in cards.', error)
+      }
+    }
+
+    // Save every card's column and position. A small board can simply write
+    // all of them; a large one would write only the columns that changed.
+    function save() {
+      if (!writable) return
+      for (const column of document.querySelectorAll('.column')) {
+        column.querySelectorAll('.card').forEach((card, order) => {
+          store.set('cards', card.dataset.id, { title: card.textContent, column: column.dataset.column, order })
+            .catch(error => console.warn('Could not save the card.', error))
+        })
+      }
+    }
+
+    document.querySelector('.add').addEventListener('keydown', (event) => {
+      const title = event.target.value.trim()
+      if (event.key !== 'Enter' || !title) return
+      columnFor('todo').append(cardElement('c' + Date.now().toString(36), title))
+      event.target.value = ''
+      save()
+    })
+
     // Drag cards between columns. A plain drag inside the canvas reaches this
     // script; the viewer pans with the hand tool, Space + drag, or the wheel.
     let drag = null
@@ -452,7 +553,7 @@ flowchart LR
       const { card, over } = drag
       card.classList.remove('dragging')
       card.style.cssText = ''
-      if (over) { over.classList.remove('over'); over.append(card) }
+      if (over) { over.classList.remove('over'); over.querySelector('.cards').append(card); save() }
       drag = null
     })
     function move(event) {
@@ -461,6 +562,8 @@ flowchart LR
       const column = document.elementFromPoint(event.clientX, event.clientY)?.closest('.column') || null
       if (column !== drag.over) { drag.over?.classList.remove('over'); column?.classList.add('over'); drag.over = column }
     }
+
+    load()
   <\/script>
 </body>
 </html>
@@ -489,7 +592,7 @@ flowchart LR
 }
 
 export const promptMessages = {
-  createCanvasBoard: 'Create a kanban board as an HTML canvas rangka. Declare <meta name="serangkai-canvas" content="1600x900"> and lay the board out at exactly that size so viewers can zoom and pan it. Make the cards draggable between columns with pointer events. Keep it self-contained. Start from serangkai://templates/canvasBoard.',
+  createCanvasBoard: 'Create a kanban board as an HTML canvas rangka. Declare <meta name="serangkai-canvas" content="1600x900"> and lay the board out at exactly that size so viewers can zoom and pan it. Make the cards draggable between columns with pointer events, and save their columns with serangkai.data so moves survive a reload. Keep it self-contained. Start from serangkai://templates/canvasBoard.',
   createReport: 'Create a polished Markdown report using Serangkai authoring capabilities. Include headings, a table, a chart, and one Selaras callout. Keep the source portable.',
   createDashboard: 'Create a Markdown dashboard using Selaras cards and a TanStack chart. Use the declarative chart schema; do not write chart JavaScript.',
   createHtmlDocument: 'Create a styled HTML report using the opt-in Selaras document theme. Keep it self-contained and include one Mermaid diagram.',

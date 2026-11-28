@@ -76,6 +76,7 @@
           v-if="isFramed && rangka.rawUrl"
           :src="rangka.rawUrl"
           :title="`${rangka.title} preview`"
+          :data="rangka.type === 'html' ? shareData : undefined"
           :auto-height="rangka.type === 'html'"
           fill-canvas
           height="100%"
@@ -219,6 +220,9 @@ interface SharedRangka {
 
 const slug = String(route.params.slug)
 const key = typeof route.query.k === 'string' ? route.query.k : ''
+// Shared HTML can read its rangka data so a published board shows its cards,
+// but never write: visitors interact with a local copy only.
+const shareData = { endpoint: `/api/share-data/${encodeURIComponent(slug)}`, query: key ? { k: key } : undefined, writable: false }
 const requestFetch = useRequestFetch()
 const loadingLines = ['100%', '92%', '96%', '78%', '100%', '88%', '64%']
 

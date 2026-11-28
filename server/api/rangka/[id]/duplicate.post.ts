@@ -8,6 +8,7 @@ import { and, eq } from 'drizzle-orm'
 import { readRangkaBytes, writeRangka } from '../../../utils/rangka-storage'
 import { assertStorageAvailable, storageWriteRefusal } from '../../../utils/storage-quota'
 import { deleteBundle, extractBundle } from '../../../utils/bundles'
+import { copyDocuments, dataBytes } from '../../../utils/rangka-data'
 
 export default defineEventHandler(async (event) => {
   const db = await getRequestDatabase(event)
@@ -24,7 +25,9 @@ export default defineEventHandler(async (event) => {
   const title = requestedTitle || `${source.title} (copy)`
 
   const content = await readRangkaBytes(source.contentPath)
-  await assertStorageAvailable(db, user.id, content.byteLength)
+  // The copy carries the source's live data too, so a duplicated board keeps its cards.
+  const sourceDataBytes = await dataBytes(db, source.id)
+  await assertStorageAvailable(db, user.id, content.byteLength + sourceDataBytes)
 
   const duplicateId = nanoid()
   const contentPath = `${user.id}/${duplicateId}/content`
@@ -34,7 +37,7 @@ export default defineEventHandler(async (event) => {
     const prefix = `${user.id}/${duplicateId}/bundle`
     try { storedBytes += (await extractBundle(content, prefix)).bytes }
     catch (error: any) { await deleteBundle(prefix).catch(() => {}); throw createError({ statusCode: 400, message: error?.message || 'Could not copy this bundle' }) }
-    const refusal = await storageWriteRefusal(db, user.id, storedBytes)
+    const refusal = await storageWriteRefusal(db, user.id, storedBytes + sourceDataBytes)
     if (refusal) { await deleteBundle(prefix).catch(() => {}); throw createError({ statusCode: 507, message: refusal }) }
   }
   await writeRangka(contentPath, content)
@@ -68,6 +71,7 @@ export default defineEventHandler(async (event) => {
     id: nanoid(), rangkaId: duplicateId, version: 1, contentPath,
     metadata: source.metadata || {}, storedBytes, createdAt: now,
   })
+  if (sourceDataBytes > 0) await copyDocuments(db, source.id, duplicateId)
 
   return { rangka: { id: duplicateId, slug, title, type: source.type, visibility: 'private', folderId: source.folderId } }
 })

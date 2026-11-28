@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 
 export const users = sqliteTable('users', {
@@ -179,6 +179,26 @@ export const rangkaVersions = sqliteTable('rangka_versions', {
 })
 
 /**
+ * Live data an interactive rangka keeps, such as the cards on a kanban board.
+ *
+ * Kept apart from versions on purpose: moving a card is not a new revision of
+ * the rangka, and restoring an older design must not wipe the data. Documents
+ * are JSON objects grouped into collections and scoped to one rangka; `bytes`
+ * is the stored JSON size, which counts toward storage usage.
+ */
+export const rangkaData = sqliteTable('rangka_data', {
+  rangkaId: text('rangka_id').notNull().references(() => rangkaItems.id, { onDelete: 'cascade' }),
+  collection: text('collection').notNull(),
+  docId: text('doc_id').notNull(),
+  data: text('data', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+  bytes: integer('bytes').notNull(),
+  /** `owner` (browser session) or `agent` (API token). */
+  updatedBy: text('updated_by').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(strftime('%s', 'now'))`),
+}, table => [primaryKey({ columns: [table.rangkaId, table.collection, table.docId] })])
+
+/**
  * Per-account workspace settings. Keyed by user so a hosted deployment can
  * hold one row per account; a self-hosted install has exactly one.
  */
@@ -203,3 +223,4 @@ export type Rangka = typeof rangkaItems.$inferSelect
 export type NewRangka = typeof rangkaItems.$inferInsert
 export type RangkaVersion = typeof rangkaVersions.$inferSelect
 export type NewRangkaVersion = typeof rangkaVersions.$inferInsert
+export type RangkaDataRow = typeof rangkaData.$inferSelect

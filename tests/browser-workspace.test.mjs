@@ -8,6 +8,7 @@ import { request as httpRequest } from 'node:http'
 import { buffer } from 'node:stream/consumers'
 import { test, before, after } from 'node:test'
 import { chromium } from 'playwright-core'
+import { templates } from '../server/utils/authoring.ts'
 import { ZipFile } from 'yazl'
 import { serverRuntime } from './helpers/server.mjs'
 import { adminEnv, adminPassword, adminUsername } from './helpers/auth.mjs'
@@ -545,7 +546,8 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
           const releaseAsset = Promise.withResolvers()
           const releaseDocument = Promise.withResolvers()
           const asset = '**/api/health?canvas-loading-probe'
-          await reader.route(base + '/api/share/' + rangka.slug, async (route) => {
+          // The frame URL carries a per-load ?bridge= key, so match on the path.
+          await reader.route(url => url.pathname === '/api/share/' + rangka.slug, async (route) => {
             await releaseDocument.promise
             await route.continue()
           }, { times: 1 })
@@ -605,7 +607,10 @@ test('fixed canvases fit, zoom, and pan in both rangka readers', async () => {
         await reader.getByRole('group', { name: 'Canvas controls' }).waitFor()
         const frame = canvas.locator('iframe')
         assert.equal(await frame.getAttribute('sandbox'), 'allow-scripts')
+        assert.equal(await frame.getAttribute('allow'), 'fullscreen')
         const inner = await (await frame.elementHandle()).contentFrame()
+        // Full screen is the only permission the frame is granted.
+        assert.equal(await inner.evaluate(() => document.fullscreenEnabled), true)
         const content = canvas.frameLocator('iframe')
         const control = content.getByRole('button', { name: 'Board control' })
         const input = content.getByRole('textbox', { name: 'Board text' })
@@ -862,7 +867,7 @@ test('a preview with a missing layout reply stays hidden and can recover', async
     const dock = preview.getByRole('group', { name: 'Canvas controls' })
     const retry = preview.getByRole('button', { name: 'Retry preview' })
     for (const recovery of ['late reply', 'retry']) {
-      await preview.route(url, async (route) => {
+      await preview.route(candidate => candidate.href.split('?')[0] === url, async (route) => {
         const response = await route.fetch()
         await route.fulfill({ response, body: html })
       }, { times: 1 })
@@ -1802,4 +1807,142 @@ test('Markdown code blocks have space after headings and before following text',
     assert.ok(positions[2].y - (positions[1].y + positions[1].height) >= 12, 'following paragraph should have a visible gap after the code block')
     await block.getByRole('button', { name: 'Copy code' }).waitFor()
   } finally { await context.close() }
+})
+
+test('an interactive board saves its cards as rangka data and shared pages stay read-only', async () => {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+  const owner = await context.newPage()
+  const visitorContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+  try {
+    await owner.goto(`${base}/auth/login`)
+    await owner.getByLabel('Username').fill(adminUsername)
+    await owner.getByLabel('Password').fill(adminPassword)
+    await owner.waitForFunction(hydrated)
+    await owner.getByRole('button', { name: 'Log in' }).click()
+    await owner.waitForURL(/\/(?:workspace)?$/)
+    const created = await owner.evaluate(async (content) => {
+      const result = await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Data board', type: 'html', content, visibility: 'public' }) })
+      return (await result.json()).rangka
+    }, templates.canvasBoard)
+
+    // Add a card in the workspace. It is saved through serangkai.data.
+    await owner.goto(`${base}/rangka/${created.id}`)
+    const board = owner.frameLocator('iframe')
+    const input = board.getByPlaceholder('Add a card and press Enter')
+    await input.waitFor()
+    await input.fill('Saved across reloads')
+    await input.press('Enter')
+    await owner.waitForFunction(async (id) => {
+      const response = await fetch(`/api/rangka/${id}/data/cards`)
+      const { documents } = await response.json()
+      return documents.some(doc => doc.data.title === 'Saved across reloads')
+    }, created.id)
+
+    // A hard reload rebuilds the board from the saved documents.
+    await owner.reload()
+    await assert.doesNotReject(() => owner.frameLocator('iframe').locator('[data-column="todo"] .card', { hasText: 'Saved across reloads' }).waitFor())
+    const versions = await owner.evaluate(async id => (await (await fetch(`/api/rangka/${id}/versions`)).json()).versions.length, created.id)
+    assert.equal(versions, 1, 'saving data must not publish a version')
+
+    // A visitor sees the saved card, but the page is read-only.
+    const visitor = await visitorContext.newPage()
+    await visitor.goto(`${base}/share/${created.slug}`)
+    const shared = visitor.frameLocator('iframe')
+    await assert.doesNotReject(() => shared.locator('.card', { hasText: 'Saved across reloads' }).waitFor())
+    await assert.doesNotReject(() => shared.locator('body.readonly').waitFor({ state: 'attached' }))
+    assert.equal(await shared.getByPlaceholder('Add a card and press Enter').isVisible(), false)
+
+    // The owner sees the saved data in the history panel and can clear it.
+    await owner.getByRole('button', { name: 'History' }).click()
+    const savedData = owner.getByRole('region', { name: 'Saved data' })
+    await savedData.waitFor()
+    assert.match(await savedData.textContent(), /\d+ documents?/)
+    await savedData.getByRole('button', { name: 'Clear data' }).click()
+    await owner.getByRole('alertdialog').getByRole('button', { name: 'Clear data' }).click()
+    await owner.getByRole('status').filter({ hasText: /Cleared \d+ saved documents?/ }).waitFor()
+    const cleared = await owner.evaluate(async id => (await (await fetch(`/api/rangka/${id}/data/cards?optional=1`)).json()).documents, created.id)
+    assert.ok(!cleared.some(doc => doc.data.title === 'Saved across reloads'), 'the cleared card is gone')
+  } finally {
+    await visitorContext.close()
+    await context.close()
+  }
+})
+
+test('the data bridge validates requests and ignores frames other than the rangka', async () => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+  const owner = await context.newPage()
+  try {
+    await owner.goto(`${base}/auth/login`)
+    await owner.getByLabel('Username').fill(adminUsername)
+    await owner.getByLabel('Password').fill(adminPassword)
+    await owner.waitForFunction(hydrated)
+    await owner.getByRole('button', { name: 'Log in' }).click()
+    await owner.waitForURL(/\/(?:workspace)?$/)
+    const created = await owner.evaluate(async () => {
+      const content = '<!doctype html><html><head><title>Probe</title></head><body><p>Bridge probe</p></body></html>'
+      const result = await fetch('/api/rangka', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Bridge probe', type: 'html', content }) })
+      return (await result.json()).rangka
+    })
+    const documentStatus = docId => owner.evaluate(async ([id, doc]) => (await fetch(`/api/rangka/${id}/data/cards/${doc}`)).status, [created.id, docId])
+
+    await owner.goto(`${base}/rangka/${created.id}`)
+    const frame = owner.locator('iframe').first()
+    await owner.frameLocator('iframe').first().getByText('Bridge probe').waitFor()
+    const inner = await (await frame.elementHandle()).contentFrame()
+    const results = await inner.evaluate(async () => {
+      const outcome = async promise => { try { await promise; return 'ok' } catch (error) { return error.status ?? error.message } }
+      const reply = id => new Promise(resolve => {
+        addEventListener('message', function listen(event) {
+          if (event.data?.type === 'serangkai:data-result' && event.data.id === id) { removeEventListener('message', listen); resolve(event.data.error?.status) }
+        })
+      })
+      const out = {}
+      out.info = await window.serangkai.data.info()
+      out.badName = await outcome(window.serangkai.data.set('bad name', 'x', {}))
+      out.notObject = await outcome(window.serangkai.data.set('cards', 'x', [1, 2]))
+      out.missing = await window.serangkai.data.get('cards', 'nothing')
+      // The bridge key is in this document's own URL; a page the frame navigates to never sees it.
+      const key = new URLSearchParams(location.search).get('bridge')
+      out.hasKey = /^[A-Za-z0-9_-]{32}$/.test(key || '')
+      const unknown = reply(424242)
+      parent.postMessage({ type: 'serangkai:data', key, id: 424242, op: 'drop', collection: 'cards' }, '*')
+      out.unknownOp = await unknown
+      // Without the key, a request is ignored: no reply, and nothing is written.
+      parent.postMessage({ type: 'serangkai:data', id: 424243, op: 'set', collection: 'cards', docId: 'no-key', data: {} }, '*')
+      parent.postMessage({ type: 'serangkai:data', key: 'x'.repeat(32), id: 424244, op: 'set', collection: 'cards', docId: 'wrong-key', data: {} }, '*')
+      out.saved = await outcome(window.serangkai.data.set('cards', 'real', { ok: true }))
+      // A frame nested inside the rangka is not the rangka: its requests must be ignored.
+      out.nested = await new Promise(resolve => {
+        addEventListener('message', function listen(event) { if (event.data === 'nested-sent') { removeEventListener('message', listen); resolve('sent') } })
+        const child = document.createElement('iframe')
+        child.srcdoc = '<script>top.postMessage({type:"serangkai:data",id:7,op:"set",collection:"cards",docId:"spoof-nested",data:{}},"*");parent.postMessage("nested-sent","*")<\/script>'
+        document.body.appendChild(child)
+      })
+      return out
+    })
+    assert.deepEqual(results.info, { available: true, writable: true })
+    assert.equal(results.badName, 400)
+    assert.equal(results.notObject, 400)
+    assert.equal(results.missing, null)
+    assert.equal(results.hasKey, true)
+    assert.equal(results.unknownOp, 400)
+    assert.equal(results.saved, 'ok')
+    assert.equal(results.nested, 'sent')
+
+    // The workspace page itself is not the rangka either.
+    await owner.evaluate(() => window.postMessage({ type: 'serangkai:data', id: 8, op: 'set', collection: 'cards', docId: 'spoof-top', data: {} }, '*'))
+    await owner.waitForTimeout(1000)
+    assert.equal(await documentStatus('real'), 200)
+    assert.equal(await documentStatus('spoof-nested'), 404)
+    assert.equal(await documentStatus('spoof-top'), 404)
+    assert.equal(await documentStatus('no-key'), 404)
+    assert.equal(await documentStatus('wrong-key'), 404)
+
+    // Opened directly, outside Serangkai, every call rejects so a rangka can fall back.
+    await owner.goto(`${base}/api/rangka/${created.id}/preview`)
+    const direct = await owner.evaluate(() => window.serangkai.data.list('cards').then(() => 'ok', error => error.message))
+    assert.match(direct, /only available inside Serangkai/)
+  } finally {
+    await context.close()
+  }
 })

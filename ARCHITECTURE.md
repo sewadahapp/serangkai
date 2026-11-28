@@ -102,7 +102,64 @@ RangkaVersion {
   metadata: JSON
   createdAt: Date
 }
+
+RangkaData {
+  rangkaId: string // primary key with collection + docId
+  collection: string // 1-64 of [A-Za-z0-9_-]
+  docId: string // 1-64 of [A-Za-z0-9_-]
+  data: JSON object // at most 64 KB stored
+  bytes: number // stored JSON size, counted toward storage usage
+  updatedBy: 'owner' | 'agent'
+  createdAt: Date
+  updatedAt: Date
+}
 ```
+
+#### Rangka data
+Interactive HTML rangka keep live state, such as kanban cards, in `rangka_data`
+instead of their source (`server/utils/rangka-data.ts`). Data is deliberately
+not versioned: a moved card updates one row rather than copying the whole
+rangka, and restoring an older version keeps the data. Limits: 64 KB per
+document, 5000 documents and 5 MB per rangka, and the account storage limit.
+The per-rangka limits are enforced inside the write itself: one
+`INSERT … SELECT … WHERE <within limits> ON CONFLICT DO UPDATE … RETURNING`
+statement, atomic on SQLite, D1, and libSQL, so concurrent writes cannot pass a
+check together and overshoot. This matters most on D1 and Turso, where every
+query is a network round trip. `GET …/:docId?optional=1` answers a missing
+document with `{ document: null }` instead of a 404; the bridge uses it so a
+first read does not log a browser error.
+
+The HTML frame stays sandboxed with `connect-src 'none'`. Delivery injects a
+small bridge (`server/utils/rangka-data-bridge.ts`) that exposes
+`window.serangkai.data` and posts each call to the framing page;
+`SerangkaiHtmlPreview` matches the sender to its own iframe, validates names,
+and performs the request with the page's credentials
+(`app/utils/rangka-data-bridge.ts`). Each frame load carries a random bridge
+key: the framing page adds `?bridge=<key>` to the frame URL, delivery embeds it
+in the bridge script, and the page answers only messages that carry it. The
+frame's window object survives navigation, so without the key a page the
+rangka links to could use the owner's data access; that page never sees the
+URL (`referrerpolicy="no-referrer"`), so it cannot. Residual: a reply already
+in flight when the frame navigates away reaches the new page; the frame's load
+events cannot tell that apart reliably (Chrome can fire one for the initial
+blank document), so it is accepted. The workspace page reads and writes; the
+share reader can only read (`/api/share-data/:slug`, same access rules as the
+share), so visitors interact with a local copy. Sharing a rangka publishes all
+of its data. Only HTML rangka keep data: writes to other types are refused,
+and the share routes return 404 for them. Bundles do not get the bridge.
+Rows are removed with their rangka; the delete route removes them explicitly
+because a remote libSQL connection may not enforce foreign keys.
+
+The owner sees a rangka's saved data (document count and size) in the version
+history panel and can clear it there (`DELETE /api/rangka/:id/data`).
+Duplicating a rangka copies its data to the private copy, counted against
+storage. Download returns the source file only; data is not part of it.
+The account storage limit is checked before each write but not inside the
+guarded statement, so concurrent writes to different rangka can overshoot it
+by at most a few documents, as with other uploads.
+
+Local SQLite runs in WAL mode with a busy timeout, so page reads continue while
+small data writes commit.
 
 ### Storage Layer
 Rangka bytes use Nitro's built-in storage abstraction (`useStorage()` over
@@ -157,8 +214,9 @@ inside it.
 
 #### Storage accounting and limits
 Every version row records the bytes it stored in `rangka_versions.stored_bytes`
-(content, plus unpacked files for a bundle's first version), so usage is one
-`SUM` per account and drops when a rangka is deleted. Rows written before
+(content, plus unpacked files for a bundle's first version), and every rangka
+data document its JSON size in `rangka_data.bytes`, so usage is two `SUM`s per
+account and drops when a rangka is deleted. Rows written before
 accounting existed are measured once, a batch per request, from driver metadata
 (`server/utils/storage-quota.ts`).
 
@@ -250,8 +308,17 @@ per day and does not remove the current version.
 - `DELETE /api/rangka/:id/versions` - Clear older versions in batches (browser session only)
 - `GET /api/rangka/:id/download` - Download the original source
 - `GET /api/rangka/:id/preview` - Owner-only inline image/PDF preview
-- `POST /api/rangka/:id/duplicate` - Copy an rangka as a new private rangka
+- `POST /api/rangka/:id/duplicate` - Copy an rangka (and its data) as a new private rangka
 - `POST /api/rangka/:id/share` - Build a public or signed unlisted share URL
+- `GET /api/rangka/:id/data` - List a rangka's data collections with counts and sizes
+- `DELETE /api/rangka/:id/data` - Clear all of a rangka's data (`write` scope)
+- `GET /api/rangka/:id/data/:collection` - List documents (`read` scope)
+- `GET|PUT|PATCH|DELETE /api/rangka/:id/data/:collection/:docId` - Read,
+  replace, shallow-merge, or delete one document (`write` scope for changes).
+  Bodies are `{ "data": { … } }`; writes never create a version
+- `GET /api/share-data/:slug/:collection[/:docId]` - Read-only data for a
+  shared rangka, under the share access rules. It is outside `/api/share/:slug/`
+  because that prefix serves bundle files
 - `GET /api/share/:slug` - Public/unlisted rangka delivery. Markdown redirects
   to the `/share/:slug` reader; `?format=json` returns its rendered data.
 - `GET /api/share/:slug/*` - Scoped static bundle asset delivery
@@ -287,6 +354,10 @@ MCP server at `/api/mcp` (Streamable HTTP) providing tools:
   can re-read and merge, the same stale-write guard Claude Code applies.
   Metadata-only updates are exempt, and unchanged content creates no version.
   Mutating tools declare `destructiveHint`.
+- `read_rangka_data` - List a rangka's data collections, a collection's
+  documents, or one document
+- `write_rangka_data` - Apply up to 100 `set`/`update`/`delete` operations to
+  rangka data in order, stopping at the first error. Needs `write`
 
 Every tool declares an `outputSchema` and returns `structuredContent`, with the
 same JSON repeated as text for older clients. List results are objects
@@ -442,6 +513,16 @@ server. Error results carry text only.
   Rangka can opt out with `<meta name="color-scheme" content="only light">`.
   `sandbox allow-scripts` still denies same-origin access, forms, popups, framing,
   and network calls.
+- The HTML frame is granted one permission, `allow="fullscreen"`, so a rangka
+  such as a slide deck can present full screen. The browser only enters full
+  screen from a click or key press, shows its exit notice, and always exits on
+  Esc. The sandbox still denies popups, top-level navigation, and same-origin
+  access, and it is not loosened. Accepted risk: a full-screen page can look
+  like anything, including a fake sign-in, and the CSP allows `https:` images,
+  so a script could send typed text out through an image URL. That was already
+  possible inside the frame; full screen only removes the surrounding app
+  chrome. Camera, microphone, clipboard, and other permissions stay denied;
+  granting one is a separate decision.
 - Workspace and shared HTML previews inject a sizing bridge
   (`server/utils/rangka-preview-height.ts`). Because the sandboxed frame is
   opaque-origin, the parent listens for a source-checked `serangkai:height`
@@ -675,7 +756,7 @@ convenience path for clients that support it. Both resolve to the same scoped
 - **API Tokens**: SHA-256 hashed, scoped (`read`/`write`/`full`), optional expiry; OAuth tokens are audience-bound to `/api/mcp`
 - **Authorization**: All private resources check ownership; API tokens checked for scopes; unlisted downloads require the share key; read-only tokens cannot mint share links
 - **XSS/Sanitization**: Sanitize user input; careful with HTML rendering
-- **Sandboxing**: HTML/JS rangka rendered in sandboxed iframes with restrictive CSP; the opt-in Mermaid/chart runtime is same-origin, declarative, and network-denied
+- **Sandboxing**: HTML/JS rangka rendered in sandboxed iframes with restrictive CSP and no permissions except full screen; the opt-in Mermaid/chart runtime is same-origin, declarative, and network-denied
 - **File Uploads**: Validate file types, size limits, scan if needed
 - **Rate Limiting**: On auth endpoints and API
 - **CSP**: Content Security Policy headers

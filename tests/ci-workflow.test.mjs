@@ -22,6 +22,7 @@ test('CI workflow uses Bun for install, build, and integration coverage', async 
     'tests/browser-workspace.test.mjs',
     'tests/workspace-shell.test.mjs',
     'tests/storage-quota.test.mjs',
+    'tests/rangka-data-api.test.mjs',
     'tests/auth-api.test.mjs',
     'tests/auth-migration.test.mjs',
   ]) assert.match(workflow, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))

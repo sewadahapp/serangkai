@@ -63,6 +63,12 @@ for (const runtime of ['bun', 'node']) {
       method: 'PUT', headers, body: JSON.stringify({ baseVersion: 1, content: '# Updated remote rangka' }),
     })
     assert.equal(update.status, 200)
+    // Rangka data goes through the guarded single-statement upsert on libSQL too.
+    const board = (await (await fetch(`${base}/api/rangka`, { method: 'POST', headers, body: JSON.stringify({ title: 'Turso board', type: 'html', content: '<!doctype html><html><head></head><body>board</body></html>' }) })).json()).rangka
+    const dataPath = `${base}/api/rangka/${board.id}/data/cards/c1`
+    assert.equal((await fetch(dataPath, { method: 'PUT', headers, body: JSON.stringify({ data: { title: 'Remote card' } }) })).status, 200)
+    assert.equal((await fetch(dataPath, { method: 'PATCH', headers, body: JSON.stringify({ data: { column: 'done' } }) })).status, 200)
+    assert.deepEqual((await fetch(`${dataPath}?optional=1`, { headers }).then(r => r.json())).document.data, { title: 'Remote card', column: 'done' })
     const minted = await fetch(`${base}/api/tokens`, {
       method: 'POST', headers, body: JSON.stringify({ name: 'Turso read', scopes: ['read'] }),
     })
@@ -76,6 +82,8 @@ for (const runtime of ['bun', 'node']) {
     assert.equal(loaded.status, 200, await loaded.clone().text())
     assert.match((await loaded.json()).content, /Updated remote rangka/)
     assert.equal((await fetch(`${base}/api/rangka/${rangka.id}/versions`, { headers: { cookie } })).status, 200, 'browser session survives restart')
+    assert.equal((await fetch(dataPath, { headers: bearer }).then(r => r.json())).document.data.column, 'done', 'data survives restart')
+    assert.equal(mock.sqlite.query('SELECT COUNT(*) AS n FROM rangka_data').get().n, 1)
     assert.equal(mock.sqlite.query('SELECT COUNT(*) AS n FROM users').get().n, 1)
     assert.ok(mock.sqlite.query('SELECT COUNT(*) AS n FROM rangka_versions').get().n >= 1)
     assert.equal(existsSync(env.DATABASE_PATH), false, 'remote selection must never create a local database')

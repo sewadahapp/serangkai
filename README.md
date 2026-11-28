@@ -60,7 +60,8 @@ It's for:
   no CSS or JavaScript from the agent.
 - 🎨 **Interactive when you need it.** HTML rangka and static web apps run your
   own code in a sandboxed iframe, as a document, a full-screen app, or a
-  zoomable canvas such as a kanban board or whiteboard.
+  zoomable canvas such as a kanban board or whiteboard. Interactive rangka can
+  save what people change, like moved cards, without publishing a new version.
 - 🤖 **Built for agents.** MCP is built in. Agents sign in through the browser
   or a device code, discover what they can publish, and write only within the
   scopes you approve.
